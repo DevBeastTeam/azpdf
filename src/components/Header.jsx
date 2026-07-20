@@ -395,7 +395,20 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        <a href="#login" className="btn btn-secondary hide-mobile" style={{ border: 'none', fontWeight: '700', color: 'var(--text-dark)' }}>Login</a>
+        <button
+          onClick={() => setView('home')}
+          className="btn btn-secondary hide-mobile"
+          style={{ border: 'none', fontWeight: '700', color: 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          Home
+        </button>
+        <button
+          onClick={() => setView('dashboard')}
+          className="btn btn-secondary hide-mobile"
+          style={{ border: 'none', fontWeight: '700', color: 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          Dashboard
+        </button>
         <a href="#register" className="btn btn-primary hide-mobile" style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '700' }}>Sign up</a>
 
         {/* 3x3 App launcher dots */}

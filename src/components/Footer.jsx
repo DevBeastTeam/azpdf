@@ -41,6 +41,15 @@ export default function Footer({ setView }) {
           </ul>
         </div>
         <div className="footer-col">
+          <h4 className="footer-col-title">Support</h4>
+          <ul className="footer-links">
+            <li><a href="#help" className="footer-link" onClick={(e) => { e.preventDefault(); setView('help'); }}>Help &amp; Support</a></li>
+            <li><a href="#terms" className="footer-link" onClick={(e) => { e.preventDefault(); setView('terms'); }}>Terms &amp; Conditions</a></li>
+            <li><a href="#privacy" className="footer-link" onClick={(e) => { e.preventDefault(); setView('privacy'); }}>Privacy Policy</a></li>
+            <li><a href="#contact" className="footer-link" onClick={(e) => { e.preventDefault(); setView('contact'); }}>Contact Support</a></li>
+          </ul>
+        </div>
+        <div className="footer-col">
           <h4 className="footer-col-title">Other Products</h4>
           <ul className="footer-links">
             <li><a href="https://www.iloveimg.com" target="_blank" rel="noreferrer" className="footer-link" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>iLoveIMG <ArrowUpRight size={12} /></a></li>
@@ -53,27 +62,12 @@ export default function Footer({ setView }) {
       <div className="footer-bottom">
         <div className="footer-bottom-left">
           <span className="copyright">© iLovePDF Clone 2026 - Designed with ❤️</span>
-          <div className="footer-store-badges">
-            <a href="https://apps.apple.com" target="_blank" rel="noreferrer">
-              <img 
-                src="https://upload.wikimedia.org/2000px-logo_App_Store.png" 
-                alt="App Store" 
-                className="footer-badge"
-                style={{ opacity: 0.85, transition: 'opacity 0.2s', height: '32px' }}
-                onMouseOver={(e) => e.target.style.opacity = 1}
-                onMouseOut={(e) => e.target.style.opacity = 0.85}
-              />
-            </a>
-            <a href="https://play.google.com" target="_blank" rel="noreferrer">
-              <img 
-                src="https://upload.wikimedia.org/2000px-Google_Play_Store_badge_EN.svg.png" 
-                alt="Google Play" 
-                className="footer-badge"
-                style={{ opacity: 0.85, transition: 'opacity 0.2s', height: '32px' }}
-                onMouseOver={(e) => e.target.style.opacity = 1}
-                onMouseOut={(e) => e.target.style.opacity = 0.85}
-              />
-            </a>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '6px' }}>
+            <button onClick={() => setView('terms')} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '12px', cursor: 'pointer', padding: '0', textDecoration: 'underline' }}>Terms</button>
+            <span style={{ color: '#4b5563' }}>·</span>
+            <button onClick={() => setView('privacy')} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '12px', cursor: 'pointer', padding: '0', textDecoration: 'underline' }}>Privacy</button>
+            <span style={{ color: '#4b5563' }}>·</span>
+            <button onClick={() => setView('help')} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '12px', cursor: 'pointer', padding: '0', textDecoration: 'underline' }}>Help</button>
           </div>
         </div>
 

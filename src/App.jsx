@@ -5,6 +5,10 @@ import ToolsGrid from './components/ToolsGrid';
 import ToolWorkspace from './components/ToolWorkspace';
 import Pricing from './components/Pricing';
 import ContactUs from './components/ContactUs';
+import Dashboard from './components/Dashboard';
+import TermsAndConditions from './components/TermsAndConditions';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import HelpAndSupport from './components/HelpAndSupport';
 import Footer from './components/Footer';
 import './App.css';
 
@@ -37,6 +41,22 @@ function App() {
       handleBackToHome();
     } else if (viewName === 'contact') {
       setCurrentView('contact');
+      setActiveTool(null);
+    } else if (viewName === 'dashboard') {
+      setCurrentView('dashboard');
+      setActiveTool(null);
+    } else if (viewName === 'terms') {
+      setCurrentView('terms');
+      setActiveTool(null);
+      window.scrollTo(0, 0);
+    } else if (viewName === 'privacy') {
+      setCurrentView('privacy');
+      setActiveTool(null);
+      window.scrollTo(0, 0);
+    } else if (viewName === 'help') {
+      setCurrentView('help');
+      setActiveTool(null);
+      window.scrollTo(0, 0);
     } else if (viewName.startsWith('tool-')) {
       const toolId = viewName;
       let title = 'PDF Tool';
@@ -100,6 +120,14 @@ function App() {
           </>
         ) : currentView === 'contact' ? (
           <ContactUs onBack={handleBackToHome} />
+        ) : currentView === 'dashboard' ? (
+          <Dashboard setView={handleSetViewFromNav} onSelectTool={handleSelectTool} />
+        ) : currentView === 'terms' ? (
+          <TermsAndConditions onBack={handleBackToHome} />
+        ) : currentView === 'privacy' ? (
+          <PrivacyPolicy onBack={handleBackToHome} />
+        ) : currentView === 'help' ? (
+          <HelpAndSupport onBack={handleBackToHome} />
         ) : (
           activeTool && (
             <ToolWorkspace 
@@ -110,7 +138,7 @@ function App() {
         )}
       </main>
 
-      <Footer setView={handleSetViewFromNav} />
+      {currentView !== 'dashboard' && <Footer setView={handleSetViewFromNav} />}
     </div>
   );
 }
