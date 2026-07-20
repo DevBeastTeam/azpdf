@@ -1,0 +1,13 @@
+import React from 'react';
+
+export default function Hero() {
+  return (
+    <section className="hero">
+      <h1 className="hero-title">Every tool you need to work with PDFs in one place</h1>
+      <p className="hero-subtitle">
+        Every tool you need to use PDFs, at your fingertips. All are 100% FREE and easy to use! 
+        Merge, split, compress, convert, rotate, unlock and watermark PDFs with just a few clicks.
+      </p>
+    </section>
+  );
+}
