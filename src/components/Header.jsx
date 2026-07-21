@@ -398,16 +398,23 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
         <button
           onClick={() => setView('home')}
           className="btn btn-secondary hide-mobile"
-          style={{ border: 'none', fontWeight: '700', color: 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          style={{ border: 'none', fontWeight: '700', color: currentView === 'home' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           Home
         </button>
         <button
           onClick={() => setView('dashboard')}
           className="btn btn-secondary hide-mobile"
-          style={{ border: 'none', fontWeight: '700', color: 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          style={{ border: 'none', fontWeight: '700', color: currentView === 'dashboard' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           Dashboard
+        </button>
+        <button
+          onClick={() => setView('admin')}
+          className="btn btn-secondary hide-mobile"
+          style={{ border: 'none', fontWeight: '700', color: currentView === 'admin' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          Admin Panel
         </button>
         <a href="#register" className="btn btn-primary hide-mobile" style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '700' }}>Sign up</a>
 
@@ -434,6 +441,12 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
           </a>
           <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
             COMPRESS PDF <ArrowRight size={16} />
+          </a>
+          <a href="#dashboard" className="mobile-nav-item" onClick={() => { setView('dashboard'); setMobileMenuOpen(false); }}>
+            Dashboard <ArrowRight size={16} />
+          </a>
+          <a href="#admin" className="mobile-nav-item" onClick={() => { setView('admin'); setMobileMenuOpen(false); }}>
+            Admin Panel <ArrowRight size={16} />
           </a>
           <a href="#login" className="mobile-nav-item" onClick={() => setMobileMenuOpen(false)}>
             Login <ArrowRight size={16} />

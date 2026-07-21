@@ -70,34 +70,34 @@ export default function HelpAndSupport({ onBack }) {
   })).filter(cat => cat.items.length > 0);
 
   return (
-    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: '#f8f9fc', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ maxWidth: '860px', width: '100%' }}>
 
-        <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', backgroundColor: '#ffffff', color: '#374151', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
+        <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
           <ArrowLeft size={16} /> Back to Home
         </button>
 
         {/* Hero Header */}
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-          <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '1.2px', color: 'var(--primary-red)', textTransform: 'uppercase', backgroundColor: '#fff1f2', padding: '6px 14px', borderRadius: '20px', display: 'inline-block', marginBottom: '14px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '1.2px', color: 'var(--primary-red)', textTransform: 'uppercase', backgroundColor: 'var(--border-light)', padding: '6px 14px', borderRadius: '20px', display: 'inline-block', marginBottom: '14px' }}>
             Help Center
           </span>
-          <h1 style={{ fontSize: '36px', fontWeight: '800', color: '#111827', marginBottom: '12px' }}>
+          <h1 style={{ fontSize: '36px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '12px' }}>
             How can we help you?
           </h1>
-          <p style={{ fontSize: '16px', color: '#6b7280', marginBottom: '28px' }}>
+          <p style={{ fontSize: '16px', color: 'var(--text-gray)', marginBottom: '28px' }}>
             Find answers to common questions or contact our support team directly.
           </p>
 
           {/* Search bar */}
           <div style={{ position: 'relative', maxWidth: '520px', margin: '0 auto' }}>
-            <Search size={18} color="#9ca3af" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
+            <Search size={18} color="var(--text-light-gray)" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
               placeholder="Search help topics... e.g. merge, compress, OCR"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              style={{ width: '100%', padding: '14px 14px 14px 46px', borderRadius: '12px', border: '1px solid #d1d5db', fontSize: '15px', outline: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}
+              style={{ width: '100%', padding: '14px 14px 14px 46px', borderRadius: '12px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '15px', outline: 'none', boxShadow: 'var(--shadow-sm)' }}
             />
           </div>
         </div>
@@ -106,12 +106,12 @@ export default function HelpAndSupport({ onBack }) {
         {!searchQuery && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '48px' }}>
             {FAQ_DATA.map((cat, i) => (
-              <div key={i} style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', cursor: 'default' }}>
+              <div key={i} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: 'var(--shadow-sm)', cursor: 'default' }}>
                 <div style={{ padding: '8px', backgroundColor: cat.bg, borderRadius: '8px', width: 'fit-content', color: cat.color }}>
                   {cat.icon}
                 </div>
-                <div style={{ fontSize: '14px', fontWeight: '800', color: '#111827' }}>{cat.category}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280' }}>{cat.items.length} articles</div>
+                <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>{cat.category}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{cat.items.length} articles</div>
               </div>
             ))}
           </div>
@@ -125,7 +125,7 @@ export default function HelpAndSupport({ onBack }) {
                 <div style={{ padding: '8px', backgroundColor: cat.bg, borderRadius: '8px', color: cat.color }}>
                   {cat.icon}
                 </div>
-                <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#111827' }}>{cat.category}</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)' }}>{cat.category}</h2>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -135,17 +135,17 @@ export default function HelpAndSupport({ onBack }) {
                   return (
                     <div
                       key={itemIdx}
-                      style={{ backgroundColor: '#ffffff', border: `1px solid ${isOpen ? '#e52424' : '#e5e7eb'}`, borderRadius: '12px', overflow: 'hidden', transition: 'border-color 0.2s' }}
+                      style={{ backgroundColor: 'var(--bg-card)', border: `1px solid ${isOpen ? 'var(--primary-red)' : 'var(--border-light)'}`, borderRadius: '12px', overflow: 'hidden', transition: 'border-color 0.2s' }}
                     >
                       <button
                         onClick={() => toggleItem(catIdx, itemIdx)}
                         style={{ width: '100%', padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
                       >
-                        <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>{item.q}</span>
-                        {isOpen ? <ChevronUp size={18} color="var(--primary-red)" /> : <ChevronDown size={18} color="#9ca3af" />}
+                        <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>{item.q}</span>
+                        {isOpen ? <ChevronUp size={18} color="var(--primary-red)" /> : <ChevronDown size={18} color="var(--text-light-gray)" />}
                       </button>
                       {isOpen && (
-                        <div style={{ padding: '4px 20px 20px', fontSize: '14px', color: '#4b5563', lineHeight: '1.8', borderTop: '1px solid #f9fafb' }}>
+                        <div style={{ padding: '4px 20px 20px', fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.8', borderTop: '1px solid var(--border-light)' }}>
                           {item.a}
                         </div>
                       )}
@@ -157,8 +157,8 @@ export default function HelpAndSupport({ onBack }) {
           ))}
 
           {filteredFAQ.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#6b7280' }}>
-              <Search size={40} color="#d1d5db" style={{ marginBottom: '12px' }} />
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-gray)' }}>
+              <Search size={40} color="var(--text-light-gray)" style={{ marginBottom: '12px' }} />
               <div style={{ fontSize: '16px', fontWeight: '600' }}>No results for "{searchQuery}"</div>
               <div style={{ fontSize: '14px', marginTop: '6px' }}>Try a different keyword or contact our support team below.</div>
             </div>
@@ -166,31 +166,31 @@ export default function HelpAndSupport({ onBack }) {
         </div>
 
         {/* Still Need Help - Contact Cards */}
-        <div style={{ backgroundColor: '#111827', borderRadius: '20px', padding: '40px', color: '#ffffff', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '10px' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '40px', color: 'var(--text-dark)', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '10px', color: 'var(--text-dark)' }}>
             Still need help?
           </h2>
-          <p style={{ fontSize: '15px', color: '#9ca3af', marginBottom: '32px' }}>
+          <p style={{ fontSize: '15px', color: 'var(--text-gray)', marginBottom: '32px' }}>
             Our support team is available Monday to Friday, 9am – 6pm CET.
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <a href="mailto:support@ilovepdf.com" style={{ textDecoration: 'none', backgroundColor: '#1f2937', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', transition: 'background 0.2s' }}>
+            <a href="mailto:support@ilovepdf.com" style={{ textDecoration: 'none', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', transition: 'background 0.2s' }}>
               <Mail size={28} color="var(--primary-red)" />
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb' }}>Email Support</div>
-              <div style={{ fontSize: '13px', color: '#9ca3af' }}>support@ilovepdf.com</div>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>Email Support</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>support@ilovepdf.com</div>
             </a>
 
-            <div style={{ backgroundColor: '#1f2937', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
               <MessageCircle size={28} color="#3b82f6" />
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb' }}>Live Chat</div>
-              <div style={{ fontSize: '13px', color: '#9ca3af' }}>Available for Premium users</div>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>Live Chat</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>Available for Premium users</div>
             </div>
 
-            <div style={{ backgroundColor: '#1f2937', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
               <FileText size={28} color="#10b981" />
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#f9fafb' }}>Documentation</div>
-              <div style={{ fontSize: '13px', color: '#9ca3af' }}>API & Developer Docs</div>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>Documentation</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>API & Developer Docs</div>
             </div>
           </div>
         </div>

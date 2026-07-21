@@ -3,24 +3,24 @@ import { ArrowLeft, Shield, Eye, Database, Cookie, UserCheck, Lock, Mail } from 
 
 export default function PrivacyPolicy({ onBack }) {
   return (
-    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: '#f8f9fc', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ maxWidth: '820px', width: '100%' }}>
 
-        <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', backgroundColor: '#ffffff', color: '#374151', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
+        <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
           <ArrowLeft size={16} /> Back to Home
         </button>
 
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '48px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '48px', boxShadow: 'var(--shadow-sm)' }}>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
-            <div style={{ padding: '10px', backgroundColor: '#fff1f2', borderRadius: '12px' }}>
+            <div style={{ padding: '10px', backgroundColor: 'var(--border-light)', borderRadius: '12px' }}>
               <Shield size={24} color="var(--primary-red)" />
             </div>
-            <h1 style={{ fontSize: '30px', fontWeight: '800', color: '#111827' }}>Privacy Policy</h1>
+            <h1 style={{ fontSize: '30px', fontWeight: '800', color: 'var(--text-dark)' }}>Privacy Policy</h1>
           </div>
-          <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '36px' }}>Last updated: July 20, 2026 · We value your privacy and are committed to protecting your personal data.</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-light-gray)', marginBottom: '36px' }}>Last updated: July 20, 2026 · We value your privacy and are committed to protecting your personal data.</p>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', marginBottom: '36px' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', marginBottom: '36px' }} />
 
           {/* Highlights row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '40px' }}>
@@ -30,10 +30,10 @@ export default function PrivacyPolicy({ onBack }) {
               { icon: <UserCheck size={20} />, label: 'No Selling Data', desc: 'We never sell your personal data to third parties' },
               { icon: <Eye size={20} />, label: 'Full Transparency', desc: 'Clear information about what data we collect' }
             ].map((item, i) => (
-              <div key={i} style={{ backgroundColor: '#f9fafb', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid #f3f4f6' }}>
+              <div key={i} style={{ backgroundColor: 'var(--bg-light)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border-light)' }}>
                 <span style={{ color: 'var(--primary-red)' }}>{item.icon}</span>
-                <div style={{ fontSize: '13px', fontWeight: '800', color: '#111827' }}>{item.label}</div>
-                <div style={{ fontSize: '12px', color: '#6b7280' }}>{item.desc}</div>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)' }}>{item.label}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{item.desc}</div>
               </div>
             ))}
           </div>
@@ -121,14 +121,14 @@ We take all privacy concerns seriously and will respond to your inquiry within 7
             <div key={i} style={{ marginBottom: '36px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <span style={{ color: 'var(--primary-red)' }}>{section.icon}</span>
-                <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#111827' }}>{section.title}</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)' }}>{section.title}</h2>
               </div>
-              <p style={{ fontSize: '15px', color: '#4b5563', lineHeight: '1.8', whiteSpace: 'pre-line' }}>{section.body}</p>
+              <p style={{ fontSize: '15px', color: 'var(--text-gray)', lineHeight: '1.8', whiteSpace: 'pre-line' }}>{section.body}</p>
             </div>
           ))}
 
-          <div style={{ backgroundColor: '#f9fafb', borderRadius: '12px', padding: '20px 24px', borderLeft: '4px solid var(--primary-red)' }}>
-            <p style={{ fontSize: '14px', color: '#374151', fontWeight: '600' }}>
+          <div style={{ backgroundColor: 'var(--bg-light)', borderRadius: '12px', padding: '20px 24px', borderLeft: '4px solid var(--primary-red)' }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-gray)', fontWeight: '600' }}>
               Privacy questions? Contact us at <a href="mailto:privacy@ilovepdf.com" style={{ color: 'var(--primary-red)', textDecoration: 'none' }}>privacy@ilovepdf.com</a>
             </p>
           </div>

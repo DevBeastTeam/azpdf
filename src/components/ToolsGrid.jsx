@@ -304,7 +304,7 @@ const categories = [
   { id: 'intelligence', label: 'PDF Intelligence' }
 ];
 
-export default function ToolsGrid({ onSelectTool }) {
+export default function ToolsGrid({ onSelectTool, toolsConfig }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -361,13 +361,44 @@ export default function ToolsGrid({ onSelectTool }) {
       <div className="tools-grid">
         {filteredTools.map((tool) => {
           const IconComponent = tool.icon;
+          const isEnabled = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].enabled : true;
+          
           return (
             <div 
               key={tool.id} 
               className={`tool-card ${tool.colorClass}`}
-              onClick={() => onSelectTool(tool)}
-              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                if (!isEnabled) {
+                  alert(`🛠️ "${tool.title}" is temporarily offline for maintenance updates. Please check back later!`);
+                  return;
+                }
+                onSelectTool(tool);
+              }}
+              style={{ 
+                cursor: 'pointer',
+                opacity: isEnabled ? 1 : 0.55,
+                filter: isEnabled ? 'none' : 'grayscale(0.9)',
+                position: 'relative',
+                transition: 'all 0.3s'
+              }}
             >
+              {!isEnabled && (
+                <div style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  backgroundColor: '#ef4444',
+                  color: '#ffffff',
+                  fontSize: '9px',
+                  fontWeight: '800',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  letterSpacing: '0.5px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}>
+                  MAINTENANCE
+                </div>
+              )}
               <div className="tool-card-icon">
                 <IconComponent style={{ width: '100%', height: '100%' }} />
               </div>

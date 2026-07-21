@@ -31,6 +31,16 @@ app.post('/api/watermark', upload.array('files'), pdfController.watermarkPdf);
 app.post('/api/protect', upload.array('files'), pdfController.protectPdf);
 app.post('/api/pdf-to-txt', upload.array('files'), pdfController.pdfToTxt);
 app.post('/api/pdf-to-word', upload.array('files'), pdfController.pdfToTxt); // Text export fallback for word
+app.post('/api/pdf-to-ppt', upload.array('files'), pdfController.pdfToPpt);
+app.post('/api/pdf-to-excel', upload.array('files'), pdfController.pdfToExcel);
+app.post('/api/word-to-pdf', upload.array('files'), pdfController.wordToPdf);
+app.post('/api/ppt-to-pdf', upload.array('files'), pdfController.pptToPdf);
+app.post('/api/excel-to-pdf', upload.array('files'), pdfController.excelToPdf);
+app.post('/api/organize', upload.array('files'), pdfController.organizePdf);
+app.post('/api/unlock', upload.array('files'), pdfController.unlockPdf);
+app.post('/api/ai-summarizer', upload.array('files'), pdfController.aiSummarizer);
+app.post('/api/translate', upload.array('files'), pdfController.translatePdf);
+app.post('/api/pdf-to-markdown', upload.array('files'), pdfController.pdfToMarkdown);
 
 // Global error handler
 app.use((err, req, res, next) => {

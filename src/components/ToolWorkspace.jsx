@@ -4,7 +4,7 @@ import {
   Trash2, RefreshCw, Share2, ExternalLink 
 } from 'lucide-react';
 
-export default function ToolWorkspace({ tool, onBack }) {
+export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcessed }) {
   const [files, setFiles] = useState([]);
   const [dragActive, setDragActive] = useState(false);
   const [status, setStatus] = useState('upload'); // states: 'upload', 'queued', 'processing', 'success'
@@ -57,6 +57,18 @@ export default function ToolWorkspace({ tool, onBack }) {
   const [downloadFilename, setDownloadFilename] = useState('processed.pdf');
 
   const addFiles = (newFiles) => {
+    const sizeLimitMb = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].maxFileSizeMb : 50;
+
+    const oversizedFiles = newFiles.filter(file => {
+      const sizeBytes = file.size !== undefined ? file.size : 1.45 * 1024 * 1024;
+      return sizeBytes > (sizeLimitMb * 1024 * 1024);
+    });
+
+    if (oversizedFiles.length > 0) {
+      alert(`❌ Size limit exceeded!\nThe system administrator has limited upload file size for "${tool.title}" to a maximum of ${sizeLimitMb} MB. Please optimize your file and try again.`);
+      return;
+    }
+
     const parsedFiles = newFiles.map(file => {
       const isReal = file instanceof File || file instanceof Blob;
       return {
@@ -71,7 +83,7 @@ export default function ToolWorkspace({ tool, onBack }) {
   };
 
   const loadMockFiles = (e) => {
-    e.stopPropagation(); // Avoid triggering file upload browse window
+    e.stopPropagation(); 
     let ext = 'pdf';
     if (tool.id.includes('jpg')) ext = 'jpg';
     else if (tool.id.includes('excel')) ext = 'xlsx';
@@ -83,15 +95,14 @@ export default function ToolWorkspace({ tool, onBack }) {
 
     const mockList = [
       { name: `tax_invoice_2026.${ext}`, size: 1048576 * 1.2, type: `application/${ext}`, rawFile: dummyBlob1 },
-      { name: `project_specification.${ext}`, size: 1048576 * 2.8, type: `application/${ext}`, rawFile: dummyBlob2 }
+      { name: `project_specification.${ext}`, size: 1048576 * 1.75, type: `application/${ext}`, rawFile: dummyBlob2 }
     ];
     addFiles(mockList);
   };
 
   const removeFile = (index) => {
-    const updated = files.filter((_, i) => i !== index);
-    setFiles(updated);
-    if (updated.length === 0) {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+    if (files.length <= 1) {
       setStatus('upload');
     }
   };
@@ -109,6 +120,16 @@ export default function ToolWorkspace({ tool, onBack }) {
     if (toolId.includes('watermark')) return 'http://localhost:5000/api/watermark';
     if (toolId.includes('protect')) return 'http://localhost:5000/api/protect';
     if (toolId.includes('pdftoword')) return 'http://localhost:5000/api/pdf-to-txt';
+    if (toolId.includes('pdftopowerpoint')) return 'http://localhost:5000/api/pdf-to-ppt';
+    if (toolId.includes('pdftoexcel')) return 'http://localhost:5000/api/pdf-to-excel';
+    if (toolId.includes('wordtopdf')) return 'http://localhost:5000/api/word-to-pdf';
+    if (toolId.includes('powerpointtopdf')) return 'http://localhost:5000/api/ppt-to-pdf';
+    if (toolId.includes('exceltopdf')) return 'http://localhost:5000/api/excel-to-pdf';
+    if (toolId.includes('organize')) return 'http://localhost:5000/api/organize';
+    if (toolId.includes('unlock')) return 'http://localhost:5000/api/unlock';
+    if (toolId.includes('aisummarizer')) return 'http://localhost:5000/api/ai-summarizer';
+    if (toolId.includes('translate')) return 'http://localhost:5000/api/translate';
+    if (toolId.includes('markdown')) return 'http://localhost:5000/api/pdf-to-markdown';
     return 'http://localhost:5000/api/merge';
   };
 
@@ -144,7 +165,6 @@ export default function ToolWorkspace({ tool, onBack }) {
       const resultBlob = await response.blob();
       setDownloadBlob(resultBlob);
 
-      // Determine output filename
       let filename = `ilovepdf_${tool.id.replace('tool-', '')}.pdf`;
       const disposition = response.headers.get('Content-Disposition');
       if (disposition && disposition.includes('filename=')) {
@@ -156,13 +176,39 @@ export default function ToolWorkspace({ tool, onBack }) {
       setProgress(100);
       setStatus('success');
 
-      // Auto-trigger browser download
+      const totalSizeMb = files.reduce((acc, f) => {
+        const numericSize = parseFloat(f.size) || 1.45;
+        return acc + numericSize;
+      }, 0).toFixed(1) + ' MB';
+
+      if (typeof onFileProcessed === 'function') {
+        onFileProcessed({
+          name: filename,
+          tool: tool.title,
+          size: totalSizeMb
+        });
+      }
+
       triggerDownload(resultBlob, filename);
     } catch (err) {
       console.warn('Backend server fallback:', err.message);
-      // Fallback simulation if backend connection encounters issue
       setProgress(100);
       setStatus('success');
+
+      const fallbackFilename = downloadFilename || `ilovepdf_${tool.id.replace('tool-', '')}.pdf`;
+      const totalSizeMb = files.reduce((acc, f) => {
+        const numericSize = parseFloat(f.size) || 1.45;
+        return acc + numericSize;
+      }, 0).toFixed(1) + ' MB';
+
+      if (typeof onFileProcessed === 'function') {
+        onFileProcessed({
+          name: fallbackFilename,
+          tool: tool.title,
+          size: totalSizeMb
+        });
+      }
+
       downloadMockFile();
     }
   };
@@ -247,7 +293,7 @@ startxref
       style={{ 
         width: '100%', 
         minHeight: 'calc(100vh - 64px)', 
-        backgroundColor: '#f8f9fc',
+        backgroundColor: 'var(--bg-light)',
         display: 'flex', 
         flexDirection: 'column',
         alignItems: 'center',
@@ -262,7 +308,7 @@ startxref
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          backgroundColor: 'var(--bg-card)',
           border: '4px dashed var(--primary-red)',
           borderRadius: '12px',
           zIndex: 9999,
@@ -278,14 +324,37 @@ startxref
         </div>
       )}
 
-      <div className="tool-workspace" style={{ padding: '60px 24px', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Workspace Back Navigation */}
+      <div style={{ alignSelf: 'flex-start', padding: '24px 0 0 24px', zIndex: 5 }}>
+        <button 
+          onClick={onBack}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: 'var(--bg-card)',
+            color: 'var(--text-gray)',
+            border: '1px solid var(--border-light)',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: '700',
+            fontSize: '14px',
+            transition: 'all 0.2s'
+          }}
+        >
+          <ArrowLeft size={16} /> Back to Tools
+        </button>
+      </div>
+
+      <div className="tool-workspace" style={{ padding: '40px 24px 60px 24px', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         
         {status === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '800px' }}>
-            <h1 style={{ fontSize: '46px', fontWeight: '700', color: '#1f2937', marginBottom: '8px', fontFamily: 'inherit' }}>
+            <h1 style={{ fontSize: '46px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '8px', fontFamily: 'inherit' }}>
               {tool.title} files
             </h1>
-            <p style={{ fontSize: '20px', color: '#4b5563', marginBottom: '36px', maxWidth: '650px', lineHeight: '1.4' }}>
+            <p style={{ fontSize: '20px', color: 'var(--text-gray)', marginBottom: '36px', maxWidth: '650px', lineHeight: '1.4' }}>
               {tool.desc}
             </p>
 
@@ -327,7 +396,6 @@ startxref
                   onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.08)'}
                   onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                  {/* Triangle Google Drive Logo */}
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                     <path d="M15.3 12L9.3 1.6h5.4L20.7 12z M8.7 12.8L1.6 20.4h5.4L14.1 12.8z M4.7 19.6h14.6l-2.7-4.8H7.4z"/>
                   </svg>
@@ -350,7 +418,6 @@ startxref
                   onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.08)'}
                   onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
-                  {/* Open Box Dropbox Logo */}
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                     <path d="M6 2L1 5.3l5 3.3 5-3.3zm12 0l-5 3.3 5 3.3 5-3.3zm-12 10l-5-3.3 5-3.3 5 3.3zm12 0l-5-3.3 5-3.3 5 3.3zM12 13.8l-5-3.3v1.3l5 3.3 5-3.3v-1.3zM12 16.5l-5-3.3v1l5 3.3 5-3.3v-1z"/>
                   </svg>
@@ -358,7 +425,7 @@ startxref
               </div>
             </div>
 
-            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '50px' }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '50px' }}>
               or drop {tool.id.includes('jpg') ? 'JPGs' : 'PDFs'} here
             </p>
 
@@ -376,8 +443,8 @@ startxref
               width: '100%',
               maxWidth: '728px',
               height: '90px',
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
               borderRadius: '4px',
               boxShadow: 'var(--shadow-sm)',
               display: 'flex',
@@ -415,13 +482,12 @@ startxref
                   <div style={{ marginLeft: '6px', color: '#a6e3a1' }}>success()</div>
                 </div>
 
-                {/* Android head & text */}
                 <svg viewBox="0 0 24 24" width="32" height="32" fill="#3DDC84">
                   <path d="M12 2a5 5 0 0 0-5 5v1h10V7a5 5 0 0 0-5-5zM7 9a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H7zm1.5 3a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm5.5 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0z"/>
                 </svg>
                 <div style={{ textAlign: 'left' }}>
-                  <h4 style={{ fontSize: '18px', fontWeight: '800', color: '#1f2937', margin: 0 }}>Refactor with confidence</h4>
-                  <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>Google Play Protect Certified Tool</p>
+                  <h4 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Refactor with confidence</h4>
+                  <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: 0 }}>Google Play Protect Certified Tool</p>
                 </div>
               </div>
 
@@ -442,7 +508,7 @@ startxref
                 >
                   Download
                 </a>
-                <span style={{ cursor: 'pointer', color: '#9ca3af', fontSize: '14px' }}>✕</span>
+                <span style={{ cursor: 'pointer', color: 'var(--text-light-gray)', fontSize: '14px' }}>✕</span>
               </div>
             </div>
           </div>
@@ -452,15 +518,15 @@ startxref
           <div style={{ width: '100%', maxWidth: '800px' }}>
             <div className="file-list-container">
               {files.map((file, idx) => (
-                <div key={idx} className="file-row">
+                <div key={idx} className="file-row" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)' }}>
                   <div className="file-info">
-                    <FileText className="file-icon" size={24} />
+                    <FileText className="file-icon" size={24} style={{ color: 'var(--primary-red)' }} />
                     <div>
-                      <div className="file-name">{file.name}</div>
-                      <div className="file-size">{file.size}</div>
+                      <div className="file-name" style={{ color: 'var(--text-dark)', fontWeight: '700' }}>{file.name}</div>
+                      <div className="file-size" style={{ color: 'var(--text-gray)' }}>{file.size}</div>
                     </div>
                   </div>
-                  <button className="file-remove" onClick={() => removeFile(idx)} aria-label="Delete File">
+                  <button className="file-remove" onClick={() => removeFile(idx)} aria-label="Delete File" style={{ color: '#ef4444' }}>
                     <Trash2 size={18} />
                   </button>
                 </div>
@@ -468,10 +534,10 @@ startxref
             </div>
 
             <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
-              <button className="btn btn-secondary" onClick={selectFilesClick}>
+              <button className="btn btn-secondary" onClick={selectFilesClick} style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)' }}>
                 Add More Files
               </button>
-              <button className="btn btn-primary" style={{ minWidth: '200px' }} onClick={startProcessing}>
+              <button className="btn btn-primary" style={{ minWidth: '200px', backgroundColor: 'var(--primary-red)' }} onClick={startProcessing}>
                 {getActionLabel()}
               </button>
             </div>
@@ -487,37 +553,37 @@ startxref
         )}
 
         {status === 'processing' && (
-          <div className="processing-container">
-            <div className="spinner"></div>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>Processing files...</h3>
-            <p style={{ color: 'var(--text-light-gray)' }}>{activeStepText}</p>
+          <div className="processing-container" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '40px', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '500px' }}>
+            <div className="spinner" style={{ border: '4px solid var(--border-light)', borderTop: '4px solid var(--primary-red)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', marginBottom: '20px' }}></div>
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '8px' }}>Processing files...</h3>
+            <p style={{ color: 'var(--text-gray)' }}>{activeStepText}</p>
             
-            <div className="progress-track">
-              <div className="progress-bar" style={{ width: `${progress}%` }}></div>
+            <div className="progress-track" style={{ width: '100%', height: '8px', backgroundColor: 'var(--bg-light)', borderRadius: '4px', overflow: 'hidden', margin: '20px 0 10px 0' }}>
+              <div className="progress-bar" style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--primary-red)', transition: 'width 0.2s' }}></div>
             </div>
             <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-gray)' }}>{progress}% Completed</span>
           </div>
         )}
 
         {status === 'success' && (
-          <div className="success-container">
-            <div className="success-icon-container">
+          <div className="success-container" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '40px', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '500px' }}>
+            <div className="success-icon-container" style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyCenter: 'center', marginBottom: '20px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
               <CheckCircle2 size={40} />
             </div>
-            <h3 className="success-title">Successfully Processed!</h3>
-            <p className="success-desc">
+            <h3 className="success-title" style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px' }}>Successfully Processed!</h3>
+            <p className="success-desc" style={{ fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.5', marginBottom: '28px' }}>
               Your task has been completed using secure 256-bit encryption. The file is ready for download.
             </p>
 
-            <button className="btn-download" onClick={downloadMockFile}>
+            <button className="btn-download" onClick={downloadMockFile} style={{ width: '100%', padding: '14px 20px', borderRadius: '10px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(229, 36, 36, 0.25)', marginBottom: '20px' }}>
               <Download size={22} /> Download File
             </button>
 
-            <div className="btn-group">
-              <button className="btn btn-secondary" onClick={resetWorkspace} style={{ gap: '6px' }}>
+            <div className="btn-group" style={{ display: 'flex', gap: '12px', width: '100%' }}>
+              <button className="btn btn-secondary" onClick={resetWorkspace} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>
                 <RefreshCw size={14} /> Start Over
               </button>
-              <button className="btn btn-secondary" onClick={onBack} style={{ gap: '6px' }}>
+              <button className="btn btn-secondary" onClick={onBack} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>
                 All Tools <ExternalLink size={14} />
               </button>
             </div>

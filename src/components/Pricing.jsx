@@ -7,11 +7,11 @@ export default function Pricing({ onContactSales }) {
   return (
     <section className="pricing-section" style={{
       padding: '80px 24px',
-      backgroundColor: '#ffffff',
+      backgroundColor: 'var(--bg-light)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      borderTop: '1px solid #e5e7eb'
+      borderTop: '1px solid var(--border-light)'
     }}>
       <div style={{ maxWidth: '1200px', width: '100%', textAlign: 'center' }}>
         
@@ -22,7 +22,7 @@ export default function Pricing({ onContactSales }) {
           letterSpacing: '1.2px',
           color: 'var(--primary-red)',
           textTransform: 'uppercase',
-          backgroundColor: '#fff1f2',
+          backgroundColor: 'var(--border-light)',
           padding: '6px 14px',
           borderRadius: '20px',
           display: 'inline-block',
@@ -35,7 +35,7 @@ export default function Pricing({ onContactSales }) {
         <h2 style={{
           fontSize: '36px',
           fontWeight: '800',
-          color: '#111827',
+          color: 'var(--text-dark)',
           marginBottom: '12px',
           letterSpacing: '-0.5px'
         }}>
@@ -44,7 +44,7 @@ export default function Pricing({ onContactSales }) {
 
         <p style={{
           fontSize: '16px',
-          color: '#6b7280',
+          color: 'var(--text-gray)',
           maxWidth: '640px',
           margin: '0 auto 36px auto',
           lineHeight: '1.6'
@@ -57,7 +57,7 @@ export default function Pricing({ onContactSales }) {
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
-          backgroundColor: '#f3f4f6',
+          backgroundColor: 'var(--border-light)',
           padding: '4px',
           borderRadius: '30px',
           marginBottom: '50px'
@@ -72,8 +72,8 @@ export default function Pricing({ onContactSales }) {
               fontWeight: '700',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              backgroundColor: !isYearly ? '#ffffff' : 'transparent',
-              color: !isYearly ? '#111827' : '#6b7280',
+              backgroundColor: !isYearly ? 'var(--bg-card)' : 'transparent',
+              color: !isYearly ? 'var(--text-dark)' : 'var(--text-gray)',
               boxShadow: !isYearly ? '0 2px 8px rgba(0,0,0,0.06)' : 'none'
             }}
           >
@@ -90,8 +90,8 @@ export default function Pricing({ onContactSales }) {
               fontWeight: '700',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              backgroundColor: isYearly ? '#ffffff' : 'transparent',
-              color: isYearly ? '#111827' : '#6b7280',
+              backgroundColor: isYearly ? 'var(--bg-card)' : 'transparent',
+              color: isYearly ? 'var(--text-dark)' : 'var(--text-gray)',
               boxShadow: isYearly ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
               display: 'flex',
               alignItems: 'center',
@@ -123,46 +123,46 @@ export default function Pricing({ onContactSales }) {
           
           {/* Card 1: Free Plan */}
           <div style={{
-            backgroundColor: '#ffffff',
-            border: '1px solid #e5e7eb',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
             borderRadius: '20px',
             padding: '36px 30px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             transition: 'transform 0.2s, box-shadow 0.2s',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.03)'
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <div style={{ padding: '8px', backgroundColor: '#f3f4f6', borderRadius: '10px' }}>
-                  <Shield size={20} color="#4b5563" />
+                <div style={{ padding: '8px', backgroundColor: 'var(--bg-light)', borderRadius: '10px' }}>
+                  <Shield size={20} color="var(--text-gray)" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#111827' }}>Free</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>Free</h3>
               </div>
 
-              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '24px', minHeight: '40px' }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '24px', minHeight: '40px' }}>
                 Essential PDF tools for quick tasks and light usage.
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '28px' }}>
-                <span style={{ fontSize: '42px', fontWeight: '800', color: '#111827' }}>$0</span>
-                <span style={{ fontSize: '14px', color: '#9ca3af' }}>/ forever</span>
+                <span style={{ fontSize: '42px', fontWeight: '800', color: 'var(--text-dark)' }}>$0</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-light-gray)' }}>/ forever</span>
               </div>
 
-              <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', marginBottom: '24px' }} />
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', marginBottom: '24px' }} />
 
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#10b981" /> Access to standard web tools
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#10b981" /> Up to 15MB file upload limit
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#10b981" /> Process 2 files per batch
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#10b981" /> Standard 256-bit SSL security
                 </li>
               </ul>
@@ -173,9 +173,9 @@ export default function Pricing({ onContactSales }) {
               padding: '14px',
               width: '100%',
               borderRadius: '12px',
-              border: '1px solid #d1d5db',
-              backgroundColor: '#ffffff',
-              color: '#374151',
+              border: '1px solid var(--border-light)',
+              backgroundColor: 'var(--bg-card)',
+              color: 'var(--text-gray)',
               fontWeight: '700',
               fontSize: '15px',
               cursor: 'pointer',
@@ -187,7 +187,7 @@ export default function Pricing({ onContactSales }) {
 
           {/* Card 2: Premium Plan (Featured) */}
           <div style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'var(--bg-card)',
             border: '2px solid var(--primary-red)',
             borderRadius: '20px',
             padding: '36px 30px',
@@ -223,39 +223,39 @@ export default function Pricing({ onContactSales }) {
                 <div style={{ padding: '8px', backgroundColor: '#fff1f2', borderRadius: '10px' }}>
                   <Zap size={20} color="var(--primary-red)" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#111827' }}>Premium</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>Premium</h3>
               </div>
 
-              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '24px', minHeight: '40px' }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '24px', minHeight: '40px' }}>
                 Complete access, unlimited processing, OCR speed, and zero ads.
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '28px' }}>
-                <span style={{ fontSize: '42px', fontWeight: '800', color: '#111827' }}>
+                <span style={{ fontSize: '42px', fontWeight: '800', color: 'var(--text-dark)' }}>
                   ${isYearly ? '4' : '6'}
                 </span>
-                <span style={{ fontSize: '14px', color: '#9ca3af' }}>/ month</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-light-gray)' }}>/ month</span>
               </div>
 
-              <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', marginBottom: '24px' }} />
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', marginBottom: '24px' }} />
 
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#111827', fontWeight: '600' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-dark)', fontWeight: '600' }}>
                   <Check size={18} color="var(--primary-red)" /> Unlimited PDF processing
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#111827', fontWeight: '600' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-dark)', fontWeight: '600' }}>
                   <Check size={18} color="var(--primary-red)" /> Up to 4GB file size limit
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#111827', fontWeight: '600' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-dark)', fontWeight: '600' }}>
                   <Check size={18} color="var(--primary-red)" /> High-speed OCR text recognition
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="var(--primary-red)" /> Batch process 100 files at once
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="var(--primary-red)" /> Digital e-Signatures & Security
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="var(--primary-red)" /> 100% Ad-free experience
                 </li>
               </ul>
@@ -281,51 +281,51 @@ export default function Pricing({ onContactSales }) {
 
           {/* Card 3: Business Plan */}
           <div style={{
-            backgroundColor: '#ffffff',
-            border: '1px solid #e5e7eb',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
             borderRadius: '20px',
             padding: '36px 30px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             transition: 'transform 0.2s, box-shadow 0.2s',
-            boxShadow: '0 4px 15px rgba(0,0,0,0.03)'
+            boxShadow: 'var(--shadow-sm)'
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <div style={{ padding: '8px', backgroundColor: '#eff6ff', borderRadius: '10px' }}>
                   <Building2 size={20} color="#2563eb" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#111827' }}>Business</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>Business</h3>
               </div>
 
-              <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '24px', minHeight: '40px' }}>
+              <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '24px', minHeight: '40px' }}>
                 Custom workflow tools and team license management.
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '28px' }}>
-                <span style={{ fontSize: '42px', fontWeight: '800', color: '#111827' }}>
+                <span style={{ fontSize: '42px', fontWeight: '800', color: 'var(--text-dark)' }}>
                   ${isYearly ? '8' : '10'}
                 </span>
-                <span style={{ fontSize: '14px', color: '#9ca3af' }}>/ user / mo</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-light-gray)' }}>/ user / mo</span>
               </div>
 
-              <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', marginBottom: '24px' }} />
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', marginBottom: '24px' }} />
 
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#2563eb" /> Everything in Premium
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#2563eb" /> Multi-user team management
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#2563eb" /> Single Sign-On (SAML SSO)
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#2563eb" /> Dedicated account manager
                 </li>
-                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: '#374151' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
                   <Check size={18} color="#2563eb" /> 24/7 VIP priority support
                 </li>
               </ul>
@@ -338,9 +338,9 @@ export default function Pricing({ onContactSales }) {
                 padding: '14px',
                 width: '100%',
                 borderRadius: '12px',
-                border: '1px solid #d1d5db',
-                backgroundColor: '#ffffff',
-                color: '#374151',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-gray)',
                 fontWeight: '700',
                 fontSize: '15px',
                 cursor: 'pointer',
@@ -361,15 +361,15 @@ export default function Pricing({ onContactSales }) {
           flexWrap: 'wrap',
           gap: '40px',
           paddingTop: '30px',
-          borderTop: '1px solid #f3f4f6'
+          borderTop: '1px solid var(--border-light)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4b5563', fontSize: '14px', fontWeight: '500' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-gray)', fontSize: '14px', fontWeight: '500' }}>
             <Shield size={18} color="var(--primary-red)" /> 256-Bit SSL Encrypted & Secure
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4b5563', fontSize: '14px', fontWeight: '500' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-gray)', fontSize: '14px', fontWeight: '500' }}>
             <HelpCircle size={18} color="var(--primary-red)" /> Cancel Subscription Anytime
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#4b5563', fontSize: '14px', fontWeight: '500' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-gray)', fontSize: '14px', fontWeight: '500' }}>
             <Sparkles size={18} color="var(--primary-red)" /> 7-Day Money Back Guarantee
           </div>
         </div>

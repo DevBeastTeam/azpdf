@@ -3,24 +3,24 @@ import { ArrowLeft, Shield, FileText, Eye, Lock, Bell, Trash2, Globe } from 'luc
 
 export default function TermsAndConditions({ onBack }) {
   return (
-    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: '#f8f9fc', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ maxWidth: '820px', width: '100%' }}>
 
-        <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid #e5e7eb', backgroundColor: '#ffffff', color: '#374151', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
+        <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
           <ArrowLeft size={16} /> Back to Home
         </button>
 
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '20px', padding: '48px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '48px', boxShadow: 'var(--shadow-sm)' }}>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
-            <div style={{ padding: '10px', backgroundColor: '#fff1f2', borderRadius: '12px' }}>
+            <div style={{ padding: '10px', backgroundColor: 'var(--border-light)', borderRadius: '12px' }}>
               <FileText size={24} color="var(--primary-red)" />
             </div>
-            <h1 style={{ fontSize: '30px', fontWeight: '800', color: '#111827' }}>Terms and Conditions</h1>
+            <h1 style={{ fontSize: '30px', fontWeight: '800', color: 'var(--text-dark)' }}>Terms and Conditions</h1>
           </div>
-          <p style={{ fontSize: '13px', color: '#9ca3af', marginBottom: '36px' }}>Last updated: July 20, 2026 · Effective immediately</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-light-gray)', marginBottom: '36px' }}>Last updated: July 20, 2026 · Effective immediately</p>
 
-          <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', marginBottom: '36px' }} />
+          <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', marginBottom: '36px' }} />
 
           {[
             {
@@ -67,14 +67,14 @@ export default function TermsAndConditions({ onBack }) {
             <div key={i} style={{ marginBottom: '36px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <span style={{ color: 'var(--primary-red)' }}>{section.icon}</span>
-                <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#111827' }}>{section.title}</h2>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)' }}>{section.title}</h2>
               </div>
-              <p style={{ fontSize: '15px', color: '#4b5563', lineHeight: '1.8' }}>{section.body}</p>
+              <p style={{ fontSize: '15px', color: 'var(--text-gray)', lineHeight: '1.8' }}>{section.body}</p>
             </div>
           ))}
 
-          <div style={{ backgroundColor: '#f9fafb', borderRadius: '12px', padding: '20px 24px', borderLeft: '4px solid var(--primary-red)', marginTop: '10px' }}>
-            <p style={{ fontSize: '14px', color: '#374151', fontWeight: '600' }}>
+          <div style={{ backgroundColor: 'var(--bg-light)', borderRadius: '12px', padding: '20px 24px', borderLeft: '4px solid var(--primary-red)', marginTop: '10px' }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-gray)', fontWeight: '600' }}>
               For any questions regarding these Terms, contact us at <a href="mailto:legal@ilovepdf.com" style={{ color: 'var(--primary-red)', textDecoration: 'none' }}>legal@ilovepdf.com</a>
             </p>
           </div>

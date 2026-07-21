@@ -21,7 +21,7 @@ export default function ContactUs({ onBack }) {
     <div style={{
       width: '100%',
       minHeight: 'calc(100vh - 64px)',
-      backgroundColor: '#f8f9fc',
+      backgroundColor: 'var(--bg-light)',
       padding: '50px 24px 80px 24px',
       display: 'flex',
       flexDirection: 'column',
@@ -38,9 +38,9 @@ export default function ContactUs({ onBack }) {
             gap: '8px',
             padding: '8px 16px',
             borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            backgroundColor: '#ffffff',
-            color: '#374151',
+            border: '1px solid var(--border-light)',
+            backgroundColor: 'var(--bg-card)',
+            color: 'var(--text-gray)',
             fontWeight: '600',
             fontSize: '14px',
             cursor: 'pointer',
@@ -59,7 +59,7 @@ export default function ContactUs({ onBack }) {
             letterSpacing: '1.2px',
             color: 'var(--primary-red)',
             textTransform: 'uppercase',
-            backgroundColor: '#fff1f2',
+            backgroundColor: 'var(--border-light)',
             padding: '6px 14px',
             borderRadius: '20px',
             display: 'inline-block',
@@ -71,7 +71,7 @@ export default function ContactUs({ onBack }) {
           <h1 style={{
             fontSize: '36px',
             fontWeight: '800',
-            color: '#111827',
+            color: 'var(--text-dark)',
             marginBottom: '12px',
             letterSpacing: '-0.5px'
           }}>
@@ -80,7 +80,7 @@ export default function ContactUs({ onBack }) {
 
           <p style={{
             fontSize: '16px',
-            color: '#6b7280',
+            color: 'var(--text-gray)',
             maxWidth: '600px',
             margin: '0 auto',
             lineHeight: '1.6'
@@ -100,11 +100,11 @@ export default function ContactUs({ onBack }) {
           
           {/* Left Column: Contact Form */}
           <div style={{
-            backgroundColor: '#ffffff',
-            border: '1px solid #e5e7eb',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-light)',
             borderRadius: '20px',
             padding: '40px',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.04)'
+            boxShadow: 'var(--shadow-sm)'
           }}>
             {submitted ? (
               <div style={{ textAlign: 'center', padding: '40px 10px' }}>
@@ -120,10 +120,10 @@ export default function ContactUs({ onBack }) {
                 }}>
                   <CheckCircle2 size={36} color="#15803d" />
                 </div>
-                <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#111827', marginBottom: '10px' }}>
+                <h3 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px' }}>
                   Message Sent Successfully!
                 </h3>
-                <p style={{ fontSize: '15px', color: '#6b7280', lineHeight: '1.6', marginBottom: '24px' }}>
+                <p style={{ fontSize: '15px', color: 'var(--text-gray)', lineHeight: '1.6', marginBottom: '24px' }}>
                   Thank you for reaching out. Our enterprise sales manager has received your request and will contact you at <strong>{formData.email || 'your email'}</strong> shortly.
                 </p>
                 <button
@@ -145,7 +145,7 @@ export default function ContactUs({ onBack }) {
             ) : (
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#374151', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                     Full Name *
                   </label>
                   <input
@@ -158,7 +158,9 @@ export default function ContactUs({ onBack }) {
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: '10px',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-dark)',
                       fontSize: '14px',
                       outline: 'none'
                     }}
@@ -167,7 +169,7 @@ export default function ContactUs({ onBack }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#374151', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                       Work Email *
                     </label>
                     <input
@@ -180,7 +182,9 @@ export default function ContactUs({ onBack }) {
                         width: '100%',
                         padding: '12px 14px',
                         borderRadius: '10px',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-dark)',
                         fontSize: '14px',
                         outline: 'none'
                       }}
@@ -188,7 +192,7 @@ export default function ContactUs({ onBack }) {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#374151', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                       Phone Number
                     </label>
                     <input
@@ -200,7 +204,9 @@ export default function ContactUs({ onBack }) {
                         width: '100%',
                         padding: '12px 14px',
                         borderRadius: '10px',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-dark)',
                         fontSize: '14px',
                         outline: 'none'
                       }}
@@ -210,7 +216,7 @@ export default function ContactUs({ onBack }) {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#374151', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                       Company Name
                     </label>
                     <input
@@ -222,7 +228,9 @@ export default function ContactUs({ onBack }) {
                         width: '100%',
                         padding: '12px 14px',
                         borderRadius: '10px',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-dark)',
                         fontSize: '14px',
                         outline: 'none'
                       }}
@@ -230,7 +238,7 @@ export default function ContactUs({ onBack }) {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#374151', marginBottom: '6px' }}>
+                    <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                       Team Size
                     </label>
                     <select
@@ -240,9 +248,10 @@ export default function ContactUs({ onBack }) {
                         width: '100%',
                         padding: '12px 14px',
                         borderRadius: '10px',
-                        border: '1px solid #d1d5db',
+                        border: '1px solid var(--border-light)',
                         fontSize: '14px',
-                        backgroundColor: '#ffffff',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-dark)',
                         outline: 'none'
                       }}
                     >
@@ -255,7 +264,7 @@ export default function ContactUs({ onBack }) {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: '#374151', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                     How can we help your team? *
                   </label>
                   <textarea
@@ -268,7 +277,9 @@ export default function ContactUs({ onBack }) {
                       width: '100%',
                       padding: '12px 14px',
                       borderRadius: '10px',
-                      border: '1px solid #d1d5db',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-dark)',
                       fontSize: '14px',
                       outline: 'none',
                       resize: 'vertical'
@@ -306,44 +317,44 @@ export default function ContactUs({ onBack }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
             <div style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #e5e7eb',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
               borderRadius: '20px',
               padding: '30px',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.02)'
+              boxShadow: 'var(--shadow-sm)'
             }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#111827', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '20px' }}>
                 Contact Information
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-                  <div style={{ padding: '10px', backgroundColor: '#fff1f2', borderRadius: '10px', color: 'var(--primary-red)' }}>
+                  <div style={{ padding: '10px', backgroundColor: 'var(--border-light)', borderRadius: '10px', color: 'var(--primary-red)' }}>
                     <Mail size={20} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>Sales & Enterprise Support</div>
-                    <div style={{ fontSize: '15px', color: '#111827', fontWeight: '700' }}>sales@ilovepdf.com</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>Sales & Enterprise Support</div>
+                    <div style={{ fontSize: '15px', color: 'var(--text-dark)', fontWeight: '700' }}>sales@ilovepdf.com</div>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-                  <div style={{ padding: '10px', backgroundColor: '#fff1f2', borderRadius: '10px', color: 'var(--primary-red)' }}>
+                  <div style={{ padding: '10px', backgroundColor: 'var(--border-light)', borderRadius: '10px', color: 'var(--primary-red)' }}>
                     <Phone size={20} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>Direct Sales Hotline</div>
-                    <div style={{ fontSize: '15px', color: '#111827', fontWeight: '700' }}>+1 (800) 555-PDFS</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>Direct Sales Hotline</div>
+                    <div style={{ fontSize: '15px', color: 'var(--text-dark)', fontWeight: '700' }}>+1 (800) 555-PDFS</div>
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-                  <div style={{ padding: '10px', backgroundColor: '#fff1f2', borderRadius: '10px', color: 'var(--primary-red)' }}>
+                  <div style={{ padding: '10px', backgroundColor: 'var(--border-light)', borderRadius: '10px', color: 'var(--primary-red)' }}>
                     <Clock size={20} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>Average Response Time</div>
-                    <div style={{ fontSize: '15px', color: '#111827', fontWeight: '700' }}>Under 2 hours (Mon - Fri)</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>Average Response Time</div>
+                    <div style={{ fontSize: '15px', color: 'var(--text-dark)', fontWeight: '700' }}>Under 2 hours (Mon - Fri)</div>
                   </div>
                 </div>
               </div>
@@ -351,17 +362,17 @@ export default function ContactUs({ onBack }) {
 
             {/* Enterprise Perks Box */}
             <div style={{
-              backgroundColor: '#111827',
-              color: '#ffffff',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
               borderRadius: '20px',
               padding: '30px',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+              boxShadow: 'var(--shadow-sm)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
                 <Building2 size={22} color="var(--primary-red)" />
-                <h4 style={{ fontSize: '18px', fontWeight: '800' }}>Why iLovePDF Enterprise?</h4>
+                <h4 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)' }}>Why iLovePDF Enterprise?</h4>
               </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: '#d1d5db' }}>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: 'var(--text-gray)' }}>
                 <li>✓ Dedicated SAML Single Sign-On (SSO)</li>
                 <li>✓ Custom SLA & Dedicated Account Manager</li>
                 <li>✓ Enterprise Security & Audit Logging</li>
