@@ -1,7 +1,14 @@
 import React from 'react';
 import { ArrowUpRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-export default function Footer({ setView }) {
+export default function Footer() {
+  const navigate = useNavigate();
+  const setView = (view) => {
+    if (view === 'home') navigate('/');
+    else if (view.startsWith('tool-')) navigate(`/tool/${view.replace('tool-', '')}`);
+    else navigate(`/${view}`);
+  };
   return (
     <footer className="footer">
       <div className="footer-grid">

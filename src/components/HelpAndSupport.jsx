@@ -49,9 +49,11 @@ const FAQ_DATA = [
       { q: 'Is there a free trial?', a: 'Yes! Premium accounts include a 7-day free trial. Click "Go Premium (7 Days Free)" on the Pricing page. No charge until the trial period ends. Cancel anytime before the trial ends to avoid any charges.' }
     ]
   }
-];
+];import { useNavigate } from 'react-router-dom';
 
-export default function HelpAndSupport({ onBack }) {
+export default function HelpAndSupport() {
+  const navigate = useNavigate();
+  const onBack = () => navigate(-1);
   const [openItems, setOpenItems] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
 

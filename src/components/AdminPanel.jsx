@@ -5,9 +5,9 @@ import {
   Database, Clock, ArrowLeft, RefreshCw, Download, Save, CheckCircle, AlertTriangle
 } from 'lucide-react';
 
+import { useNavigate } from 'react-router-dom';
+
 export default function AdminPanel({
-  onBack,
-  setView,
   usersData,
   setUsersData,
   recentFiles,
@@ -17,6 +17,8 @@ export default function AdminPanel({
   systemSettings,
   setSystemSettings
 }) {
+  const navigate = useNavigate();
+  const onBack = () => navigate(-1);
   const [activeTab, setActiveTab] = useState('overview');
   
   // Search & Filters
@@ -640,12 +642,13 @@ export default function AdminPanel({
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Email Address</label>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Email Address (Non-editable)</label>
                             <input 
                               type="email" 
                               value={editingUser.email} 
-                              onChange={e => setEditingUser(p => ({ ...p, email: e.target.value }))} 
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }} 
+                              readOnly
+                              disabled
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', outline: 'none', fontSize: '14px', boxSizing: 'border-box', cursor: 'not-allowed' }} 
                             />
                           </div>
                         </div>

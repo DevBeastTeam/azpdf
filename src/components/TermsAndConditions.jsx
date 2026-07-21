@@ -1,7 +1,10 @@
 import React from 'react';
 import { ArrowLeft, Shield, FileText, Eye, Lock, Bell, Trash2, Globe } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-export default function TermsAndConditions({ onBack }) {
+export default function TermsAndConditions() {
+  const navigate = useNavigate();
+  const onBack = () => navigate(-1);
   return (
     <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ maxWidth: '820px', width: '100%' }}>

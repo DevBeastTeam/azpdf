@@ -1,33 +1,33 @@
 import React, { useState } from 'react';
 import { 
   LayoutDashboard, FileText, UploadCloud, Clock, HardDrive, ShieldCheck, 
-  Key, Settings, Star, Download, Trash2, Share2, Sparkles, Plus, Search, 
-  ArrowUpRight, CheckCircle2, User, Zap, Users, Crown, BadgeCheck, XCircle,
-  Camera, Bell, Lock, Globe, Phone, Mail, AlertTriangle, Save, Eye, EyeOff,
-  ShieldAlert
+  Settings, Star, Download, Trash2, Share2, Sparkles, Plus, Search, 
+  ArrowUpRight, CheckCircle2, User, Zap,
+  Camera, Bell, Lock, Globe, Phone, Mail, AlertTriangle, Save, Eye, EyeOff
 } from 'lucide-react';
 
+import { useNavigate } from 'react-router-dom';
+
 export default function Dashboard({ 
-  setView, 
-  onSelectTool,
   usersData,
   setUsersData,
   recentFiles,
   setRecentFiles
 }) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
-  const [copiedKey, setCopiedKey] = useState(false);
+
 
   // Profile state
   const [profile, setProfile] = useState({
-    firstName: 'DevBeast',
-    lastName: 'Team',
-    email: 'devbeast@company.com',
-    phone: '+92 300 1234567',
-    bio: 'PDF processing enthusiast. Managing documents for DevBeast Team.',
+    firstName: 'Alex',
+    lastName: 'Johnson',
+    email: 'alex.johnson@ilovepdf.com',
+    phone: '+1 (555) 012-3456',
+    bio: 'PDF processing enthusiast. Managing documents and workflows at iLovePDF.',
     language: 'English',
-    avatarInitials: 'AZ',
+    avatarInitials: 'AJ',
     avatarColor: 'var(--primary-red)',
   });
   const [profileSaved, setProfileSaved] = useState(false);
@@ -60,31 +60,14 @@ export default function Dashboard({
     setRecentFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const handleCopyApiKey = () => {
-    navigator.clipboard.writeText('ilovepdf_live_sec_89237492837482937498');
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
-  };
+
 
   const filteredFiles = recentFiles.filter(f => 
     f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     f.tool.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const [userSearch, setUserSearch] = useState('');
-  const [planFilter, setPlanFilter] = useState('All');
 
-  const filteredUsers = usersData.filter(u => {
-    const matchSearch = u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-                        u.email.toLowerCase().includes(userSearch.toLowerCase());
-    const matchPlan   = planFilter === 'All' || u.plan === planFilter;
-    return matchSearch && matchPlan;
-  });
-
-  const planMeta = {
-    Premium:  { color: '#d97706', bg: '#fffbeb', icon: <Star size={13} /> },
-    Free:     { color: '#6b7280', bg: '#f9fafb', icon: <User size={13} /> },
-  };
 
   return (
     <div style={{
@@ -131,11 +114,11 @@ export default function Dashboard({
               fontWeight: '800',
               fontSize: '16px'
             }}>
-              AZ
+              AJ
             </div>
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                DevBeast Team
+                Alex Johnson
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Sparkles size={11} color="var(--primary-red)" /> Premium Account
@@ -187,47 +170,10 @@ export default function Dashboard({
               <FileText size={18} /> Recent Processed Files
             </button>
 
-            <button
-              onClick={() => setActiveTab('api')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                border: 'none',
-                backgroundColor: activeTab === 'api' ? 'var(--border-light)' : 'transparent',
-                color: activeTab === 'api' ? 'var(--primary-red)' : 'var(--text-gray)',
-                fontWeight: activeTab === 'api' ? '700' : '600',
-                fontSize: '14px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Key size={18} /> Developer API Keys
-            </button>
 
-            <button
-              onClick={() => setActiveTab('users')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                border: 'none',
-                backgroundColor: activeTab === 'users' ? 'var(--border-light)' : 'transparent',
-                color: activeTab === 'users' ? 'var(--primary-red)' : 'var(--text-gray)',
-                fontWeight: activeTab === 'users' ? '700' : '600',
-                fontSize: '14px',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Users size={18} /> Users &amp; Plans
-            </button>
+
+
+
 
             <button
               onClick={() => setActiveTab('settings')}
@@ -284,7 +230,7 @@ export default function Dashboard({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div>
                 <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                  Welcome back, DevBeast Team 👋
+                  Welcome back, Alex Johnson 👋
                 </h1>
                 <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
                   Here is a quick overview of your PDF document processing metrics and activity.
@@ -292,7 +238,7 @@ export default function Dashboard({
               </div>
 
               <button
-                onClick={() => setView('tool-merge')}
+                onClick={() => navigate('/tool/merge')}
                 style={{
                   padding: '12px 20px',
                   borderRadius: '10px',
@@ -378,7 +324,7 @@ export default function Dashboard({
                 gap: '16px'
               }}>
                 <div 
-                  onClick={() => setView('tool-merge')}
+                  onClick={() => navigate('/tool/merge')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
                     border: '1px solid var(--border-light)',
@@ -401,7 +347,7 @@ export default function Dashboard({
                 </div>
 
                 <div 
-                  onClick={() => setView('tool-split')}
+                  onClick={() => navigate('/tool/split')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
                     border: '1px solid var(--border-light)',
@@ -424,7 +370,7 @@ export default function Dashboard({
                 </div>
 
                 <div 
-                  onClick={() => setView('tool-compress')}
+                  onClick={() => navigate('/tool/compress')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
                     border: '1px solid var(--border-light)',
@@ -447,7 +393,7 @@ export default function Dashboard({
                 </div>
 
                 <div 
-                  onClick={() => setView('tool-pdftoword')}
+                  onClick={() => navigate('/tool/pdftoword')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
                     border: '1px solid var(--border-light)',
@@ -608,59 +554,7 @@ export default function Dashboard({
           </div>
         )}
 
-        {/* API Keys Tab */}
-        {activeTab === 'api' && (
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-              Developer API Keys
-            </h1>
-            <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '32px' }}>
-              Use your API secret key to integrate PDF processing endpoints directly into your application.
-            </p>
 
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '30px', maxWidth: '640px' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '8px' }}>
-                Live Production Secret Key
-              </label>
-
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                <input
-                  type="password"
-                  readOnly
-                  value="ilovepdf_live_sec_89237492837482937498"
-                  style={{
-                    flex: 1,
-                    padding: '12px 14px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-light)',
-                    fontSize: '14px',
-                    backgroundColor: 'var(--bg-light)',
-                    color: 'var(--text-dark)'
-                  }}
-                />
-                <button
-                  onClick={handleCopyApiKey}
-                  style={{
-                    padding: '12px 20px',
-                    borderRadius: '10px',
-                    border: 'none',
-                    backgroundColor: 'var(--primary-red)',
-                    color: '#ffffff',
-                    fontWeight: '700',
-                    fontSize: '14px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {copiedKey ? 'Copied!' : 'Copy Key'}
-                </button>
-              </div>
-
-              <div style={{ fontSize: '13px', color: 'var(--text-gray)', lineHeight: '1.6' }}>
-                Server Endpoint Base: <code style={{ backgroundColor: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-dark)' }}>http://localhost:5000/api/</code>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Account Settings / Profile Tab */}
         {activeTab === 'settings' && (
@@ -708,8 +602,8 @@ export default function Dashboard({
                   <input type="text" value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))} style={{ width: '100%', padding: '11px 13px', borderRadius: '9px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} onFocus={e => e.target.style.borderColor = 'var(--primary-red)'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={13} /> Email Address</label>
-                  <input type="email" value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))} style={{ width: '100%', padding: '11px 13px', borderRadius: '9px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} onFocus={e => e.target.style.borderColor = 'var(--primary-red)'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} />
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}><Mail size={13} /> Email Address (Non-editable)</label>
+                  <input type="email" value={profile.email} readOnly disabled style={{ width: '100%', padding: '11px 13px', borderRadius: '9px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontSize: '14px', outline: 'none', boxSizing: 'border-box', cursor: 'not-allowed' }} />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={13} /> Phone Number</label>
@@ -812,141 +706,7 @@ export default function Dashboard({
           </div>
         )}
 
-        {/* Users & Plans Tab */}
-        {activeTab === 'users' && (
-          <div>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-              <div>
-                <h1 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>
-                  Users &amp; Plans
-                </h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
-                  See which users have purchased which plan and their activity.
-                </p>
-              </div>
-            </div>
 
-            {/* Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '28px' }}>
-              {[
-                { label: 'Total Users',     value: usersData.length,                                         color: 'var(--text-dark)', bg: 'var(--bg-light)', icon: <Users size={20} /> },
-                { label: 'Banned Users',    value: usersData.filter(u => u.status === 'Banned').length,      color: '#ef4444', bg: '#fef2f2', icon: <ShieldAlert size={20} /> },
-                { label: 'Free Users',      value: usersData.filter(u => u.plan === 'Free').length,          color: 'var(--text-gray)', bg: 'var(--border-light)', icon: <User size={20} /> },
-                { label: 'Premium Users',   value: usersData.filter(u => u.plan === 'Premium').length,       color: '#d97706', bg: '#fffbeb', icon: <Star size={20} /> },
-              ].map((card, i) => (
-                <div key={i} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '20px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                  <div style={{ padding: '10px', backgroundColor: card.bg, borderRadius: '10px', color: card.color }}>
-                    {card.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)' }}>{card.value}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '600' }}>{card.label}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Search & Filter bar */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '20px 24px', marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
-                <Search size={16} color="var(--text-light-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  placeholder="Search by name or email..."
-                  value={userSearch}
-                  onChange={e => setUserSearch(e.target.value)}
-                  style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {['All', 'Premium', 'Free'].map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setPlanFilter(f)}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-light)',
-                      borderColor: planFilter === f ? 'var(--primary-red)' : 'var(--border-light)',
-                      backgroundColor: planFilter === f ? '#fff1f2' : 'var(--bg-card)',
-                      color: planFilter === f ? 'var(--primary-red)' : 'var(--text-gray)',
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s'
-                    }}
-                  >{f}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Users Table */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              {/* Table Header */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1fr 1fr 1fr 1fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1px solid var(--border-light)' }}>
-                {['User', 'Email', 'Plan', 'Files', 'Joined', 'Status'].map((h, i) => (
-                  <div key={i} style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
-                ))}
-              </div>
-
-              {/* Table Rows */}
-              {filteredUsers.length === 0 ? (
-                <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-light-gray)', fontSize: '14px' }}>
-                  No users found for the selected filter.
-                </div>
-              ) : (
-                filteredUsers.map((user, i) => {
-                  const meta = planMeta[user.plan];
-                  return (
-                    <div
-                      key={user.id}
-                      style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1fr 1fr 1fr 1fr', padding: '16px 24px', alignItems: 'center', borderBottom: i < filteredUsers.length - 1 ? '1px solid var(--border-light)' : 'none', transition: 'background 0.15s' }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      {/* User Avatar + Name */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '12px', flexShrink: 0, border: `1px solid ${meta.color}30` }}>
-                          {user.avatar}
-                        </div>
-                        <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>{user.name}</span>
-                      </div>
-
-                      {/* Email */}
-                      <div style={{ fontSize: '13px', color: 'var(--text-gray)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
-
-                      {/* Plan Badge */}
-                      <div>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', backgroundColor: meta.bg, color: meta.color, fontSize: '12px', fontWeight: '800' }}>
-                          {meta.icon} {user.plan}
-                        </span>
-                      </div>
-
-                      {/* Files Count */}
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-gray)' }}>{user.files}</div>
-
-                      {/* Join Date */}
-                      <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>{user.joinDate}</div>
-
-                      {/* Status Badge */}
-                      <div>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', backgroundColor: user.status === 'Active' ? '#f0fdf4' : '#fef2f2', color: user.status === 'Active' ? '#16a34a' : '#dc2626', fontSize: '12px', fontWeight: '800' }}>
-                          {user.status === 'Active' ? <BadgeCheck size={13} /> : <XCircle size={13} />}
-                          {user.status}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-light-gray)', textAlign: 'right' }}>
-              Showing {filteredUsers.length} of {usersData.length} users
-            </div>
-          </div>
-        )}
 
       </main>
     </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn } from 'lucide-react';
 import { 
   JpgToPdfIcon, WordToPdfIcon, PowerpointToPdfIcon, ExcelToPdfIcon, HtmlToPdfIcon,
   PdfToJpgIcon, PdfToWordIcon, PdfToPowerpointIcon, PdfToExcelIcon, PdfToPdfaIcon,
@@ -9,10 +10,28 @@ import {
   SignPdfIcon, RedactPdfIcon, ComparePdfIcon, TranslatePdfIcon, PdfToMarkdownIcon
 } from './Icons';
 
-export default function Header({ theme, toggleTheme, currentView, setView }) {
+export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, onLogoutClick }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const currentView = location.pathname === '/' ? 'home' 
+    : location.pathname.startsWith('/tool/') ? 'tool-' + location.pathname.replace('/tool/', '') 
+    : location.pathname.replace('/', '');
+
+  const setView = (view) => {
+    if (view === 'home') navigate('/');
+    else if (view.startsWith('tool-')) navigate(`/tool/${view.replace('tool-', '')}`);
+    else navigate(`/${view}`);
+  };
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [isAllToolsOpen, setIsAllToolsOpen] = useState(false);
+
+  // Dropdown background adapts to theme
+  const dropdownBg = theme === 'dark' ? '#1f2937' : '#ffffff';
+  const dropdownBorder = theme === 'dark' ? '#374151' : '#e5e7eb';
+  const dropdownArrowBg = theme === 'dark' ? '#1f2937' : '#ffffff';
+  const dropdownCategoryColor = theme === 'dark' ? '#6b7280' : '#9ca3af';
 
   const getNavItemStyle = (views) => {
     const isActive = views.includes(currentView);
@@ -34,9 +53,9 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
     <header className="header">
       <div className="header-left">
         <a href="#home" className="brand" onClick={() => { setView('home'); setMobileMenuOpen(false); }} style={{ gap: '2px' }}>
-          <span style={{ fontWeight: '900', color: '#1f2937' }}>I</span>
+          <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>I</span>
           <span style={{ color: 'var(--primary-red)', fontSize: '22px', display: 'flex', alignItems: 'center' }}>❤️</span>
-          <span style={{ fontWeight: '900', color: '#1f2937' }}>PDF</span>
+          <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>PDF</span>
         </a>
 
         {/* Desktop Navigation */}
@@ -94,10 +113,10 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
                 left: '50%',
                 transform: 'translateX(-50%)',
                 width: '600px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e7eb',
+                backgroundColor: dropdownBg,
+                border: `1px solid ${dropdownBorder}`,
                 borderRadius: '16px',
-                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.12)',
+                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.18)',
                 padding: '30px 36px 36px 36px',
                 display: isConvertOpen ? 'flex' : 'none',
                 flexDirection: 'row',
@@ -106,7 +125,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
                 textAlign: 'left'
               }}
             >
-              {/* White pointer arrow at the top */}
+              {/* Arrow pointer */}
               <div style={{
                 position: 'absolute',
                 top: '-9px',
@@ -114,31 +133,31 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
                 transform: 'translateX(-50%) rotate(45deg)',
                 width: '16px',
                 height: '16px',
-                backgroundColor: '#ffffff',
-                borderLeft: '1px solid #e5e7eb',
-                borderTop: '1px solid #e5e7eb',
+                backgroundColor: dropdownArrowBg,
+                borderLeft: `1px solid ${dropdownBorder}`,
+                borderTop: `1px solid ${dropdownBorder}`,
                 zIndex: 1002
               }} />
 
               {/* Left Column: CONVERT TO PDF */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                   CONVERT TO PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <a href="#jpg-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-jpgtopdf')}>
+                  <a href="#jpg-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-jpgtopdf')} style={getLinkStyle('tool-jpgtopdf')}>
                     <JpgToPdfIcon /> JPG to PDF
                   </a>
-                  <a href="#word-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-wordtopdf')}>
+                  <a href="#word-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-wordtopdf')} style={getLinkStyle('tool-wordtopdf')}>
                     <WordToPdfIcon /> WORD to PDF
                   </a>
-                  <a href="#powerpoint-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-powerpointtopdf')}>
+                  <a href="#powerpoint-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-powerpointtopdf')} style={getLinkStyle('tool-powerpointtopdf')}>
                     <PowerpointToPdfIcon /> POWERPOINT to PDF
                   </a>
-                  <a href="#excel-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-exceltopdf')}>
+                  <a href="#excel-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-exceltopdf')} style={getLinkStyle('tool-exceltopdf')}>
                     <ExcelToPdfIcon /> EXCEL to PDF
                   </a>
-                  <a href="#html-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-htmltopdf')}>
+                  <a href="#html-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-htmltopdf')} style={getLinkStyle('tool-htmltopdf')}>
                     <HtmlToPdfIcon /> HTML to PDF
                   </a>
                 </div>
@@ -146,23 +165,23 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
 
               {/* Right Column: CONVERT FROM PDF */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                   CONVERT FROM PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <a href="#pdf-to-jpg" className="dropdown-link-custom" onClick={() => setView('tool-pdftojpg')}>
+                  <a href="#pdf-to-jpg" className="dropdown-link-custom" onClick={() => setView('tool-pdftojpg')} style={getLinkStyle('tool-pdftojpg')}>
                     <PdfToJpgIcon /> PDF to JPG
                   </a>
-                  <a href="#pdf-to-word" className="dropdown-link-custom" onClick={() => setView('tool-pdftoword')}>
+                  <a href="#pdf-to-word" className="dropdown-link-custom" onClick={() => setView('tool-pdftoword')} style={getLinkStyle('tool-pdftoword')}>
                     <PdfToWordIcon /> PDF to WORD
                   </a>
-                  <a href="#pdf-to-powerpoint" className="dropdown-link-custom" onClick={() => setView('tool-pdftopowerpoint')}>
+                  <a href="#pdf-to-powerpoint" className="dropdown-link-custom" onClick={() => setView('tool-pdftopowerpoint')} style={getLinkStyle('tool-pdftopowerpoint')}>
                     <PdfToPowerpointIcon /> PDF to POWERPOINT
                   </a>
-                  <a href="#pdf-to-excel" className="dropdown-link-custom" onClick={() => setView('tool-pdftoexcel')}>
+                  <a href="#pdf-to-excel" className="dropdown-link-custom" onClick={() => setView('tool-pdftoexcel')} style={getLinkStyle('tool-pdftoexcel')}>
                     <PdfToExcelIcon /> PDF to EXCEL
                   </a>
-                  <a href="#pdf-to-pdfa" className="dropdown-link-custom" onClick={() => setView('tool-pdfa')}>
+                  <a href="#pdf-to-pdfa" className="dropdown-link-custom" onClick={() => setView('tool-pdfa')} style={getLinkStyle('tool-pdfa')}>
                     <PdfToPdfaIcon /> PDF to PDF/A
                   </a>
                 </div>
@@ -196,10 +215,10 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
                 transform: 'translateX(-50%)',
                 width: '1240px',
                 maxWidth: '96vw',
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e7eb',
+                backgroundColor: dropdownBg,
+                border: `1px solid ${dropdownBorder}`,
                 borderRadius: '16px',
-                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.12)',
+                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.18)',
                 padding: '36px 48px 48px 48px',
                 display: isAllToolsOpen ? 'grid' : 'none',
                 gridTemplateColumns: 'repeat(6, 1fr)',
@@ -208,7 +227,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
                 textAlign: 'left'
               }}
             >
-              {/* White pointer arrow at the top */}
+              {/* Arrow pointer */}
               <div style={{
                 position: 'absolute',
                 top: '-9px',
@@ -216,16 +235,16 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
                 transform: 'translateX(-50%) rotate(45deg)',
                 width: '16px',
                 height: '16px',
-                backgroundColor: '#ffffff',
-                borderLeft: '1px solid #e5e7eb',
-                borderTop: '1px solid #e5e7eb',
+                backgroundColor: dropdownArrowBg,
+                borderLeft: `1px solid ${dropdownBorder}`,
+                borderTop: `1px solid ${dropdownBorder}`,
                 zIndex: 1002
               }} />
 
               {/* Column 1: ORGANIZE PDF & PDF INTELLIGENCE */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                     ORGANIZE PDF
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -251,7 +270,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
                 </div>
 
                 <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                     PDF INTELLIGENCE
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -270,7 +289,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
 
               {/* Column 2: OPTIMIZE PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                   OPTIMIZE PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -288,7 +307,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
 
               {/* Column 3: CONVERT TO PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                   CONVERT TO PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -312,7 +331,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
 
               {/* Column 4: CONVERT FROM PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                   CONVERT FROM PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -336,7 +355,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
 
               {/* Column 5: EDIT PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                   EDIT PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -363,7 +382,7 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
 
               {/* Column 6: PDF SECURITY */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: '#9ca3af', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
                   PDF SECURITY
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -402,26 +421,81 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
         >
           Home
         </button>
-        <button
-          onClick={() => setView('dashboard')}
-          className="btn btn-secondary hide-mobile"
-          style={{ border: 'none', fontWeight: '700', color: currentView === 'dashboard' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          Dashboard
-        </button>
-        <button
-          onClick={() => setView('admin')}
-          className="btn btn-secondary hide-mobile"
-          style={{ border: 'none', fontWeight: '700', color: currentView === 'admin' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          Admin Panel
-        </button>
-        <a href="#register" className="btn btn-primary hide-mobile" style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '700' }}>Sign up</a>
+
+        {isLoggedIn ? (
+          <>
+            <button
+              onClick={() => setView('dashboard')}
+              className="btn btn-secondary hide-mobile"
+              style={{ border: 'none', fontWeight: '700', color: currentView === 'dashboard' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setView('admin')}
+              className="btn btn-secondary hide-mobile"
+              style={{ border: 'none', fontWeight: '700', color: currentView === 'admin' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              Admin Panel
+            </button>
+            {/* Logout Button */}
+            <button
+              onClick={onLogoutClick}
+              className="hide-mobile"
+              title="Logout"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                color: '#ef4444',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.backgroundColor = '#ef4444';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.08)';
+                e.currentTarget.style.color = '#ef4444';
+              }}
+            >
+              <LogOut size={15} /> Logout
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Login Button */}
+            <button
+              onClick={onLoginClick}
+              className="btn btn-secondary hide-mobile"
+              style={{
+                border: '1px solid var(--border-light)',
+                fontWeight: '700',
+                color: 'var(--text-dark)',
+                background: 'transparent',
+                cursor: 'pointer',
+                fontSize: '14px',
+                padding: '8px 18px',
+                borderRadius: '8px',
+                display: 'flex', alignItems: 'center', gap: '6px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <LogIn size={15} /> Login
+            </button>
+            <a href="#register" className="btn btn-primary hide-mobile" style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '700' }}>Sign up</a>
+          </>
+        )}
 
         {/* 3x3 App launcher dots */}
         <div className="app-launcher hide-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 4px)', gap: '3px', cursor: 'pointer', padding: '6px' }} title="iLovePDF Products">
           {[...Array(9)].map((_, i) => (
-            <div key={i} style={{ width: '4px', height: '4px', backgroundColor: '#33333b', borderRadius: '50%' }} />
+            <div key={i} style={{ width: '4px', height: '4px', backgroundColor: 'var(--text-dark)', borderRadius: '50%', opacity: 0.5 }} />
           ))}
         </div>
 
@@ -442,18 +516,29 @@ export default function Header({ theme, toggleTheme, currentView, setView }) {
           <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
             COMPRESS PDF <ArrowRight size={16} />
           </a>
-          <a href="#dashboard" className="mobile-nav-item" onClick={() => { setView('dashboard'); setMobileMenuOpen(false); }}>
-            Dashboard <ArrowRight size={16} />
-          </a>
-          <a href="#admin" className="mobile-nav-item" onClick={() => { setView('admin'); setMobileMenuOpen(false); }}>
-            Admin Panel <ArrowRight size={16} />
-          </a>
-          <a href="#login" className="mobile-nav-item" onClick={() => setMobileMenuOpen(false)}>
-            Login <ArrowRight size={16} />
-          </a>
-          <a href="#register" className="mobile-nav-item" onClick={() => setMobileMenuOpen(false)} style={{ color: 'var(--primary-red)' }}>
-            Sign up <ArrowRight size={16} />
-          </a>
+          {isLoggedIn && (
+            <>
+              <a href="#dashboard" className="mobile-nav-item" onClick={() => { setView('dashboard'); setMobileMenuOpen(false); }}>
+                Dashboard <ArrowRight size={16} />
+              </a>
+              <a href="#admin" className="mobile-nav-item" onClick={() => { setView('admin'); setMobileMenuOpen(false); }}>
+                Admin Panel <ArrowRight size={16} />
+              </a>
+              <button className="mobile-nav-item" onClick={() => { onLogoutClick(); setMobileMenuOpen(false); }} style={{ color: '#ef4444', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', fontWeight: '700', fontSize: '15px' }}>
+                <LogOut size={16} /> Logout
+              </button>
+            </>
+          )}
+          {!isLoggedIn && (
+            <>
+              <a href="#login" className="mobile-nav-item" onClick={() => { onLoginClick(); setMobileMenuOpen(false); }}>
+                Login <ArrowRight size={16} />
+              </a>
+              <a href="#register" className="mobile-nav-item" onClick={() => setMobileMenuOpen(false)} style={{ color: 'var(--primary-red)' }}>
+                Sign up <ArrowRight size={16} />
+              </a>
+            </>
+          )}
         </div>
       )}
     </header>

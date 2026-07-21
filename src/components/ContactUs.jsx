@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Mail, Phone, MapPin, Clock, Send, CheckCircle2, ArrowLeft, Building2 } from 'lucide-react';
 
-export default function ContactUs({ onBack }) {
+export default function ContactUs() {
+  const navigate = useNavigate();
+  const onBack = () => navigate(-1);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
