@@ -3,27 +3,144 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
 const pdfController = require('./controllers/pdfController');
 
-const dbPath = path.join(__dirname, 'db.json');
+const dbPath = path.join(__dirname, 'database.db');
+const db = new sqlite3.Database(dbPath);
 
-function readDb() {
+// Promisified SQLite queries
+const dbQuery = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+};
+
+const dbRun = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function(err) {
+      if (err) reject(err);
+      else resolve({ id: this.lastID, changes: this.changes });
+    });
+  });
+};
+
+// Initialize SQLite schema and migrate defaults from db.json
+async function initDatabase() {
   try {
-    const data = fs.readFileSync(dbPath, 'utf8');
-    return JSON.parse(data);
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        email TEXT UNIQUE,
+        plan TEXT,
+        joinDate TEXT,
+        status TEXT,
+        files INTEGER,
+        avatar TEXT
+      )
+    `);
+
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS recent_files (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        tool TEXT,
+        size TEXT,
+        date TEXT,
+        pages INTEGER,
+        status TEXT
+      )
+    `);
+
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS tools_config (
+        tool_id TEXT PRIMARY KEY,
+        enabled INTEGER,
+        maxFileSizeMb INTEGER
+      )
+    `);
+
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        id INTEGER PRIMARY KEY,
+        maintenanceMode INTEGER,
+        autoCleanupHours INTEGER,
+        maxStoragePoolGb INTEGER,
+        monthlyPremiumPrice REAL,
+        monthlyBusinessPrice REAL,
+        autoCleanupEnabled INTEGER
+      )
+    `);
+
+    const usersCount = await dbQuery('SELECT COUNT(*) as count FROM users');
+    const jsonDbPath = path.join(__dirname, 'db.json');
+    let seedData = null;
+    if (fs.existsSync(jsonDbPath)) {
+      try {
+        seedData = JSON.parse(fs.readFileSync(jsonDbPath, 'utf8'));
+      } catch (err) {
+        console.warn('Could not parse db.json for seeding.');
+      }
+    }
+
+    if (usersCount[0].count === 0 && seedData) {
+      console.log('[SQLite3] Seeding users from db.json...');
+      if (seedData.usersData) {
+        for (const u of seedData.usersData) {
+          await dbRun(
+            'INSERT OR IGNORE INTO users (id, name, email, plan, joinDate, status, files, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [u.id, u.name, u.email, u.plan, u.joinDate, u.status, u.files, u.avatar]
+          );
+        }
+      }
+
+      console.log('[SQLite3] Seeding recent files from db.json...');
+      if (seedData.recentFiles) {
+        for (const f of seedData.recentFiles) {
+          await dbRun(
+            'INSERT OR IGNORE INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [f.id, f.name, f.tool, f.size, f.date, f.pages, f.status]
+          );
+        }
+      }
+
+      console.log('[SQLite3] Seeding tools config from db.json...');
+      if (seedData.toolsConfig) {
+        for (const [tId, cfg] of Object.entries(seedData.toolsConfig)) {
+          await dbRun(
+            'INSERT OR IGNORE INTO tools_config (tool_id, enabled, maxFileSizeMb) VALUES (?, ?, ?)',
+            [tId, cfg.enabled ? 1 : 0, cfg.maxFileSizeMb]
+          );
+        }
+      }
+
+      console.log('[SQLite3] Seeding system settings from db.json...');
+      if (seedData.systemSettings) {
+        const s = seedData.systemSettings;
+        await dbRun(
+          'INSERT OR IGNORE INTO system_settings (id, maintenanceMode, autoCleanupHours, maxStoragePoolGb, monthlyPremiumPrice, monthlyBusinessPrice, autoCleanupEnabled) VALUES (1, ?, ?, ?, ?, ?, ?)',
+          [
+            s.maintenanceMode ? 1 : 0,
+            s.autoCleanupHours,
+            s.maxStoragePoolGb,
+            s.monthlyPremiumPrice,
+            s.monthlyBusinessPrice,
+            s.autoCleanupEnabled ? 1 : 0
+          ]
+        );
+      }
+      console.log('[SQLite3] Seeding complete.');
+    }
   } catch (err) {
-    console.error('Failed to read database:', err);
-    return {};
+    console.error('[SQLite3] Error initializing database:', err);
   }
 }
 
-function writeDb(data) {
-  try {
-    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Failed to write database:', err);
-  }
-}
+initDatabase();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -80,40 +197,127 @@ app.post('/api/crop', upload.array('files'), pdfController.cropPdf);
 app.post('/api/forms', upload.array('files'), pdfController.pdfForms);
 
 // Database endpoints for Dashboard and Admin Panel
-app.get('/api/admin/data', (req, res) => {
-  res.json(readDb());
-});
+app.get('/api/admin/data', async (req, res, next) => {
+  try {
+    const users = await dbQuery('SELECT * FROM users ORDER BY id DESC');
+    const files = await dbQuery('SELECT * FROM recent_files ORDER BY id DESC');
+    const toolsRows = await dbQuery('SELECT * FROM tools_config');
+    const settingsRows = await dbQuery('SELECT * FROM system_settings WHERE id = 1');
 
-app.post('/api/admin/users', (req, res) => {
-  const db = readDb();
-  db.usersData = req.body;
-  writeDb(db);
-  res.json({ success: true });
-});
+    // Map tools config rows to object structure
+    const toolsConfig = {};
+    toolsRows.forEach(row => {
+      toolsConfig[row.tool_id] = {
+        enabled: row.enabled === 1,
+        maxFileSizeMb: row.maxFileSizeMb
+      };
+    });
 
-app.post('/api/admin/tools', (req, res) => {
-  const db = readDb();
-  db.toolsConfig = req.body;
-  writeDb(db);
-  res.json({ success: true });
-});
+    // Map system settings row
+    const systemSettings = settingsRows[0] ? {
+      maintenanceMode: settingsRows[0].maintenanceMode === 1,
+      autoCleanupHours: settingsRows[0].autoCleanupHours,
+      maxStoragePoolGb: settingsRows[0].maxStoragePoolGb,
+      monthlyPremiumPrice: settingsRows[0].monthlyPremiumPrice,
+      monthlyBusinessPrice: settingsRows[0].monthlyBusinessPrice,
+      autoCleanupEnabled: settingsRows[0].autoCleanupEnabled === 1
+    } : {
+      maintenanceMode: false,
+      autoCleanupHours: 2,
+      maxStoragePoolGb: 50,
+      monthlyPremiumPrice: 6.00,
+      monthlyBusinessPrice: 12.00,
+      autoCleanupEnabled: true
+    };
 
-app.post('/api/admin/settings', (req, res) => {
-  const db = readDb();
-  db.systemSettings = req.body;
-  writeDb(db);
-  res.json({ success: true });
-});
-
-app.post('/api/admin/files', (req, res) => {
-  const { file, users } = req.body;
-  const db = readDb();
-  db.recentFiles = [file, ...db.recentFiles];
-  if (users) {
-    db.usersData = users;
+    res.json({
+      usersData: users,
+      recentFiles: files,
+      toolsConfig,
+      systemSettings
+    });
+  } catch (err) {
+    next(err);
   }
-  writeDb(db);
-  res.json({ success: true });
+});
+
+app.post('/api/admin/users', async (req, res, next) => {
+  try {
+    const usersList = req.body || [];
+    
+    // Rebuild users table: clear table and insert new rows
+    await dbRun('DELETE FROM users');
+    for (const u of usersList) {
+      await dbRun(
+        'INSERT INTO users (id, name, email, plan, joinDate, status, files, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [u.id, u.name, u.email, u.plan, u.joinDate, u.status, u.files, u.avatar]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/admin/tools', async (req, res, next) => {
+  try {
+    const toolsConfig = req.body || {};
+    
+    for (const [tool_id, config] of Object.entries(toolsConfig)) {
+      await dbRun(
+        'INSERT INTO tools_config (tool_id, enabled, maxFileSizeMb) VALUES (?, ?, ?) ON CONFLICT(tool_id) DO UPDATE SET enabled = excluded.enabled, maxFileSizeMb = excluded.maxFileSizeMb',
+        [tool_id, config.enabled ? 1 : 0, config.maxFileSizeMb]
+      );
+    }
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/admin/settings', async (req, res, next) => {
+  try {
+    const s = req.body || {};
+    await dbRun(
+      'INSERT INTO system_settings (id, maintenanceMode, autoCleanupHours, maxStoragePoolGb, monthlyPremiumPrice, monthlyBusinessPrice, autoCleanupEnabled) VALUES (1, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET maintenanceMode = excluded.maintenanceMode, autoCleanupHours = excluded.autoCleanupHours, maxStoragePoolGb = excluded.maxStoragePoolGb, monthlyPremiumPrice = excluded.monthlyPremiumPrice, monthlyBusinessPrice = excluded.monthlyBusinessPrice, autoCleanupEnabled = excluded.autoCleanupEnabled',
+      [
+        s.maintenanceMode ? 1 : 0,
+        s.autoCleanupHours,
+        s.maxStoragePoolGb,
+        s.monthlyPremiumPrice,
+        s.monthlyBusinessPrice,
+        s.autoCleanupEnabled ? 1 : 0
+      ]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/admin/files', async (req, res, next) => {
+  try {
+    const { file, users } = req.body;
+    
+    if (file) {
+      await dbRun(
+        'INSERT OR IGNORE INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [file.id, file.name, file.tool, file.size, file.date, file.pages, file.status]
+      );
+    }
+
+    if (users) {
+      for (const u of users) {
+        await dbRun(
+          'INSERT INTO users (id, name, email, plan, joinDate, status, files, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET files = excluded.files',
+          [u.id, u.name, u.email, u.plan, u.joinDate, u.status, u.files, u.avatar]
+        );
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Global error handler
