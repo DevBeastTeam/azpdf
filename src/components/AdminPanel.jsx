@@ -29,6 +29,7 @@ export default function AdminPanel({
   // Modals state
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState(null);
 
   // New User Form state
   const [newUserForm, setNewUserForm] = useState({ name: '', email: '', plan: 'Free', status: 'Active' });
@@ -127,9 +128,15 @@ export default function AdminPanel({
   };
 
   const handleDeleteUser = (id, name) => {
-    if (window.confirm(`Are you sure you want to delete user "${name}"?`)) {
+    setDeleteConfirmUser({ id, name });
+  };
+
+  const confirmDeleteUser = () => {
+    if (deleteConfirmUser) {
+      const { id, name } = deleteConfirmUser;
       setUsersData(prev => prev.filter(u => u.id !== id));
       addLog(`Deleted user: ${name}.`, 'warning');
+      setDeleteConfirmUser(null);
     }
   };
 
@@ -936,6 +943,25 @@ export default function AdminPanel({
                     )}
                   </div>
                 </div>
+
+                {/* Custom Delete Confirmation Modal */}
+                {deleteConfirmUser && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+                    <div style={{ backgroundColor: 'var(--bg-card)', width: '360px', borderRadius: '16px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)', padding: '24px', textAlign: 'center' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                        <Trash2 size={24} />
+                      </div>
+                      <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px' }}>Delete User Account?</h3>
+                      <p style={{ fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.5', marginBottom: '20px' }}>
+                        Are you sure you want to delete <strong>{deleteConfirmUser.name}</strong>? This action cannot be undone.
+                      </p>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                        <button onClick={() => setDeleteConfirmUser(null)} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+                        <button onClick={confirmDeleteUser} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>Delete User</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Modal: Add User */}
                 {showAddUserModal && (

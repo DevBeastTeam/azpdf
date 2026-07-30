@@ -116,10 +116,11 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     if (toolId.includes('split')) return 'http://localhost:5000/api/split';
     if (toolId.includes('compress')) return 'http://localhost:5000/api/compress';
     if (toolId.includes('jpgtopdf')) return 'http://localhost:5000/api/jpg-to-pdf';
+    if (toolId.includes('pdftojpg')) return 'http://localhost:5000/api/pdf-to-jpg';
     if (toolId.includes('rotate')) return 'http://localhost:5000/api/rotate';
     if (toolId.includes('watermark')) return 'http://localhost:5000/api/watermark';
     if (toolId.includes('protect')) return 'http://localhost:5000/api/protect';
-    if (toolId.includes('pdftoword')) return 'http://localhost:5000/api/pdf-to-txt';
+    if (toolId.includes('pdftoword')) return 'http://localhost:5000/api/pdf-to-word';
     if (toolId.includes('pdftopowerpoint')) return 'http://localhost:5000/api/pdf-to-ppt';
     if (toolId.includes('pdftoexcel')) return 'http://localhost:5000/api/pdf-to-excel';
     if (toolId.includes('wordtopdf')) return 'http://localhost:5000/api/word-to-pdf';
@@ -130,6 +131,18 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     if (toolId.includes('aisummarizer')) return 'http://localhost:5000/api/ai-summarizer';
     if (toolId.includes('translate')) return 'http://localhost:5000/api/translate';
     if (toolId.includes('markdown')) return 'http://localhost:5000/api/pdf-to-markdown';
+    if (toolId.includes('edit')) return 'http://localhost:5000/api/edit-pdf';
+    if (toolId.includes('sign')) return 'http://localhost:5000/api/sign-pdf';
+    if (toolId.includes('htmltopdf')) return 'http://localhost:5000/api/html-to-pdf';
+    if (toolId.includes('pdfa')) return 'http://localhost:5000/api/pdf-to-pdfa';
+    if (toolId.includes('repair')) return 'http://localhost:5000/api/repair';
+    if (toolId.includes('pagenumber')) return 'http://localhost:5000/api/page-numbers';
+    if (toolId.includes('scan')) return 'http://localhost:5000/api/scan-to-pdf';
+    if (toolId.includes('ocr')) return 'http://localhost:5000/api/ocr';
+    if (toolId.includes('compare')) return 'http://localhost:5000/api/compare';
+    if (toolId.includes('redact')) return 'http://localhost:5000/api/redact';
+    if (toolId.includes('crop')) return 'http://localhost:5000/api/crop';
+    if (toolId.includes('forms')) return 'http://localhost:5000/api/forms';
     return 'http://localhost:5000/api/merge';
   };
 

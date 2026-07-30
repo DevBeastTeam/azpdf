@@ -1,0 +1,213 @@
+{
+  "usersData": [
+    {
+      "id": 3,
+      "name": "Maria Garcia",
+      "email": "maria.g@outlook.com",
+      "plan": "Free",
+      "joinDate": "Mar 19, 2026",
+      "status": "Active",
+      "files": 23,
+      "avatar": "MG"
+    },
+    {
+      "id": 4,
+      "name": "James Wilson",
+      "email": "jwilson@techcorp.io",
+      "plan": "Premium",
+      "joinDate": "Jan 30, 2026",
+      "status": "Active",
+      "files": 310,
+      "avatar": "JW"
+    },
+    {
+      "id": 5,
+      "name": "Ayesha Khan",
+      "email": "ayesha.k@webdev.pk",
+      "plan": "Premium",
+      "joinDate": "Apr 5, 2026",
+      "status": "Banned",
+      "files": 56,
+      "avatar": "AK"
+    },
+    {
+      "id": 6,
+      "name": "Carlos Mendez",
+      "email": "carlos@designstudio.es",
+      "plan": "Free",
+      "joinDate": "May 10, 2026",
+      "status": "Inactive",
+      "files": 4,
+      "avatar": "CM"
+    },
+    {
+      "id": 7,
+      "name": "Priya Sharma",
+      "email": "priya.s@infosys.in",
+      "plan": "Premium",
+      "joinDate": "Feb 22, 2026",
+      "status": "Active",
+      "files": 204,
+      "avatar": "PS"
+    },
+    {
+      "id": 8,
+      "name": "Oliver Smith",
+      "email": "oliver.s@ukfirm.co.uk",
+      "plan": "Premium",
+      "joinDate": "Jun 1, 2026",
+      "status": "Active",
+      "files": 39,
+      "avatar": "OS"
+    },
+    {
+      "id": 9,
+      "name": "Fatima Al-Hassan",
+      "email": "fatima.h@arabtech.ae",
+      "plan": "Free",
+      "joinDate": "Jun 18, 2026",
+      "status": "Banned",
+      "files": 11,
+      "avatar": "FA"
+    },
+    {
+      "id": 10,
+      "name": "David Chen",
+      "email": "dchen@startuplab.sg",
+      "plan": "Premium",
+      "joinDate": "Mar 8, 2026",
+      "status": "Inactive",
+      "files": 88,
+      "avatar": "DC"
+    }
+  ],
+  "recentFiles": [
+    {
+      "id": 1,
+      "name": "annual_financial_report_2026.pdf",
+      "tool": "Merge PDF",
+      "size": "4.2 MB",
+      "date": "Just now",
+      "pages": 18,
+      "status": "Completed"
+    },
+    {
+      "id": 2,
+      "name": "client_contract_signed.pdf",
+      "tool": "Protect PDF",
+      "size": "1.8 MB",
+      "date": "2 hours ago",
+      "pages": 6,
+      "status": "Completed"
+    },
+    {
+      "id": 3,
+      "name": "scanned_tax_invoice.pdf",
+      "tool": "OCR PDF",
+      "size": "3.1 MB",
+      "date": "Yesterday",
+      "pages": 4,
+      "status": "Completed"
+    },
+    {
+      "id": 4,
+      "name": "company_presentation.pdf",
+      "tool": "Compress PDF",
+      "size": "12.4 MB",
+      "date": "3 days ago",
+      "pages": 24,
+      "status": "Completed"
+    },
+    {
+      "id": 5,
+      "name": "product_specs_draft.pdf",
+      "tool": "PDF to Word",
+      "size": "2.5 MB",
+      "date": "5 days ago",
+      "pages": 10,
+      "status": "Completed"
+    }
+  ],
+  "toolsConfig": {
+    "tool-merge": {
+      "enabled": true,
+      "maxFileSizeMb": 50
+    },
+    "tool-split": {
+      "enabled": true,
+      "maxFileSizeMb": 50
+    },
+    "tool-compress": {
+      "enabled": true,
+      "maxFileSizeMb": 25
+    },
+    "tool-pdftoword": {
+      "enabled": true,
+      "maxFileSizeMb": 15
+    },
+    "tool-pdftopowerpoint": {
+      "enabled": true,
+      "maxFileSizeMb": 15
+    },
+    "tool-pdftoexcel": {
+      "enabled": true,
+      "maxFileSizeMb": 10
+    },
+    "tool-wordtopdf": {
+      "enabled": true,
+      "maxFileSizeMb": 20
+    },
+    "tool-powerpointtopdf": {
+      "enabled": true,
+      "maxFileSizeMb": 20
+    },
+    "tool-exceltopdf": {
+      "enabled": true,
+      "maxFileSizeMb": 20
+    },
+    "tool-edit": {
+      "enabled": true,
+      "maxFileSizeMb": 15
+    },
+    "tool-pdftojpg": {
+      "enabled": true,
+      "maxFileSizeMb": 20
+    },
+    "tool-jpgtopdf": {
+      "enabled": true,
+      "maxFileSizeMb": 20
+    },
+    "tool-organize": {
+      "enabled": true,
+      "maxFileSizeMb": 25
+    },
+    "tool-protect": {
+      "enabled": true,
+      "maxFileSizeMb": 10
+    },
+    "tool-unlock": {
+      "enabled": true,
+      "maxFileSizeMb": 15
+    },
+    "tool-aisummarizer": {
+      "enabled": true,
+      "maxFileSizeMb": 5
+    },
+    "tool-translate": {
+      "enabled": true,
+      "maxFileSizeMb": 8
+    },
+    "tool-markdown": {
+      "enabled": true,
+      "maxFileSizeMb": 5
+    }
+  },
+  "systemSettings": {
+    "maintenanceMode": false,
+    "autoCleanupHours": 2,
+    "maxStoragePoolGb": 50,
+    "monthlyPremiumPrice": 8.99,
+    "monthlyBusinessPrice": 12,
+    "autoCleanupEnabled": true
+  }
+}

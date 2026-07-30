@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { 
-  MergePdfIcon, SplitPdfIcon, CompressPdfIcon, PdfToWordIcon, 
-  PdfToPowerpointIcon, PdfToExcelIcon, WordToPdfIcon, PowerpointToPdfIcon, 
-  ExcelToPdfIcon, EditPdfIcon, PdfToJpgIcon, JpgToPdfIcon, 
-  SignPdfIcon, WatermarkIcon, RotatePdfIcon, HtmlToPdfIcon, 
-  UnlockPdfIcon, ProtectPdfIcon, OrganizePdfIcon, PdfToPdfaIcon, 
-  RepairPdfIcon, PageNumbersIcon, ScanPdfIcon, OcrPdfIcon, 
-  ComparePdfIcon, RedactPdfIcon, CropPdfIcon, PdfFormsIcon, 
-  AiSummarizerIcon, TranslatePdfIcon, PdfToMarkdownIcon 
+import {
+  MergePdfIcon, SplitPdfIcon, CompressPdfIcon, PdfToWordIcon,
+  PdfToPowerpointIcon, PdfToExcelIcon, WordToPdfIcon, PowerpointToPdfIcon,
+  ExcelToPdfIcon, EditPdfIcon, PdfToJpgIcon, JpgToPdfIcon,
+  SignPdfIcon, WatermarkIcon, RotatePdfIcon, HtmlToPdfIcon,
+  UnlockPdfIcon, ProtectPdfIcon, OrganizePdfIcon, PdfToPdfaIcon,
+  RepairPdfIcon, PageNumbersIcon, ScanPdfIcon, OcrPdfIcon,
+  ComparePdfIcon, RedactPdfIcon, CropPdfIcon, PdfFormsIcon,
+  AiSummarizerIcon, TranslatePdfIcon, PdfToMarkdownIcon
 } from './Icons';
 
 const toolsData = [
@@ -324,7 +324,7 @@ export default function ToolsGrid({ onSelectTool, toolsConfig }) {
 
       // Search filter
       const matchesSearch = tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            tool.desc.toLowerCase().includes(searchQuery.toLowerCase());
+        tool.desc.toLowerCase().includes(searchQuery.toLowerCase());
 
       return matchesCategory && matchesSearch;
     });
@@ -335,10 +335,10 @@ export default function ToolsGrid({ onSelectTool, toolsConfig }) {
       {/* Search Bar */}
       <div className="search-container">
         <Search className="search-icon" size={20} />
-        <input 
-          type="text" 
-          placeholder="Search PDF tools..." 
-          className="search-input" 
+        <input
+          type="text"
+          placeholder="Search PDF tools..."
+          className="search-input"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -362,10 +362,10 @@ export default function ToolsGrid({ onSelectTool, toolsConfig }) {
         {filteredTools.map((tool) => {
           const IconComponent = tool.icon;
           const isEnabled = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].enabled : true;
-          
+
           return (
-            <div 
-              key={tool.id} 
+            <div
+              key={tool.id}
               className={`tool-card ${tool.colorClass}`}
               onClick={() => {
                 if (!isEnabled) {
@@ -374,7 +374,7 @@ export default function ToolsGrid({ onSelectTool, toolsConfig }) {
                 }
                 onSelectTool(tool);
               }}
-              style={{ 
+              style={{
                 cursor: 'pointer',
                 opacity: isEnabled ? 1 : 0.55,
                 filter: isEnabled ? 'none' : 'grayscale(0.9)',

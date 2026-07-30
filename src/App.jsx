@@ -186,56 +186,84 @@ function App() {
   const location = useLocation();
 
   // ── Shared State ────────────────────────────────────────────────────────────
-  const [usersData, setUsersData] = useState([
-    { id: 1, name: 'Sarah Johnson',    email: 'sarah.j@company.com',    plan: 'Premium',  joinDate: 'Jan 12, 2026', status: 'Active',   files: 142, avatar: 'SJ' },
-    { id: 2, name: 'Ahmed Raza',       email: 'ahmed.raza@gmail.com',   plan: 'Premium',  joinDate: 'Feb 3, 2026',  status: 'Active',   files: 87,  avatar: 'AR' },
-    { id: 3, name: 'Maria Garcia',     email: 'maria.g@outlook.com',    plan: 'Free',     joinDate: 'Mar 19, 2026', status: 'Active',   files: 23,  avatar: 'MG' },
-    { id: 4, name: 'James Wilson',     email: 'jwilson@techcorp.io',    plan: 'Premium',  joinDate: 'Jan 30, 2026', status: 'Active',   files: 310, avatar: 'JW' },
-    { id: 5, name: 'Ayesha Khan',      email: 'ayesha.k@webdev.pk',     plan: 'Premium',  joinDate: 'Apr 5, 2026',  status: 'Banned',   files: 56,  avatar: 'AK' },
-    { id: 6, name: 'Carlos Mendez',    email: 'carlos@designstudio.es', plan: 'Free',     joinDate: 'May 10, 2026', status: 'Inactive', files: 4,   avatar: 'CM' },
-    { id: 7, name: 'Priya Sharma',     email: 'priya.s@infosys.in',     plan: 'Premium',  joinDate: 'Feb 22, 2026', status: 'Active',   files: 204, avatar: 'PS' },
-    { id: 8, name: 'Oliver Smith',     email: 'oliver.s@ukfirm.co.uk',  plan: 'Premium',  joinDate: 'Jun 1, 2026',  status: 'Active',   files: 39,  avatar: 'OS' },
-    { id: 9, name: 'Fatima Al-Hassan', email: 'fatima.h@arabtech.ae',   plan: 'Free',     joinDate: 'Jun 18, 2026', status: 'Banned',   files: 11,  avatar: 'FA' },
-    { id: 10, name: 'David Chen',      email: 'dchen@startuplab.sg',    plan: 'Premium',  joinDate: 'Mar 8, 2026',  status: 'Inactive', files: 88,  avatar: 'DC' },
-  ]);
-
-  const [recentFiles, setRecentFiles] = useState([
-    { id: 1, name: 'annual_financial_report_2026.pdf', tool: 'Merge PDF',     size: '4.2 MB',  date: 'Just now',    pages: 18, status: 'Completed' },
-    { id: 2, name: 'client_contract_signed.pdf',       tool: 'Protect PDF',   size: '1.8 MB',  date: '2 hours ago', pages: 6,  status: 'Completed' },
-    { id: 3, name: 'scanned_tax_invoice.pdf',          tool: 'OCR PDF',       size: '3.1 MB',  date: 'Yesterday',   pages: 4,  status: 'Completed' },
-    { id: 4, name: 'company_presentation.pdf',         tool: 'Compress PDF',  size: '12.4 MB', date: '3 days ago',  pages: 24, status: 'Completed' },
-    { id: 5, name: 'product_specs_draft.pdf',          tool: 'PDF to Word',   size: '2.5 MB',  date: '5 days ago',  pages: 10, status: 'Completed' },
-  ]);
-
-  const [toolsConfig, setToolsConfig] = useState({
-    'tool-merge':           { enabled: true, maxFileSizeMb: 50 },
-    'tool-split':           { enabled: true, maxFileSizeMb: 50 },
-    'tool-compress':        { enabled: true, maxFileSizeMb: 25 },
-    'tool-pdftoword':       { enabled: true, maxFileSizeMb: 15 },
-    'tool-pdftopowerpoint': { enabled: true, maxFileSizeMb: 15 },
-    'tool-pdftoexcel':      { enabled: true, maxFileSizeMb: 10 },
-    'tool-wordtopdf':       { enabled: true, maxFileSizeMb: 20 },
-    'tool-powerpointtopdf': { enabled: true, maxFileSizeMb: 20 },
-    'tool-exceltopdf':      { enabled: true, maxFileSizeMb: 20 },
-    'tool-edit':            { enabled: true, maxFileSizeMb: 15 },
-    'tool-pdftojpg':        { enabled: true, maxFileSizeMb: 20 },
-    'tool-jpgtopdf':        { enabled: true, maxFileSizeMb: 20 },
-    'tool-organize':        { enabled: true, maxFileSizeMb: 25 },
-    'tool-protect':         { enabled: true, maxFileSizeMb: 10 },
-    'tool-unlock':          { enabled: true, maxFileSizeMb: 15 },
-    'tool-aisummarizer':    { enabled: true, maxFileSizeMb: 5  },
-    'tool-translate':       { enabled: true, maxFileSizeMb: 8  },
-    'tool-markdown':        { enabled: true, maxFileSizeMb: 5  },
-  });
-
+  const [usersData, setUsersData] = useState([]);
+  const [recentFiles, setRecentFiles] = useState([]);
+  const [toolsConfig, setToolsConfig] = useState({});
   const [systemSettings, setSystemSettings] = useState({
     maintenanceMode: false,
     autoCleanupHours: 2,
     maxStoragePoolGb: 50,
     monthlyPremiumPrice: 6.00,
     monthlyBusinessPrice: 12.00,
-    autoCleanupEnabled: true,
+    autoCleanupEnabled: true
   });
+
+  // Fetch db.json data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/admin/data');
+        if (res.ok) {
+          const db = await res.json();
+          if (db.usersData) setUsersData(db.usersData);
+          if (db.recentFiles) setRecentFiles(db.recentFiles);
+          if (db.toolsConfig) setToolsConfig(db.toolsConfig);
+          if (db.systemSettings) setSystemSettings(db.systemSettings);
+        }
+      } catch (err) {
+        console.error('Failed to load database from backend:', err);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Sync wrappers
+  const updateUsersData = async (newVal) => {
+    const resolved = typeof newVal === 'function' ? newVal(usersData) : newVal;
+    setUsersData(resolved);
+    try {
+      await fetch('http://localhost:5000/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resolved)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const updateRecentFiles = async (newVal) => {
+    const resolved = typeof newVal === 'function' ? newVal(recentFiles) : newVal;
+    setRecentFiles(resolved);
+  };
+
+  const updateToolsConfig = async (newVal) => {
+    const resolved = typeof newVal === 'function' ? newVal(toolsConfig) : newVal;
+    setToolsConfig(resolved);
+    try {
+      await fetch('http://localhost:5000/api/admin/tools', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resolved)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const updateSystemSettings = async (newVal) => {
+    const resolved = typeof newVal === 'function' ? newVal(systemSettings) : newVal;
+    setSystemSettings(resolved);
+    try {
+      await fetch('http://localhost:5000/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resolved)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // ── Theme ────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -256,17 +284,25 @@ function App() {
   };
 
   // ── Context value ─────────────────────────────────────────────────────────────
-  const addRecentFile = (newFile) => {
+  const addRecentFile = async (newFile) => {
     const entry = { id: Date.now(), name: newFile.name, tool: newFile.tool, size: newFile.size, date: 'Just now', pages: Math.floor(Math.random() * 20) + 1, status: 'Completed' };
     setRecentFiles(prev => [entry, ...prev]);
-    setUsersData(prev => prev.map(u => u.id === 1 ? { ...u, files: u.files + 1 } : u));
+    setUsersData(prev => {
+      const updatedUsers = prev.map(u => u.id === 1 ? { ...u, files: u.files + 1 } : u);
+      fetch('http://localhost:5000/api/admin/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: entry, users: updatedUsers })
+      }).catch(e => console.error(e));
+      return updatedUsers;
+    });
   };
 
   const contextValue = {
-    usersData, setUsersData,
-    recentFiles, setRecentFiles,
-    toolsConfig, setToolsConfig,
-    systemSettings, setSystemSettings,
+    usersData, setUsersData: updateUsersData,
+    recentFiles, setRecentFiles: updateRecentFiles,
+    toolsConfig, setToolsConfig: updateToolsConfig,
+    systemSettings, setSystemSettings: updateSystemSettings,
     addRecentFile,
     isLoggedIn,
   };
@@ -322,9 +358,9 @@ function App() {
             <Route path="/dashboard" element={
               <Dashboard
                 usersData={usersData}
-                setUsersData={setUsersData}
+                setUsersData={updateUsersData}
                 recentFiles={recentFiles}
-                setRecentFiles={setRecentFiles}
+                setRecentFiles={updateRecentFiles}
               />
             } />
 
@@ -332,13 +368,13 @@ function App() {
             <Route path="/admin" element={
               <AdminPanel
                 usersData={usersData}
-                setUsersData={setUsersData}
+                setUsersData={updateUsersData}
                 recentFiles={recentFiles}
-                setRecentFiles={setRecentFiles}
+                setRecentFiles={updateRecentFiles}
                 toolsConfig={toolsConfig}
-                setToolsConfig={setToolsConfig}
+                setToolsConfig={updateToolsConfig}
                 systemSettings={systemSettings}
-                setSystemSettings={setSystemSettings}
+                setSystemSettings={updateSystemSettings}
               />
             } />
 

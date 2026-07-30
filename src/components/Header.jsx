@@ -424,20 +424,6 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
         {isLoggedIn ? (
           <>
-            <button
-              onClick={() => setView('dashboard')}
-              className="btn btn-secondary hide-mobile"
-              style={{ border: 'none', fontWeight: '700', color: currentView === 'dashboard' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setView('admin')}
-              className="btn btn-secondary hide-mobile"
-              style={{ border: 'none', fontWeight: '700', color: currentView === 'admin' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              Admin Panel
-            </button>
             {/* Logout Button */}
             <button
               onClick={onLogoutClick}
@@ -518,12 +504,6 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </a>
           {isLoggedIn && (
             <>
-              <a href="#dashboard" className="mobile-nav-item" onClick={() => { setView('dashboard'); setMobileMenuOpen(false); }}>
-                Dashboard <ArrowRight size={16} />
-              </a>
-              <a href="#admin" className="mobile-nav-item" onClick={() => { setView('admin'); setMobileMenuOpen(false); }}>
-                Admin Panel <ArrowRight size={16} />
-              </a>
               <button className="mobile-nav-item" onClick={() => { onLogoutClick(); setMobileMenuOpen(false); }} style={{ color: '#ef4444', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', fontWeight: '700', fontSize: '15px' }}>
                 <LogOut size={16} /> Logout
               </button>
