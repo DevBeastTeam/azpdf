@@ -175,11 +175,99 @@ function LogoutModal({ onCancel, onConfirm }) {
   );
 }
 
+// ─── Login & Signup Auth Modal ──────────────────────────────────────────────────
+function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
+  const [mode, setMode] = useState(initialMode);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+    try {
+      const res = await fetch(`http://localhost:5000${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name })
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (data.success) {
+        onSuccess(data.user);
+        onClose();
+      } else {
+        setError(data.message || 'Authentication failed. Please try again.');
+      }
+    } catch (err) {
+      setLoading(false);
+      setError('Could not connect to Node.js backend server. Make sure backend is running.');
+    }
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }}>
+      <div style={{ backgroundColor:'var(--bg-card)', border:'1px solid var(--border-light)', borderRadius:'24px', padding:'40px', width:'420px', textAlign:'left', boxShadow:'0 25px 60px rgba(0,0,0,0.3)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
+          <h2 style={{ fontSize:'24px', fontWeight:'800', color:'var(--text-dark)' }}>
+            {mode === 'login' ? 'Welcome Back 👋' : 'Create Account 🚀'}
+          </h2>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'var(--text-gray)' }}>✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          {mode === 'signup' && (
+            <div>
+              <label style={{ display:'block', fontSize:'13px', fontWeight:'700', color:'var(--text-dark)', marginBottom:'6px' }}>Full Name</label>
+              <input type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} required style={{ width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1px solid var(--border-light)', backgroundColor:'var(--bg-light)', color:'var(--text-dark)', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
+            </div>
+          )}
+
+          <div>
+            <label style={{ display:'block', fontSize:'13px', fontWeight:'700', color:'var(--text-dark)', marginBottom:'6px' }}>Email Address</label>
+            <input type="email" placeholder="name@example.com" value={email} onChange={e => setEmail(e.target.value)} required style={{ width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1px solid var(--border-light)', backgroundColor:'var(--bg-light)', color:'var(--text-dark)', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
+          </div>
+
+          <div>
+            <label style={{ display:'block', fontSize:'13px', fontWeight:'700', color:'var(--text-dark)', marginBottom:'6px' }}>Password</label>
+            <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required style={{ width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1px solid var(--border-light)', backgroundColor:'var(--bg-light)', color:'var(--text-dark)', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
+          </div>
+
+          {error && (
+            <div style={{ color:'#dc2626', backgroundColor:'#fef2f2', border:'1px solid #fecaca', padding:'10px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:'600' }}>
+              {error}
+            </div>
+          )}
+
+          <button type="submit" disabled={loading} style={{ width:'100%', padding:'14px', borderRadius:'12px', border:'none', backgroundColor:'var(--primary-red)', color:'#fff', fontWeight:'800', fontSize:'15px', cursor:'pointer', transition:'all 0.2s', marginTop:'8px' }}>
+            {loading ? 'Processing...' : (mode === 'login' ? 'Log In to Account' : 'Sign Up Free')}
+          </button>
+        </form>
+
+        <div style={{ marginTop:'24px', textAlign:'center', fontSize:'14px', color:'var(--text-gray)' }}>
+          {mode === 'login' ? (
+            <>Don't have an account? <span onClick={() => { setMode('signup'); setError(''); }} style={{ color:'var(--primary-red)', fontWeight:'700', cursor:'pointer' }}>Sign up</span></>
+          ) : (
+            <>Already have an account? <span onClick={() => { setMode('login'); setError(''); }} style={{ color:'var(--primary-red)', fontWeight:'700', cursor:'pointer' }}>Log in</span></>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [theme, setTheme] = useState('light');
   const [isLoggedIn, setIsLoggedIn] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
   const [bypassMaintenance, setBypassMaintenance] = useState(false);
 
   const navigate = useNavigate();
@@ -273,14 +361,30 @@ function App() {
   const toggleTheme = () => setTheme(p => p === 'light' ? 'dark' : 'light');
 
   // ── Auth ─────────────────────────────────────────────────────────────────────
+  const handleLoginClick = () => {
+    setAuthMode('login');
+    setShowAuthModal(true);
+  };
+
+  const handleSignupClick = () => {
+    setAuthMode('signup');
+    setShowAuthModal(true);
+  };
+
+  const handleAuthSuccess = (user) => {
+    setIsLoggedIn(true);
+    if (user && user.name) {
+      setUsersData(prev => {
+        const exists = prev.some(u => u.email === user.email);
+        return exists ? prev : [user, ...prev];
+      });
+    }
+  };
+
   const handleLogout = () => {
     setShowLogoutModal(false);
     setIsLoggedIn(false);
     navigate('/');
-  };
-
-  const handleLogin = () => {
-    setIsLoggedIn(true);
   };
 
   // ── Context value ─────────────────────────────────────────────────────────────
@@ -324,7 +428,8 @@ function App() {
           theme={theme}
           toggleTheme={toggleTheme}
           isLoggedIn={isLoggedIn}
-          onLoginClick={handleLogin}
+          onLoginClick={handleLoginClick}
+          onSignupClick={handleSignupClick}
           onLogoutClick={() => setShowLogoutModal(true)}
         />
 
@@ -334,6 +439,15 @@ function App() {
             <span>🛠️ Maintenance Mode is Active — You are viewing the site with Admin Bypass.</span>
             <button onClick={() => setBypassMaintenance(false)} style={{ backgroundColor:'rgba(255,255,255,0.2)', color:'#fff', padding:'2px 8px', borderRadius:'4px', fontSize:'11px', fontWeight:'800', border:'none', cursor:'pointer' }}>Exit Bypass Mode</button>
           </div>
+        )}
+
+        {/* Auth Modal (Login / Signup) */}
+        {showAuthModal && (
+          <AuthModal
+            initialMode={authMode}
+            onClose={() => setShowAuthModal(false)}
+            onSuccess={handleAuthSuccess}
+          />
         )}
 
         {/* Logout Modal */}

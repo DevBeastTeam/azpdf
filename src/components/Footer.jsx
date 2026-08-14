@@ -33,8 +33,6 @@ export default function Footer() {
         <div className="footer-col">
           <h4 className="footer-col-title">Applications</h4>
           <ul className="footer-links">
-            <li><a href="#desktop" className="footer-link">Desktop App</a></li>
-            <li><a href="#mobile" className="footer-link">Mobile App</a></li>
             <li><a href="#api" className="footer-link">iLoveAPI</a></li>
           </ul>
         </div>

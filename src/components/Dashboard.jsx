@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, FileText, UploadCloud, Clock, HardDrive, ShieldCheck, 
   Settings, Star, Download, Trash2, Share2, Sparkles, Plus, Search, 
-  ArrowUpRight, CheckCircle2, User, Zap,
-  Camera, Bell, Lock, Globe, Phone, Mail, AlertTriangle, Save, Eye, EyeOff
+  ArrowUpRight, CheckCircle2, User, Zap, CreditCard, DollarSign,
+  Camera, Bell, Lock, Globe, Phone, Mail, AlertTriangle, Save, Eye, EyeOff, Building2
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +18,37 @@ export default function Dashboard({
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Billing state
+  const [billingPlan, setBillingPlan] = useState('PREMIUM');
+  const [invoices, setInvoices] = useState([]);
+  const [billingMsg, setBillingMsg] = useState('');
+
+  useEffect(() => {
+    fetch('http://localhost:5000/api/user/invoices')
+      .then(res => res.json())
+      .then(data => {
+        if (data.invoices) setInvoices(data.invoices);
+      })
+      .catch(err => console.error('Error fetching invoices:', err));
+  }, []);
+
+  const handleUpgradePlan = async (newPlan) => {
+    try {
+      const res = await fetch('http://localhost:5000/api/user/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 1, plan: newPlan, billingCycle: 'yearly', paymentMethod: 'Visa ending in 4242' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBillingPlan(newPlan);
+        setBillingMsg(`✅ ${data.message}`);
+        setTimeout(() => setBillingMsg(''), 4000);
+      }
+    } catch (err) {
+      console.error('Billing update error:', err);
+    }
+  };
 
   // Profile state
   const [profile, setProfile] = useState({
@@ -168,6 +199,27 @@ export default function Dashboard({
               }}
             >
               <FileText size={18} /> Recent Processed Files
+            </button>
+
+            <button
+              onClick={() => setActiveTab('billing')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: activeTab === 'billing' ? 'var(--border-light)' : 'transparent',
+                color: activeTab === 'billing' ? 'var(--primary-red)' : 'var(--text-gray)',
+                fontWeight: activeTab === 'billing' ? '700' : '600',
+                fontSize: '14px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.2s'
+              }}
+            >
+              <CreditCard size={18} /> Billing & Subscription
             </button>
 
 
@@ -554,7 +606,170 @@ export default function Dashboard({
           </div>
         )}
 
+        {/* Billing & Subscription Tab */}
+        {activeTab === 'billing' && (
+          <div style={{ maxWidth: '850px' }}>
+            <div style={{ marginBottom: '28px' }}>
+              <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
+                Billing & Subscription
+              </h1>
+              <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
+                Manage your active plan, payment methods, and download invoice history.
+              </p>
+            </div>
 
+            {billingMsg && (
+              <div style={{ padding: '14px 18px', borderRadius: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontWeight: '700', fontSize: '14px', marginBottom: '24px' }}>
+                {billingMsg}
+              </div>
+            )}
+
+            {/* Current Active Plan Card */}
+            <div style={{ backgroundColor: 'var(--bg-card)', border: '2px solid var(--primary-red)', borderRadius: '20px', padding: '30px', marginBottom: '32px', boxShadow: '0 10px 30px rgba(229, 36, 36, 0.08)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary-red)', backgroundColor: 'rgba(229, 36, 36, 0.1)', padding: '4px 12px', borderRadius: '20px', textTransform: 'uppercase' }}>
+                    Active Plan
+                  </span>
+                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', marginTop: '10px', marginBottom: '4px' }}>
+                    {billingPlan} Plan
+                  </h2>
+                  <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
+                    Billed Yearly — Next renewal on August 14, 2027
+                  </p>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)' }}>
+                    {billingPlan === 'BUSINESS' ? '$8' : billingPlan === 'PREMIUM' ? '$4' : '$0'}
+                    <span style={{ fontSize: '14px', color: 'var(--text-gray)', fontWeight: '500' }}> / month</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: '700', marginTop: '4px' }}>
+                    ✓ Auto-Renewal Active
+                  </div>
+                </div>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', margin: '24px 0' }} />
+
+              <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => handleUpgradePlan('PREMIUM')}
+                  style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid var(--border-light)', backgroundColor: billingPlan === 'PREMIUM' ? 'var(--primary-red)' : 'var(--bg-card)', color: billingPlan === 'PREMIUM' ? '#ffffff' : 'var(--text-dark)', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  {billingPlan === 'PREMIUM' ? '✓ Current Plan (Premium)' : 'Switch to Premium ($4/mo)'}
+                </button>
+
+                <button
+                  onClick={() => handleUpgradePlan('BUSINESS')}
+                  style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid var(--border-light)', backgroundColor: billingPlan === 'BUSINESS' ? 'var(--primary-red)' : 'var(--bg-card)', color: billingPlan === 'BUSINESS' ? '#ffffff' : 'var(--text-dark)', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                  {billingPlan === 'BUSINESS' ? '✓ Current Plan (Business)' : 'Upgrade to Business ($8/mo)'}
+                </button>
+              </div>
+            </div>
+
+            {/* Payment Method Card */}
+            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '28px', marginBottom: '32px', boxShadow: 'var(--shadow-sm)' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <CreditCard size={20} color="var(--primary-red)" /> Primary Payment Method
+              </h3>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', backgroundColor: 'var(--bg-light)', borderRadius: '14px', border: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ padding: '10px 14px', backgroundColor: '#1e293b', color: '#ffffff', borderRadius: '8px', fontWeight: '900', fontSize: '14px' }}>
+                    VISA
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>Visa ending in 4242</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>Expires 12 / 2028 — Default Payment</div>
+                  </div>
+                </div>
+
+                <button style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                  Edit Card
+                </button>
+              </div>
+            </div>
+
+            {/* Billing Information & Tax ID Card */}
+            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '28px', marginBottom: '32px', boxShadow: 'var(--shadow-sm)' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Building2 size={20} color="var(--primary-red)" /> Billing Information & Tax Details
+              </h3>
+
+              <form onSubmit={(e) => { e.preventDefault(); alert('✅ Billing information updated successfully!'); }} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>COMPANY / BILLING NAME</label>
+                  <input type="text" defaultValue="Alex Johnson Inc." style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>VAT / TAX ID NUMBER</label>
+                  <input type="text" defaultValue="US987654321" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>BILLING EMAIL ADDRESS</label>
+                  <input type="email" defaultValue="alex@example.com" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>COUNTRY / REGION</label>
+                  <select defaultValue="United States" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }}>
+                    <option>United States</option>
+                    <option>United Kingdom</option>
+                    <option>Canada</option>
+                    <option>Germany</option>
+                    <option>Pakistan</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn: 'span 2', textAlign: 'right', marginTop: '10px' }}>
+                  <button type="submit" style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
+                    Save Billing Info
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Invoices & Payment History */}
+            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <DollarSign size={20} color="var(--primary-red)" /> Billing History & Invoices
+              </h3>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-light)', color: 'var(--text-gray)', fontSize: '12px', fontWeight: '700' }}>
+                    <th style={{ padding: '12px 16px' }}>INVOICE ID</th>
+                    <th style={{ padding: '12px 16px' }}>DATE</th>
+                    <th style={{ padding: '12px 16px' }}>AMOUNT</th>
+                    <th style={{ padding: '12px 16px' }}>PLAN</th>
+                    <th style={{ padding: '12px 16px' }}>STATUS</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right' }}>ACTION</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map(inv => (
+                    <tr key={inv.id} style={{ borderBottom: '1px solid var(--border-light)', fontSize: '14px', color: 'var(--text-gray)' }}>
+                      <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--text-dark)' }}>{inv.id}</td>
+                      <td style={{ padding: '14px 16px' }}>{inv.date}</td>
+                      <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--text-dark)' }}>{inv.amount}</td>
+                      <td style={{ padding: '14px 16px' }}>{inv.plan}</td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <span style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '3px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800' }}>
+                          ✓ {inv.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                        <button onClick={() => alert(`📄 Downloading invoice PDF for ${inv.id}...`)} style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--primary-red)', fontWeight: '700', cursor: 'pointer', fontSize: '13px' }}>
+                          Download PDF
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Account Settings / Profile Tab */}
         {activeTab === 'settings' && (

@@ -208,7 +208,18 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       setProgress(100);
       setStatus('success');
 
-      const fallbackFilename = downloadFilename || `ilovepdf_${tool.id.replace('tool-', '')}.pdf`;
+      const getFallbackFilename = (tId) => {
+        if (tId.includes('pdftoword')) return 'ilovepdf_converted.docx';
+        if (tId.includes('pdftopowerpoint')) return 'ilovepdf_slides.txt';
+        if (tId.includes('pdftoexcel')) return 'ilovepdf_sheet.csv';
+        if (tId.includes('pdftojpg')) return 'ilovepdf_images.zip';
+        if (tId.includes('aisummarizer')) return 'ilovepdf_summary.txt';
+        if (tId.includes('translate')) return 'ilovepdf_translated.txt';
+        if (tId.includes('markdown')) return 'ilovepdf_markdown.md';
+        return `ilovepdf_${tId.replace('tool-', '')}.pdf`;
+      };
+
+      const fallbackFilename = downloadFilename !== 'processed.pdf' ? downloadFilename : getFallbackFilename(tool.id);
       const totalSizeMb = files.reduce((acc, f) => {
         const numericSize = parseFloat(f.size) || 1.45;
         return acc + numericSize;

@@ -15,8 +15,22 @@ export default function ContactUs() {
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    try {
+      await fetch('http://localhost:5000/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.fullName,
+          email: formData.email,
+          subject: `Sales inquiry from ${formData.company || formData.fullName}`,
+          message: formData.message
+        })
+      });
+    } catch (err) {
+      console.warn('Contact API note:', err.message);
+    }
     setSubmitted(true);
   };
 

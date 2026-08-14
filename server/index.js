@@ -145,8 +145,10 @@ initDatabase();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS & JSON parsing
-app.use(cors());
+// Enable CORS with exposed headers & JSON parsing
+app.use(cors({
+  exposedHeaders: ['Content-Disposition']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -318,6 +320,116 @@ app.post('/api/admin/files', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Auth Endpoints (Login & Signup)
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+    }
+    const userRows = await dbQuery('SELECT * FROM users WHERE email = ?', [email]);
+    if (userRows.length > 0) {
+      return res.json({ success: true, message: 'Login successful!', user: userRows[0] });
+    }
+    // Auto-create or return default logged in user if not found
+    const newUser = {
+      id: Date.now(),
+      name: email.split('@')[0],
+      email: email,
+      plan: 'PREMIUM',
+      joinDate: new Date().toISOString().split('T')[0],
+      status: 'Active',
+      files: 0,
+      avatar: 'AJ'
+    };
+    await dbRun(
+      'INSERT INTO users (id, name, email, plan, joinDate, status, files, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [newUser.id, newUser.name, newUser.email, newUser.plan, newUser.joinDate, newUser.status, newUser.files, newUser.avatar]
+    );
+    res.json({ success: true, message: 'Login successful!', user: newUser });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/auth/signup', async (req, res, next) => {
+  try {
+    const { name, email, password, plan } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required.' });
+    }
+    const newUser = {
+      id: Date.now(),
+      name: name || email.split('@')[0],
+      email: email,
+      plan: plan || 'FREE',
+      joinDate: new Date().toISOString().split('T')[0],
+      status: 'Active',
+      files: 0,
+      avatar: (name ? name[0] : 'U').toUpperCase()
+    };
+    await dbRun(
+      'INSERT INTO users (id, name, email, plan, joinDate, status, files, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [newUser.id, newUser.name, newUser.email, newUser.plan, newUser.joinDate, newUser.status, newUser.files, newUser.avatar]
+    );
+    res.json({ success: true, message: 'Account created successfully!', user: newUser });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Billing & Invoices Endpoints
+app.post('/api/user/billing', async (req, res, next) => {
+  try {
+    const { userId, plan, billingCycle, paymentMethod } = req.body;
+    const price = plan === 'BUSINESS' ? (billingCycle === 'yearly' ? 8 : 10) : (plan === 'PREMIUM' ? (billingCycle === 'yearly' ? 4 : 6) : 0);
+    
+    // Update user plan in DB
+    if (userId) {
+      await dbRun('UPDATE users SET plan = ? WHERE id = ?', [plan, userId]);
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully upgraded to ${plan} Plan!`,
+      billing: {
+        plan,
+        price,
+        billingCycle,
+        paymentMethod: paymentMethod || 'Visa ending in 4242',
+        nextBillingDate: '2026-09-14',
+        status: 'Active'
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/user/invoices', (req, res) => {
+  res.json({
+    success: true,
+    invoices: [
+      { id: 'INV-2026-001', date: '2026-08-01', amount: '$4.00', plan: 'Premium Yearly', status: 'Paid', downloadUrl: '#' },
+      { id: 'INV-2026-002', date: '2026-07-01', amount: '$4.00', plan: 'Premium Yearly', status: 'Paid', downloadUrl: '#' },
+      { id: 'INV-2026-003', date: '2026-06-01', amount: '$4.00', plan: 'Premium Yearly', status: 'Paid', downloadUrl: '#' },
+    ]
+  });
+});
+
+// Contact Us & Support Ticket Endpoints
+app.post('/api/contact', (req, res) => {
+  const { name, email, subject, message } = req.body;
+  console.log(`📩 New Contact Message from ${name} (${email}): ${subject}`);
+  res.json({ success: true, message: 'Your message has been received! Our support team will get back to you within 24 hours.' });
+});
+
+app.post('/api/support/ticket', (req, res) => {
+  const { category, issueDetails, userEmail } = req.body;
+  console.log(`🎫 New Support Ticket created: [${category}] ${issueDetails}`);
+  res.json({ success: true, ticketId: 'TICK-' + Math.floor(100000 + Math.random() * 900000), message: 'Support ticket submitted successfully.' });
 });
 
 // Global error handler

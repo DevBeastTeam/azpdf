@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn } from 'lucide-react';
+import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft } from 'lucide-react';
 import { 
   JpgToPdfIcon, WordToPdfIcon, PowerpointToPdfIcon, ExcelToPdfIcon, HtmlToPdfIcon,
   PdfToJpgIcon, PdfToWordIcon, PdfToPowerpointIcon, PdfToExcelIcon, PdfToPdfaIcon,
@@ -10,7 +10,7 @@ import {
   SignPdfIcon, RedactPdfIcon, ComparePdfIcon, TranslatePdfIcon, PdfToMarkdownIcon
 } from './Icons';
 
-export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, onLogoutClick }) {
+export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, onSignupClick, onLogoutClick }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,6 +26,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
   };
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [isAllToolsOpen, setIsAllToolsOpen] = useState(false);
+  const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
 
   // Dropdown background adapts to theme
   const dropdownBg = theme === 'dark' ? '#1f2937' : '#ffffff';
@@ -474,15 +475,178 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
             >
               <LogIn size={15} /> Login
             </button>
-            <a href="#register" className="btn btn-primary hide-mobile" style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '700' }}>Sign up</a>
+            <button 
+              onClick={onSignupClick} 
+              className="btn btn-primary hide-mobile" 
+              style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', border: 'none' }}
+            >
+              Sign up
+            </button>
           </>
         )}
 
-        {/* 3x3 App launcher dots */}
-        <div className="app-launcher hide-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 4px)', gap: '3px', cursor: 'pointer', padding: '6px' }} title="iLovePDF Products">
-          {[...Array(9)].map((_, i) => (
-            <div key={i} style={{ width: '4px', height: '4px', backgroundColor: 'var(--text-dark)', borderRadius: '50%', opacity: 0.5 }} />
-          ))}
+        {/* 3x3 App launcher dots with Hover Popup Menu */}
+        <div 
+          className="app-launcher hide-mobile" 
+          onMouseEnter={() => setIsAppLauncherOpen(true)}
+          onMouseLeave={() => setIsAppLauncherOpen(false)}
+          onClick={() => setIsAppLauncherOpen(!isAppLauncherOpen)}
+          style={{ position: 'relative', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} 
+          title="iLovePDF Products & Applications"
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 5px)', gap: '3px' }}>
+            {[...Array(9)].map((_, i) => (
+              <div key={i} style={{ width: '5px', height: '5px', backgroundColor: 'var(--text-dark)', borderRadius: '50%', opacity: 0.7 }} />
+            ))}
+          </div>
+
+          {/* Apps Popup Card matching exact iLovePDF design */}
+          {isAppLauncherOpen && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: '52px',
+                right: '-10px',
+                width: '860px',
+                backgroundColor: dropdownBg,
+                border: `1px solid ${dropdownBorder}`,
+                borderRadius: '20px',
+                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.16)',
+                padding: '32px 36px',
+                zIndex: 2000,
+                textAlign: 'left',
+                display: 'flex',
+                flexDirection: 'row',
+                gap: '32px',
+                animation: 'fadeIn 0.2s ease-in-out'
+              }}
+            >
+              {/* Arrow pointer pointing to 9-dots icon */}
+              <div style={{
+                position: 'absolute',
+                top: '-9px',
+                right: '22px',
+                transform: 'rotate(45deg)',
+                width: '16px',
+                height: '16px',
+                backgroundColor: dropdownBg,
+                borderLeft: `1px solid ${dropdownBorder}`,
+                borderTop: `1px solid ${dropdownBorder}`,
+                zIndex: 2001
+              }} />
+
+              {/* COLUMN 1: OTHER PRODUCTS */}
+              <div style={{ flex: '1.2', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', margin: 0 }}>
+                  OTHER PRODUCTS
+                </h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* iLoveIMG */}
+                  <a href="#iloveimg" onClick={(e) => e.preventDefault()} style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '20px', color: '#3b82f6' }}>💙</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>iLoveIMG</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>Effortless image editing</div>
+                    </div>
+                  </a>
+
+                  {/* iLoveSign */}
+                  <a href="#ilovesign" onClick={(e) => e.preventDefault()} style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '20px', color: '#1d4ed8' }}>💙</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>iLoveSign</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>e-Signing made simple</div>
+                    </div>
+                  </a>
+
+                  {/* iLoveAPI */}
+                  <a href="#iloveapi" onClick={(e) => e.preventDefault()} style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '20px', color: '#0d9488' }}>🩵</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>iLoveAPI</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>Document automation for developers</div>
+                    </div>
+                  </a>
+
+                  {/* Integrations Card */}
+                  <div style={{ border: `1px solid ${dropdownBorder}`, borderRadius: '16px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: 'var(--bg-light)', marginTop: '6px' }}>
+                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <LinkIcon size={16} color="var(--text-gray)" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)' }}>Integrations</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-gray)', marginTop: '2px' }}>Zapier, Make, Wordpress...</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* COLUMN 2: SOLUTIONS & APPLICATIONS */}
+              <div style={{ flex: '1.25', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {/* SOLUTIONS */}
+                <div>
+                  <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '16px' }}>
+                    SOLUTIONS
+                  </h4>
+
+                  <a href="#business" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} style={{ display: 'flex', alignItems: 'center', gap: '16px', textDecoration: 'none', backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '14px', border: '1px solid #f1f5f9' }}>
+                    <div style={{ width: '64px', height: '64px', borderRadius: '12px', background: 'linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {/* Gradient Bar Chart Icon */}
+                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
+                        <rect x="3" y="10" width="4" height="11" rx="1.5" fill="#b91c1c" />
+                        <rect x="10" y="6" width="4" height="15" rx="1.5" fill="#ef4444" />
+                        <rect x="17" y="3" width="4" height="18" rx="1.5" fill="#fca5a5" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>Business</div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '3px', lineHeight: '1.35' }}>Streamlined PDF editing and workflows for business teams</div>
+                    </div>
+                  </a>
+                </div>
+
+              </div>
+
+              {/* COLUMN 3: LINKS & UTILITIES */}
+              <div style={{ width: '170px', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '28px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <a href="#pricing" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    <CreditCard size={17} color="var(--text-gray)" /> Pricing
+                  </a>
+
+                  <a href="#security" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    <Shield size={17} color="var(--text-gray)" /> Security
+                  </a>
+
+                  <a href="#features" onClick={(e) => { e.preventDefault(); navigate('/'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    <Sparkles size={17} color="var(--text-gray)" /> Features
+                  </a>
+
+                  <a href="#about" onClick={(e) => { e.preventDefault(); navigate('/contact'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    <Heart size={17} color="var(--text-gray)" /> About us
+                  </a>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: `1px solid ${dropdownBorder}`, paddingTop: '20px' }}>
+                  <a href="#help" onClick={(e) => { e.preventDefault(); navigate('/help'); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    &lt; Help
+                  </a>
+
+                  <a href="#language" onClick={(e) => { e.preventDefault(); alert('🌐 Language selection: English (US)'); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    &lt; Language
+                  </a>
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
 
         <button className="mobile-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle Menu">

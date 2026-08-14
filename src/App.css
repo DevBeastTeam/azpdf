@@ -272,10 +272,10 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* Tools Grid Layout */
+/* Tools Grid Layout - 5 Boxes per row */
 .tools-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
   gap: 20px;
   padding: 0 40px 60px;
   max-width: 1400px;
@@ -731,8 +731,15 @@
 }
 
 /* Responsive queries */
+@media (max-width: 1200px) {
+  .tools-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   .tools-grid {
+    grid-template-columns: repeat(3, 1fr);
     padding: 0 20px 40px;
   }
   .hero-title {

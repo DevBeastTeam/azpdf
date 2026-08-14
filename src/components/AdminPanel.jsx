@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Users, Crown, Star, User, Search, ShieldAlert, BadgeCheck, XCircle, 
-  Trash2, Edit, Plus, Settings, FileText, Server, Activity, DollarSign, 
+import {
+  Users, Crown, Star, User, Search, ShieldAlert, BadgeCheck, XCircle,
+  Trash2, Edit, Plus, Settings, FileText, Server, Activity, DollarSign,
   Database, Clock, ArrowLeft, RefreshCw, Download, Save, CheckCircle, AlertTriangle
 } from 'lucide-react';
 
@@ -20,7 +20,7 @@ export default function AdminPanel({
   const navigate = useNavigate();
   const onBack = () => navigate(-1);
   const [activeTab, setActiveTab] = useState('overview');
-  
+
   // Search & Filters
   const [userSearch, setUserSearch] = useState('');
   const [userPlanFilter, setUserPlanFilter] = useState('All');
@@ -174,7 +174,7 @@ export default function AdminPanel({
   const handleAutoCleanup = () => {
     setIsCleaning(true);
     setCleanupMessage('Analyzing file tables...');
-    
+
     setTimeout(() => {
       setCleanupMessage('Deleting files exceeding cleanup timeout (2 hours)...');
       setTimeout(() => {
@@ -226,19 +226,19 @@ export default function AdminPanel({
 
   const filteredUsers = usersData.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-                        u.email.toLowerCase().includes(userSearch.toLowerCase());
+      u.email.toLowerCase().includes(userSearch.toLowerCase());
     const matchPlan = userPlanFilter === 'All' || u.plan === userPlanFilter;
     return matchSearch && matchPlan;
   });
 
-  const filteredFiles = recentFiles.filter(f => 
-    f.name.toLowerCase().includes(fileSearch.toLowerCase()) || 
+  const filteredFiles = recentFiles.filter(f =>
+    f.name.toLowerCase().includes(fileSearch.toLowerCase()) ||
     f.tool.toLowerCase().includes(fileSearch.toLowerCase())
   );
 
   const planMeta = {
-    Premium:  { color: '#d97706', bg: '#fffbeb', icon: <Star size={12} /> },
-    Free:     { color: '#6b7280', bg: '#f9fafb', icon: <User size={12} /> },
+    Premium: { color: '#d97706', bg: '#fffbeb', icon: <Star size={12} /> },
+    Free: { color: '#6b7280', bg: '#f9fafb', icon: <User size={12} /> },
   };
 
   return (
@@ -250,7 +250,7 @@ export default function AdminPanel({
       flexDirection: 'row',
       color: 'var(--text-dark)'
     }}>
-      
+
       {/* Sidebar Navigation */}
       <aside style={{
         width: '260px',
@@ -361,7 +361,7 @@ export default function AdminPanel({
 
       {/* Main Content Area */}
       <main style={{ flex: 1, padding: '36px 40px', overflowY: 'auto', boxSizing: 'border-box' }}>
-        
+
         {/* === TAB 1: DASHBOARD OVERVIEW === */}
         {activeTab === 'overview' && (
           <div>
@@ -402,20 +402,20 @@ export default function AdminPanel({
 
             {/* Visual Charts & Live Server Metrics Section */}
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginBottom: '32px' }}>
-              
+
               {/* Analytics SVG Charts Card */}
               <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px' }}>Monthly Traffic & Usage Trend</h3>
-                
+
                 <div style={{ position: 'relative', height: '180px', width: '100%', borderBottom: '1px solid var(--border-light)', marginBottom: '12px' }}>
                   <svg viewBox="0 0 500 150" width="100%" height="100%" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
                     <defs>
                       <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--primary-red)" stopOpacity="0.2"/>
-                        <stop offset="100%" stopColor="var(--primary-red)" stopOpacity="0.0"/>
+                        <stop offset="0%" stopColor="var(--primary-red)" stopOpacity="0.2" />
+                        <stop offset="100%" stopColor="var(--primary-red)" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
-                    
+
                     <line x1="0" y1="37" x2="500" y2="37" stroke="var(--border-light)" strokeWidth="1" />
                     <line x1="0" y1="75" x2="500" y2="75" stroke="var(--border-light)" strokeWidth="1" />
                     <line x1="0" y1="112" x2="500" y2="112" stroke="var(--border-light)" strokeWidth="1" />
@@ -428,7 +428,7 @@ export default function AdminPanel({
                     <circle cx="500" cy="20" r="5" fill="#ffffff" stroke="var(--primary-red)" strokeWidth="2" />
                   </svg>
                 </div>
-                
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-gray)', fontWeight: '700' }}>
                   <span>FEB 2026</span>
                   <span>MAR 2026</span>
@@ -444,7 +444,7 @@ export default function AdminPanel({
                 <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Server size={16} color="var(--primary-red)" /> Server Node Status
                 </h3>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
@@ -483,7 +483,7 @@ export default function AdminPanel({
 
             {/* Live Activity Ticker & Recent Users Preview */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
-              
+
               {/* Activity Log */}
               <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Live Security & Activity Log</h3>
@@ -535,18 +535,18 @@ export default function AdminPanel({
               <div>
                 {/* Back button and header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '28px' }}>
-                  <button 
+                  <button
                     onClick={() => setEditingUser(null)}
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      width: '40px', 
-                      height: '40px', 
-                      borderRadius: '50%', 
-                      border: '1.5px solid var(--border-light)', 
-                      backgroundColor: 'var(--bg-card)', 
-                      color: 'var(--text-gray)', 
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      border: '1.5px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-gray)',
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                       boxShadow: 'var(--shadow-sm)'
@@ -563,42 +563,42 @@ export default function AdminPanel({
 
                 {/* Profile Grid Layout */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '28px' }}>
-                  
+
                   {/* Left Side: Avatar & Card overview */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                     <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ 
-                        width: '90px', 
-                        height: '90px', 
-                        borderRadius: '50%', 
-                        backgroundColor: editingUser.plan === 'Premium' ? '#fffbeb' : 'var(--bg-light)', 
-                        color: editingUser.plan === 'Premium' ? '#d97706' : 'var(--text-gray)', 
-                        fontSize: '32px', 
-                        fontWeight: '800', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
+                      <div style={{
+                        width: '90px',
+                        height: '90px',
+                        borderRadius: '50%',
+                        backgroundColor: editingUser.plan === 'Premium' ? '#fffbeb' : 'var(--bg-light)',
+                        color: editingUser.plan === 'Premium' ? '#d97706' : 'var(--text-gray)',
+                        fontSize: '32px',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         margin: '0 auto 16px auto',
                         border: `2px solid ${editingUser.plan === 'Premium' ? '#fde047' : 'var(--border-light)'}`
                       }}>
                         {editingUser.avatar || editingUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                       </div>
-                      
+
                       <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>{editingUser.name}</h2>
                       <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '16px' }}>{editingUser.email}</p>
-                      
+
                       <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '20px', backgroundColor: editingUser.plan === 'Premium' ? '#fffbeb' : 'var(--bg-light)', color: editingUser.plan === 'Premium' ? '#d97706' : 'var(--text-gray)', fontSize: '11px', fontWeight: '800' }}>
                           {editingUser.plan === 'Premium' ? <Star size={12} /> : <User size={12} />} {editingUser.plan} Plan
                         </span>
-                        <span style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '4px', 
-                          padding: '6px 12px', 
-                          borderRadius: '20px', 
-                          fontSize: '11px', 
-                          fontWeight: '800', 
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '6px 12px',
+                          borderRadius: '20px',
+                          fontSize: '11px',
+                          fontWeight: '800',
                           backgroundColor: editingUser.status === 'Active' ? '#ecfdf5' : editingUser.status === 'Inactive' ? 'var(--bg-light)' : '#fef2f2',
                           color: editingUser.status === 'Active' ? '#10b981' : editingUser.status === 'Inactive' ? 'var(--text-gray)' : '#ef4444'
                         }}>
@@ -633,7 +633,7 @@ export default function AdminPanel({
 
                   {/* Right Side: Account details form & Mock Activities */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    
+
                     {/* Settings Form Card */}
                     <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
                       <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '20px' }}>Modify Account Specifications</h3>
@@ -641,21 +641,21 @@ export default function AdminPanel({
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Full Name</label>
-                            <input 
-                              type="text" 
-                              value={editingUser.name} 
-                              onChange={e => setEditingUser(p => ({ ...p, name: e.target.value }))} 
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }} 
+                            <input
+                              type="text"
+                              value={editingUser.name}
+                              onChange={e => setEditingUser(p => ({ ...p, name: e.target.value }))}
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                             />
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Email Address (Non-editable)</label>
-                            <input 
-                              type="email" 
-                              value={editingUser.email} 
+                            <input
+                              type="email"
+                              value={editingUser.email}
                               readOnly
                               disabled
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', outline: 'none', fontSize: '14px', boxSizing: 'border-box', cursor: 'not-allowed' }} 
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', outline: 'none', fontSize: '14px', boxSizing: 'border-box', cursor: 'not-allowed' }}
                             />
                           </div>
                         </div>
@@ -663,9 +663,9 @@ export default function AdminPanel({
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                           <div>
                             <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Subscription Plan</label>
-                            <select 
-                              value={editingUser.plan} 
-                              onChange={e => setEditingUser(p => ({ ...p, plan: e.target.value }))} 
+                            <select
+                              value={editingUser.plan}
+                              onChange={e => setEditingUser(p => ({ ...p, plan: e.target.value }))}
                               style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                             >
                               <option value="Free">Free</option>
@@ -674,9 +674,9 @@ export default function AdminPanel({
                           </div>
                           <div>
                             <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Account Status</label>
-                            <select 
-                              value={editingUser.status} 
-                              onChange={e => setEditingUser(p => ({ ...p, status: e.target.value }))} 
+                            <select
+                              value={editingUser.status}
+                              onChange={e => setEditingUser(p => ({ ...p, status: e.target.value }))}
                               style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                             >
                               <option value="Active">Active</option>
@@ -687,15 +687,15 @@ export default function AdminPanel({
                         </div>
 
                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                          <button 
-                            type="button" 
-                            onClick={() => setEditingUser(null)} 
+                          <button
+                            type="button"
+                            onClick={() => setEditingUser(null)}
                             style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                           >
                             Discard
                           </button>
-                          <button 
-                            type="submit" 
+                          <button
+                            type="submit"
                             style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(229, 36, 36, 0.2)' }}
                           >
                             Save Changes
@@ -707,7 +707,7 @@ export default function AdminPanel({
                     {/* Mock Action History */}
                     <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
                       <h3 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User Action History</h3>
-                      
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {[
                           { text: 'Merged contract_signed.pdf with annual_sheet.pdf', time: '1 hour ago' },
@@ -813,7 +813,7 @@ export default function AdminPanel({
 
                 {/* User Records Table */}
                 <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-                  
+
                   {/* Table Header */}
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1fr 1fr 1fr 1fr 1fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1.5px solid var(--border-light)', fontWeight: '800', fontSize: '12px', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     <span>Registered User</span>
@@ -1018,7 +1018,7 @@ export default function AdminPanel({
             </div>
 
             <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '3fr 1.5fr 1.5fr', padding: '12px 16px', backgroundColor: 'var(--bg-light)', borderBottom: '1.5px solid var(--border-light)', fontWeight: '800', fontSize: '12px', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 <span>PDF Processing Tool</span>
                 <span style={{ textAlign: 'center' }}>Upload Size Limit (MB)</span>
@@ -1294,9 +1294,9 @@ export default function AdminPanel({
             {/* 2. Parameters editing form */}
             <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '30px', boxShadow: 'var(--shadow-sm)' }}>
               <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '24px' }}>Global Configuration Values</h3>
-              
+
               <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
+
                 {/* Pricing section */}
                 <div>
                   <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px', marginBottom: '14px' }}>Licensing Pricing Rates ($)</h4>
@@ -1382,7 +1382,7 @@ export default function AdminPanel({
         )}
 
       </main>
-      
+
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }

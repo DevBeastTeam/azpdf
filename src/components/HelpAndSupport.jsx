@@ -183,7 +183,22 @@ export default function HelpAndSupport() {
               <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>support@ilovepdf.com</div>
             </a>
 
-            <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <div 
+              onClick={async () => {
+                try {
+                  const res = await fetch('http://localhost:5000/api/support/ticket', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category: 'Live Support', issueDetails: 'User initiated Live Chat session', userEmail: 'user@ilovepdf.com' })
+                  });
+                  const data = await res.json();
+                  alert(`💬 Live Chat Connected!\nSupport Ticket ID: ${data.ticketId}\nAn agent will join your session shortly.`);
+                } catch (e) {
+                  alert('💬 Connecting to Live Support Agent...');
+                }
+              }} 
+              style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+            >
               <MessageCircle size={28} color="#3b82f6" />
               <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>Live Chat</div>
               <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>Available for Premium users</div>
