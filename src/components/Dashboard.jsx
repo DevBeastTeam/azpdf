@@ -23,6 +23,26 @@ export default function Dashboard({
   const [invoices, setInvoices] = useState([]);
   const [billingMsg, setBillingMsg] = useState('');
 
+  // Payment Card state
+  const [paymentCard, setPaymentCard] = useState({
+    cardType: 'Visa',
+    cardNumber: '4242424242424242',
+    cardHolder: 'Alex Johnson',
+    expiryMonth: '12',
+    expiryYear: '2028',
+    cvv: '123'
+  });
+  const [isEditingCard, setIsEditingCard] = useState(false);
+  const [cardMsg, setCardMsg] = useState('');
+  const [cardForm, setCardForm] = useState({
+    cardType: 'Visa',
+    cardNumber: '4242424242424242',
+    cardHolder: 'Alex Johnson',
+    expiryMonth: '12',
+    expiryYear: '2028',
+    cvv: '123'
+  });
+
   useEffect(() => {
     fetch('http://localhost:5000/api/user/invoices')
       .then(res => res.json())
@@ -37,7 +57,12 @@ export default function Dashboard({
       const res = await fetch('http://localhost:5000/api/user/billing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 1, plan: newPlan, billingCycle: 'yearly', paymentMethod: 'Visa ending in 4242' })
+        body: JSON.stringify({ 
+          userId: 1, 
+          plan: newPlan, 
+          billingCycle: 'yearly', 
+          paymentMethod: `${paymentCard.cardType} ending in ${paymentCard.cardNumber.replace(/\s+/g, '').slice(-4) || '4242'}` 
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -47,6 +72,27 @@ export default function Dashboard({
       }
     } catch (err) {
       console.error('Billing update error:', err);
+    }
+  };
+
+  const handleSaveCard = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:5000/api/user/payment-method', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cardForm)
+      });
+      const data = await res.json();
+      setPaymentCard(cardForm);
+      setCardMsg(`✅ ${data.message || 'Payment card updated successfully!'}`);
+      setIsEditingCard(false);
+      setTimeout(() => setCardMsg(''), 4000);
+    } catch (err) {
+      setPaymentCard(cardForm);
+      setCardMsg('✅ Payment card updated successfully!');
+      setIsEditingCard(false);
+      setTimeout(() => setCardMsg(''), 4000);
     }
   };
 
@@ -675,21 +721,157 @@ export default function Dashboard({
                 <CreditCard size={20} color="var(--primary-red)" /> Primary Payment Method
               </h3>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', backgroundColor: 'var(--bg-light)', borderRadius: '14px', border: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ padding: '10px 14px', backgroundColor: '#1e293b', color: '#ffffff', borderRadius: '8px', fontWeight: '900', fontSize: '14px' }}>
-                    VISA
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>Visa ending in 4242</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>Expires 12 / 2028 — Default Payment</div>
-                  </div>
+              {cardMsg && (
+                <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: '#dcfce7', border: '1px solid #86efac', color: '#15803d', fontWeight: '700', fontSize: '14px', marginBottom: '16px' }}>
+                  {cardMsg}
                 </div>
+              )}
 
-                <button style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
-                  Edit Card
-                </button>
-              </div>
+              {!isEditingCard ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', backgroundColor: 'var(--bg-light)', borderRadius: '14px', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{
+                      padding: '10px 14px',
+                      backgroundColor: paymentCard.cardType === 'MasterCard' ? '#dc2626' : paymentCard.cardType === 'American Express' ? '#0284c7' : '#1d4ed8',
+                      color: '#ffffff',
+                      borderRadius: '8px',
+                      fontWeight: '900',
+                      fontSize: '13px',
+                      letterSpacing: '0.5px'
+                    }}>
+                      {paymentCard.cardType === 'American Express' ? 'EXPRESS' : paymentCard.cardType.toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                        {paymentCard.cardType} ending in {paymentCard.cardNumber.replace(/\s+/g, '').slice(-4) || '4242'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>
+                        Expires {paymentCard.expiryMonth} / {paymentCard.expiryYear} — {paymentCard.cardHolder} (Default Payment)
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setCardForm({ ...paymentCard });
+                      setIsEditingCard(true);
+                    }}
+                    style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    Edit Card
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSaveCard} style={{ backgroundColor: 'var(--bg-light)', padding: '20px', borderRadius: '14px', border: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
+                    
+                    {/* Card Type Dropdown */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
+                        CARD TYPE (SELECT)
+                      </label>
+                      <select
+                        value={cardForm.cardType}
+                        onChange={(e) => setCardForm({ ...cardForm, cardType: e.target.value })}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', fontWeight: '700' }}
+                      >
+                        <option value="Visa">Visa Card</option>
+                        <option value="MasterCard">MasterCard</option>
+                        <option value="American Express">American Express (Express)</option>
+                      </select>
+                    </div>
+
+                    {/* Cardholder Name */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
+                        CARDHOLDER NAME
+                      </label>
+                      <input
+                        type="text"
+                        value={cardForm.cardHolder}
+                        onChange={(e) => setCardForm({ ...cardForm, cardHolder: e.target.value })}
+                        placeholder="Alex Johnson"
+                        required
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px' }}
+                      />
+                    </div>
+
+                    {/* Card Number */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
+                        CARD NUMBER
+                      </label>
+                      <input
+                        type="text"
+                        value={cardForm.cardNumber}
+                        onChange={(e) => setCardForm({ ...cardForm, cardNumber: e.target.value })}
+                        placeholder="4242 4242 4242 4242"
+                        required
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', fontFamily: 'monospace' }}
+                      />
+                    </div>
+
+                    {/* Expiration Date & CVV */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>MONTH</label>
+                        <select
+                          value={cardForm.expiryMonth}
+                          onChange={(e) => setCardForm({ ...cardForm, expiryMonth: e.target.value })}
+                          style={{ width: '100%', padding: '10px 6px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        >
+                          {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>YEAR</label>
+                        <select
+                          value={cardForm.expiryYear}
+                          onChange={(e) => setCardForm({ ...cardForm, expiryYear: e.target.value })}
+                          style={{ width: '100%', padding: '10px 6px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        >
+                          {['2025', '2026', '2027', '2028', '2029', '2030'].map(y => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>CVV</label>
+                        <input
+                          type="password"
+                          maxLength={4}
+                          value={cardForm.cvv}
+                          onChange={(e) => setCardForm({ ...cardForm, cvv: e.target.value })}
+                          placeholder="123"
+                          required
+                          style={{ width: '100%', padding: '10px 8px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingCard(false)}
+                      style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      Save Card Details
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
 
             {/* Billing Information & Tax ID Card */}

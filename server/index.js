@@ -408,6 +408,25 @@ app.post('/api/user/billing', async (req, res, next) => {
   }
 });
 
+app.post('/api/user/payment-method', async (req, res, next) => {
+  try {
+    const { cardType, cardNumber, cardHolder, expiryMonth, expiryYear } = req.body;
+    const last4 = cardNumber ? cardNumber.replace(/\s+/g, '').slice(-4) : '4242';
+    res.json({
+      success: true,
+      message: `${cardType || 'Credit'} card ending in ${last4} saved successfully!`,
+      card: {
+        cardType: cardType || 'Visa',
+        last4,
+        cardHolder: cardHolder || 'Alex Johnson',
+        expiry: `${expiryMonth || '12'}/${expiryYear || '2028'}`
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.get('/api/user/invoices', (req, res) => {
   res.json({
     success: true,

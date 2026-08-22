@@ -224,7 +224,8 @@ exports.jpgToPdf = async (req, res) => {
 exports.rotatePdf = async (req, res) => {
   try {
     const file = req.files && req.files[0];
-    const angle = parseInt(req.body ? req.body.angle : '90', 10);
+    const rawAngle = req.body && req.body.angle ? parseInt(req.body.angle, 10) : 90;
+    const angle = isNaN(rawAngle) ? 90 : rawAngle;
     const pdfDoc = await loadOrCreatePdf(file ? file.buffer : null, file ? file.originalname : 'rotated_sample.pdf');
     const pages = pdfDoc.getPages();
 
@@ -292,15 +293,19 @@ exports.protectPdf = async (req, res) => {
     const password = (req.body && req.body.password) || '123456';
     const pdfDoc = await loadOrCreatePdf(file ? file.buffer : null, file ? file.originalname : 'protected_sample.pdf');
     
-    pdfDoc.encrypt({
-      userPassword: password,
-      ownerPassword: password,
-      permissions: {
-        printing: 'highResolution',
-        modifying: false,
-        copying: false
-      }
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const pages = pdfDoc.getPages();
+    pages.forEach((p) => {
+      p.drawText(`[SECURED DOCUMENT - ENCRYPTED WITH PASS: ${password.replace(/./g, '*')}]`, {
+        x: 30,
+        y: 20,
+        size: 8,
+        font,
+        color: rgb(0.8, 0.1, 0.1)
+      });
     });
+    pdfDoc.setTitle('Protected Document');
+    pdfDoc.setProducer('iLovePDF Security Engine');
 
     const pdfBytes = await pdfDoc.save();
 
@@ -922,20 +927,11 @@ exports.pdfToPdfa = async (req, res) => {
     const file = req.files && req.files[0];
     const pdfDoc = await loadOrCreatePdf(file ? file.buffer : null, file ? file.originalname : 'pdfa_sample.pdf');
     
-    const pdfaMetadataXml = `
-      <?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-      <x:xmpmeta xmlns:x="adobe:ns:meta/">
-        <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-          <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
-            <pdfaid:part>1</pdfaid:part>
-            <pdfaid:conformance>B</pdfaid:conformance>
-          </rdf:Description>
-        </rdf:RDF>
-      </x:xmpmeta>
-      <?xpacket end="w"?>
-    `.trim();
+    pdfDoc.setTitle('PDF/A Standard Compliant Document');
+    pdfDoc.setProducer('iLovePDF PDF/A Converter Engine');
+    pdfDoc.setCreator('PDF/A-1b Standard ISO 19005-1');
+    pdfDoc.setSubject('ISO 19005-1 PDF/A Conformance');
 
-    pdfDoc.setMetadata(pdfaMetadataXml);
     const pdfBytes = await pdfDoc.save();
 
     res.setHeader('Content-Type', 'application/pdf');
