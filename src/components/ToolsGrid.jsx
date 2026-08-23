@@ -304,7 +304,7 @@ const categories = [
   { id: 'intelligence', label: 'PDF Intelligence' }
 ];
 
-export default function ToolsGrid({ onSelectTool, toolsConfig }) {
+export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -332,6 +332,20 @@ export default function ToolsGrid({ onSelectTool, toolsConfig }) {
 
   return (
     <div>
+      {/* Dynamic Tools Section Header */}
+      {siteContent?.toolsTitle && (
+        <div style={{ textAlign: 'center', margin: '10px 0 24px 0' }}>
+          <h2 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
+            {siteContent.toolsTitle}
+          </h2>
+          {siteContent.toolsSubtitle && (
+            <p style={{ fontSize: '15px', color: 'var(--text-gray)', margin: 0 }}>
+              {siteContent.toolsSubtitle}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Search Bar */}
       <div className="search-container">
         <Search className="search-icon" size={20} />

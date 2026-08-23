@@ -15,7 +15,9 @@ export default function AdminPanel({
   toolsConfig,
   setToolsConfig,
   systemSettings,
-  setSystemSettings
+  setSystemSettings,
+  siteContent,
+  setSiteContent
 }) {
   const navigate = useNavigate();
   const onBack = () => navigate(-1);
@@ -41,12 +43,169 @@ export default function AdminPanel({
 
   // Local state for System settings inputs
   const [settingsForm, setSettingsForm] = useState({
-    monthlyPremiumPrice: systemSettings.monthlyPremiumPrice,
-    monthlyBusinessPrice: systemSettings.monthlyBusinessPrice,
-    autoCleanupHours: systemSettings.autoCleanupHours,
-    maxStoragePoolGb: systemSettings.maxStoragePoolGb
+    monthlyPremiumPrice: systemSettings?.monthlyPremiumPrice ?? 6.00,
+    monthlyBusinessPrice: systemSettings?.monthlyBusinessPrice ?? 12.00,
+    autoCleanupHours: systemSettings?.autoCleanupHours ?? 2,
+    maxStoragePoolGb: systemSettings?.maxStoragePoolGb ?? 50
   });
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  useEffect(() => {
+    if (systemSettings) {
+      setSettingsForm(prev => ({
+        ...prev,
+        ...systemSettings
+      }));
+    }
+  }, [systemSettings]);
+
+  // Local state for Home Page Content inputs
+  const [contentForm, setContentForm] = useState({
+    brandPrefix: siteContent?.brandPrefix || 'I',
+    brandIcon: siteContent?.brandIcon || '❤️',
+    brandName: siteContent?.brandName || 'PDF',
+    heroTitle: siteContent?.heroTitle || 'Every tool you need to work with PDFs in one place',
+    heroSubtitle: siteContent?.heroSubtitle || 'Every tool you need to use PDFs, at your fingertips. All are 100% FREE and easy to use! Merge, split, compress, convert, rotate, unlock and watermark PDFs with just a few clicks.',
+    toolsTitle: siteContent?.toolsTitle || 'Most Popular PDF Tools',
+    toolsSubtitle: siteContent?.toolsSubtitle || 'Fast, online and free tools for all your PDF requirements.',
+    pricingBadge: siteContent?.pricingBadge || 'Simple & Transparent Pricing',
+    pricingTitle: siteContent?.pricingTitle || 'Choose the Right Plan for Your PDF Needs',
+    pricingSubtitle: siteContent?.pricingSubtitle || 'Work seamlessly with all PDF tools. Get unlimited processing, high-speed OCR, digital e-signatures, and batch file support.',
+    freePlanTitle: siteContent?.freePlanTitle || 'Free',
+    freePlanDesc: siteContent?.freePlanDesc || 'Essential PDF tools for quick tasks and light usage.',
+    premiumPlanTitle: siteContent?.premiumPlanTitle || 'Premium',
+    premiumPlanDesc: siteContent?.premiumPlanDesc || 'Complete access, unlimited processing, OCR speed, and zero ads.',
+    businessPlanTitle: siteContent?.businessPlanTitle || 'Business / Team',
+    businessPlanDesc: siteContent?.businessPlanDesc || 'Custom team management, dedicated support, and enterprise API access.',
+    footerBrand: siteContent?.footerBrand || 'I ❤️ PDF',
+    footerDesc: siteContent?.footerDesc || 'The all-in-one PDF solution to make working with documents fast, simple, and completely secure.',
+    footerCopyright: siteContent?.footerCopyright || '© 2026 iLovePDF. All Rights Reserved.',
+    footerColumns: siteContent?.footerColumns || [],
+    footerButtons: siteContent?.footerButtons || [],
+    socialLinks: siteContent?.socialLinks || { twitter: '', facebook: '', linkedin: '', instagram: '' }
+  });
+  const [contentSaved, setContentSaved] = useState(false);
+  const [isSavingContent, setIsSavingContent] = useState(false);
+
+  useEffect(() => {
+    if (siteContent) {
+      setContentForm(prev => ({
+        ...prev,
+        ...siteContent,
+        footerColumns: siteContent.footerColumns || prev.footerColumns,
+        footerButtons: siteContent.footerButtons || prev.footerButtons,
+        socialLinks: siteContent.socialLinks || prev.socialLinks
+      }));
+    }
+  }, [siteContent]);
+
+  const handleSaveContent = async (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    setIsSavingContent(true);
+    setContentSaved(false);
+    try {
+      if (setSiteContent) {
+        await setSiteContent(contentForm);
+      }
+      setContentSaved(true);
+      addLog(`Updated Home Page branding, text content, and footer links globally.`, 'success');
+    } catch (err) {
+      console.error('Failed to update home page content:', err);
+    } finally {
+      setIsSavingContent(false);
+      setTimeout(() => setContentSaved(false), 4000);
+    }
+  };
+
+  // Footer Link Column Handlers
+  const handleAddFooterColumn = () => {
+    setContentForm(prev => ({
+      ...prev,
+      footerColumns: [
+        ...prev.footerColumns,
+        { id: `col-${Date.now()}`, title: 'New Column', links: [{ label: 'New Link', url: '/' }] }
+      ]
+    }));
+  };
+
+  const handleDeleteFooterColumn = (colIdx) => {
+    setContentForm(prev => ({
+      ...prev,
+      footerColumns: prev.footerColumns.filter((_, idx) => idx !== colIdx)
+    }));
+  };
+
+  const handleColumnTitleChange = (colIdx, title) => {
+    setContentForm(prev => {
+      const updatedCols = [...prev.footerColumns];
+      updatedCols[colIdx] = { ...updatedCols[colIdx], title };
+      return { ...prev, footerColumns: updatedCols };
+    });
+  };
+
+  const handleAddLinkToColumn = (colIdx) => {
+    setContentForm(prev => {
+      const updatedCols = [...prev.footerColumns];
+      const col = updatedCols[colIdx];
+      const newLinks = [...(col.links || []), { label: 'New Link', url: '/' }];
+      updatedCols[colIdx] = { ...col, links: newLinks };
+      return { ...prev, footerColumns: updatedCols };
+    });
+  };
+
+  const handleLinkChange = (colIdx, linkIdx, field, value) => {
+    setContentForm(prev => {
+      const updatedCols = [...prev.footerColumns];
+      const col = updatedCols[colIdx];
+      const updatedLinks = [...(col.links || [])];
+      updatedLinks[linkIdx] = { ...updatedLinks[linkIdx], [field]: value };
+      updatedCols[colIdx] = { ...col, links: updatedLinks };
+      return { ...prev, footerColumns: updatedCols };
+    });
+  };
+
+  const handleDeleteLinkFromColumn = (colIdx, linkIdx) => {
+    setContentForm(prev => {
+      const updatedCols = [...prev.footerColumns];
+      const col = updatedCols[colIdx];
+      const updatedLinks = col.links.filter((_, idx) => idx !== linkIdx);
+      updatedCols[colIdx] = { ...col, links: updatedLinks };
+      return { ...prev, footerColumns: updatedCols };
+    });
+  };
+
+  // Footer Bottom Button Handlers
+  const handleAddFooterButton = () => {
+    setContentForm(prev => ({
+      ...prev,
+      footerButtons: [...prev.footerButtons, { label: 'Button Item', url: '/' }]
+    }));
+  };
+
+  const handleFooterButtonChange = (btnIdx, field, value) => {
+    setContentForm(prev => {
+      const updatedBtns = [...prev.footerButtons];
+      updatedBtns[btnIdx] = { ...updatedBtns[btnIdx], [field]: value };
+      return { ...prev, footerButtons: updatedBtns };
+    });
+  };
+
+  const handleDeleteFooterButton = (btnIdx) => {
+    setContentForm(prev => ({
+      ...prev,
+      footerButtons: prev.footerButtons.filter((_, idx) => idx !== btnIdx)
+    }));
+  };
+
+  // Social Links Handler
+  const handleSocialLinkChange = (key, value) => {
+    setContentForm(prev => ({
+      ...prev,
+      socialLinks: { ...prev.socialLinks, [key]: value }
+    }));
+  };
 
   // CPU and latency simulation
   const [serverMetrics, setServerMetrics] = useState({
@@ -303,6 +462,7 @@ export default function AdminPanel({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {[
               { id: 'overview', label: 'Dashboard Overview', icon: <Activity size={18} /> },
+              { id: 'content', label: 'Home Page Content', icon: <Edit size={18} /> },
               { id: 'users', label: 'User Accounts', icon: <Users size={18} /> },
               { id: 'tools', label: 'PDF Tools Config', icon: <Settings size={18} /> },
               { id: 'files', label: 'Platform Files', icon: <FileText size={18} /> },
@@ -1248,6 +1408,500 @@ export default function AdminPanel({
               Logged storage count: {filteredFiles.length} files
             </div>
 
+          </div>
+        )}
+
+        {/* === TAB: HOME PAGE CONTENT MANAGER === */}
+        {activeTab === 'content' && (
+          <div style={{ maxWidth: '850px' }}>
+            <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Home Page & Brand Customizer</h1>
+                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Manage and edit all logo, titles, headings, descriptions, pricing text, and footer elements across the entire home page.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveContent}
+                disabled={isSavingContent}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  backgroundColor: 'var(--primary-red)',
+                  color: '#ffffff',
+                  fontWeight: '800',
+                  fontSize: '14px',
+                  cursor: isSavingContent ? 'not-allowed' : 'pointer',
+                  opacity: isSavingContent ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 15px rgba(229, 36, 36, 0.25)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {isSavingContent ? (
+                  <>
+                    <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Updating...
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} /> Save All Changes
+                  </>
+                )}
+              </button>
+            </div>
+
+            {contentSaved && (
+              <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '14px 18px', borderRadius: '12px', marginBottom: '24px', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle size={18} color="#059669" />
+                Home Page logo, titles, headings, and text updated successfully!
+              </div>
+            )}
+
+            <form onSubmit={handleSaveContent} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+              {/* 1. Header & Logo Branding */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🎨 Site Logo & Header Brand
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Brand Prefix Text</label>
+                    <input
+                      type="text"
+                      value={contentForm.brandPrefix}
+                      onChange={e => setContentForm(p => ({ ...p, brandPrefix: e.target.value }))}
+                      placeholder="e.g. I"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Logo Heart / Icon</label>
+                    <input
+                      type="text"
+                      value={contentForm.brandIcon}
+                      onChange={e => setContentForm(p => ({ ...p, brandIcon: e.target.value }))}
+                      placeholder="e.g. ❤️"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Brand Suffix Text</label>
+                    <input
+                      type="text"
+                      value={contentForm.brandName}
+                      onChange={e => setContentForm(p => ({ ...p, brandName: e.target.value }))}
+                      placeholder="e.g. PDF"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-gray)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>Live Preview:</span>
+                  <span style={{ fontWeight: '900', color: 'var(--text-dark)', backgroundColor: 'var(--bg-light)', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                    {contentForm.brandPrefix} {contentForm.brandIcon} {contentForm.brandName}
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. Hero Section Content */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🚀 Main Hero Banner
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Hero Main Title Heading</label>
+                    <input
+                      type="text"
+                      value={contentForm.heroTitle}
+                      onChange={e => setContentForm(p => ({ ...p, heroTitle: e.target.value }))}
+                      placeholder="Hero Title"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Hero Subtitle / Description Paragraph</label>
+                    <textarea
+                      rows={3}
+                      value={contentForm.heroSubtitle}
+                      onChange={e => setContentForm(p => ({ ...p, heroSubtitle: e.target.value }))}
+                      placeholder="Hero Subtitle"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', resize: 'vertical' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Tools Section Content */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🛠️ PDF Tools Section Headings
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tools Section Heading</label>
+                    <input
+                      type="text"
+                      value={contentForm.toolsTitle}
+                      onChange={e => setContentForm(p => ({ ...p, toolsTitle: e.target.value }))}
+                      placeholder="Tools Section Heading"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tools Section Subtitle</label>
+                    <input
+                      type="text"
+                      value={contentForm.toolsSubtitle}
+                      onChange={e => setContentForm(p => ({ ...p, toolsSubtitle: e.target.value }))}
+                      placeholder="Tools Section Subtitle"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Pricing Section Content */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  💳 Pricing Section & Plan Text
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Category Badge</label>
+                      <input
+                        type="text"
+                        value={contentForm.pricingBadge}
+                        onChange={e => setContentForm(p => ({ ...p, pricingBadge: e.target.value }))}
+                        placeholder="Pricing Badge"
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Main Heading</label>
+                      <input
+                        type="text"
+                        value={contentForm.pricingTitle}
+                        onChange={e => setContentForm(p => ({ ...p, pricingTitle: e.target.value }))}
+                        placeholder="Pricing Title"
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Subtitle / Description</label>
+                    <input
+                      type="text"
+                      value={contentForm.pricingSubtitle}
+                      onChange={e => setContentForm(p => ({ ...p, pricingSubtitle: e.target.value }))}
+                      placeholder="Pricing Subtitle"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+
+                  <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '4px 0' }} />
+
+                  {/* Plan Cards Headings */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Free Plan Title</label>
+                      <input
+                        type="text"
+                        value={contentForm.freePlanTitle}
+                        onChange={e => setContentForm(p => ({ ...p, freePlanTitle: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Free Plan Description</label>
+                      <input
+                        type="text"
+                        value={contentForm.freePlanDesc}
+                        onChange={e => setContentForm(p => ({ ...p, freePlanDesc: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Premium Plan Title</label>
+                      <input
+                        type="text"
+                        value={contentForm.premiumPlanTitle}
+                        onChange={e => setContentForm(p => ({ ...p, premiumPlanTitle: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Premium Plan Description</label>
+                      <input
+                        type="text"
+                        value={contentForm.premiumPlanDesc}
+                        onChange={e => setContentForm(p => ({ ...p, premiumPlanDesc: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Business Plan Title</label>
+                      <input
+                        type="text"
+                        value={contentForm.businessPlanTitle}
+                        onChange={e => setContentForm(p => ({ ...p, businessPlanTitle: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Business Plan Description</label>
+                      <input
+                        type="text"
+                        value={contentForm.businessPlanDesc}
+                        onChange={e => setContentForm(p => ({ ...p, businessPlanDesc: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Footer Section Content & Dynamic Links */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🌐 Footer Branding, Links & Buttons
+                </h3>
+
+                {/* Footer Brand & Description */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Footer Brand Title</label>
+                    <input
+                      type="text"
+                      value={contentForm.footerBrand}
+                      onChange={e => setContentForm(p => ({ ...p, footerBrand: e.target.value }))}
+                      placeholder="Footer Brand"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Footer Copyright Text</label>
+                    <input
+                      type="text"
+                      value={contentForm.footerCopyright}
+                      onChange={e => setContentForm(p => ({ ...p, footerCopyright: e.target.value }))}
+                      placeholder="Copyright Text"
+                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                    />
+                  </div>
+                </div>
+
+                <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '20px 0' }} />
+
+                {/* Footer Link Columns Manager */}
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <div>
+                      <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Footer Link Columns</h4>
+                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>Add, edit, or remove navigation columns and links displayed in the footer grid.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddFooterColumn}
+                      style={{ padding: '6px 14px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <Plus size={14} /> Add New Column
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                    {contentForm.footerColumns.map((col, colIdx) => (
+                      <div key={col.id || colIdx} style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px' }}>
+                          <input
+                            type="text"
+                            value={col.title}
+                            onChange={e => handleColumnTitleChange(colIdx, e.target.value)}
+                            placeholder="Column Title"
+                            style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', fontWeight: '700' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFooterColumn(colIdx)}
+                            style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                            title="Delete Column"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+
+                        {/* Links List */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {col.links && col.links.map((link, linkIdx) => (
+                            <div key={linkIdx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <input
+                                type="text"
+                                value={link.label}
+                                onChange={e => handleLinkChange(colIdx, linkIdx, 'label', e.target.value)}
+                                placeholder="Link Name"
+                                style={{ width: '45%', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                              />
+                              <input
+                                type="text"
+                                value={link.url}
+                                onChange={e => handleLinkChange(colIdx, linkIdx, 'url', e.target.value)}
+                                placeholder="URL / Path"
+                                style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLinkFromColumn(colIdx, linkIdx)}
+                                style={{ color: 'var(--text-gray)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
+                                title="Remove Link"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => handleAddLinkToColumn(colIdx)}
+                            style={{ marginTop: '4px', padding: '4px 8px', borderRadius: '6px', backgroundColor: 'transparent', border: '1px dashed var(--border-light)', color: 'var(--text-gray)', fontSize: '11px', fontWeight: '700', cursor: 'pointer', textAlign: 'center' }}
+                          >
+                            + Add Link to {col.title || 'Column'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '20px 0' }} />
+
+                {/* Footer Bottom Quick Buttons Manager */}
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div>
+                      <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Footer Bottom Quick Links / Buttons</h4>
+                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>Inline links shown next to the copyright text (e.g., Terms, Privacy, Help).</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddFooterButton}
+                      style={{ padding: '6px 14px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <Plus size={14} /> Add Quick Button
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
+                    {contentForm.footerButtons.map((btn, btnIdx) => (
+                      <div key={btnIdx} style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: 'var(--bg-light)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                        <input
+                          type="text"
+                          value={btn.label}
+                          onChange={e => handleFooterButtonChange(btnIdx, 'label', e.target.value)}
+                          placeholder="Button Label"
+                          style={{ width: '40%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                        />
+                        <input
+                          type="text"
+                          value={btn.url}
+                          onChange={e => handleFooterButtonChange(btnIdx, 'url', e.target.value)}
+                          placeholder="Path (e.g. /terms)"
+                          style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFooterButton(btnIdx)}
+                          style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '20px 0' }} />
+
+                {/* Social Links URLs */}
+                <div>
+                  <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '12px' }}>Social Media Links</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Twitter / X URL</label>
+                      <input
+                        type="text"
+                        value={contentForm.socialLinks.twitter || ''}
+                        onChange={e => handleSocialLinkChange('twitter', e.target.value)}
+                        placeholder="https://twitter.com/yourhandle"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Facebook URL</label>
+                      <input
+                        type="text"
+                        value={contentForm.socialLinks.facebook || ''}
+                        onChange={e => handleSocialLinkChange('facebook', e.target.value)}
+                        placeholder="https://facebook.com/yourpage"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>LinkedIn URL</label>
+                      <input
+                        type="text"
+                        value={contentForm.socialLinks.linkedin || ''}
+                        onChange={e => handleSocialLinkChange('linkedin', e.target.value)}
+                        placeholder="https://linkedin.com/company/yourcompany"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Instagram URL</label>
+                      <input
+                        type="text"
+                        value={contentForm.socialLinks.instagram || ''}
+                        onChange={e => handleSocialLinkChange('instagram', e.target.value)}
+                        placeholder="https://instagram.com/yourprofile"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Submit Button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button
+                  type="submit"
+                  disabled={isSavingContent}
+                  style={{
+                    padding: '14px 32px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    backgroundColor: 'var(--primary-red)',
+                    color: '#ffffff',
+                    fontWeight: '800',
+                    fontSize: '15px',
+                    cursor: isSavingContent ? 'not-allowed' : 'pointer',
+                    opacity: isSavingContent ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 6px 20px rgba(229, 36, 36, 0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {isSavingContent ? (
+                    <>
+                      <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} /> Updating Content...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} /> Save Home Page Changes
+                    </>
+                  )}
+                </button>
+              </div>
+
+            </form>
           </div>
         )}
 

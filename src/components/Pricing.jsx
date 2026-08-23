@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Zap, Shield, Sparkles, Building2, HelpCircle } from 'lucide-react';
 
-export default function Pricing({ onContactSales }) {
+export default function Pricing({ onContactSales, siteContent }) {
   const [isYearly, setIsYearly] = useState(true);
 
   return (
@@ -28,7 +28,7 @@ export default function Pricing({ onContactSales }) {
           display: 'inline-block',
           marginBottom: '16px'
         }}>
-          Simple & Transparent Pricing
+          {siteContent?.pricingBadge || 'Simple & Transparent Pricing'}
         </span>
 
         {/* Section Heading */}
@@ -39,7 +39,7 @@ export default function Pricing({ onContactSales }) {
           marginBottom: '12px',
           letterSpacing: '-0.5px'
         }}>
-          Choose the Right Plan for Your PDF Needs
+          {siteContent?.pricingTitle || 'Choose the Right Plan for Your PDF Needs'}
         </h2>
 
         <p style={{
@@ -49,8 +49,7 @@ export default function Pricing({ onContactSales }) {
           margin: '0 auto 36px auto',
           lineHeight: '1.6'
         }}>
-          Work seamlessly with all PDF tools. Get unlimited processing, high-speed OCR, 
-          digital e-signatures, and batch file support.
+          {siteContent?.pricingSubtitle || 'Work seamlessly with all PDF tools. Get unlimited processing, high-speed OCR, digital e-signatures, and batch file support.'}
         </p>
 
         {/* Monthly / Yearly Billing Toggle */}
@@ -138,11 +137,11 @@ export default function Pricing({ onContactSales }) {
                 <div style={{ padding: '8px', backgroundColor: 'var(--bg-light)', borderRadius: '10px' }}>
                   <Shield size={20} color="var(--text-gray)" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>Free</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>{siteContent?.freePlanTitle || 'Free'}</h3>
               </div>
 
               <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '24px', minHeight: '40px' }}>
-                Essential PDF tools for quick tasks and light usage.
+                {siteContent?.freePlanDesc || 'Essential PDF tools for quick tasks and light usage.'}
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '28px' }}>
@@ -223,11 +222,11 @@ export default function Pricing({ onContactSales }) {
                 <div style={{ padding: '8px', backgroundColor: '#fff1f2', borderRadius: '10px' }}>
                   <Zap size={20} color="var(--primary-red)" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>Premium</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>{siteContent?.premiumPlanTitle || 'Premium'}</h3>
               </div>
 
               <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '24px', minHeight: '40px' }}>
-                Complete access, unlimited processing, OCR speed, and zero ads.
+                {siteContent?.premiumPlanDesc || 'Complete access, unlimited processing, OCR speed, and zero ads.'}
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '28px' }}>
@@ -296,11 +295,11 @@ export default function Pricing({ onContactSales }) {
                 <div style={{ padding: '8px', backgroundColor: '#eff6ff', borderRadius: '10px' }}>
                   <Building2 size={20} color="#2563eb" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>Business</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>{siteContent?.businessPlanTitle || 'Business'}</h3>
               </div>
 
               <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '24px', minHeight: '40px' }}>
-                Custom workflow tools and team license management.
+                {siteContent?.businessPlanDesc || 'Custom workflow tools and team license management.'}
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '28px' }}>

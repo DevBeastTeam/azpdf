@@ -58,17 +58,109 @@ const toolMeta = {
   extract:         { title: 'Extract Pages',       desc: 'Extract selected pages from your PDF to create a new document.' },
 };
 
+const defaultSiteContent = {
+  brandPrefix: 'I',
+  brandIcon: '❤️',
+  brandName: 'PDF',
+  heroTitle: 'Every tool you need to work with PDFs in one place',
+  heroSubtitle: 'Every tool you need to use PDFs, at your fingertips. All are 100% FREE and easy to use! Merge, split, compress, convert, rotate, unlock and watermark PDFs with just a few clicks.',
+  toolsTitle: 'Most Popular PDF Tools',
+  toolsSubtitle: 'Fast, online and free tools for all your PDF requirements.',
+  pricingBadge: 'Simple & Transparent Pricing',
+  pricingTitle: 'Choose the Right Plan for Your PDF Needs',
+  pricingSubtitle: 'Work seamlessly with all PDF tools. Get unlimited processing, high-speed OCR, digital e-signatures, and batch file support.',
+  freePlanTitle: 'Free',
+  freePlanDesc: 'Essential PDF tools for everyone with basic requirements.',
+  premiumPlanTitle: 'Premium',
+  premiumPlanDesc: 'Full access to all PDF tools with priority processing and no limits.',
+  businessPlanTitle: 'Business / Team',
+  businessPlanDesc: 'Custom team management, dedicated support, and enterprise API access.',
+  footerBrand: 'I ❤️ PDF',
+  footerDesc: 'The all-in-one PDF solution to make working with documents fast, simple, and completely secure.',
+  footerCopyright: '© 2026 iLovePDF. All Rights Reserved.',
+  footerColumns: [
+    {
+      id: 'col-1',
+      title: 'Quick Navigation',
+      links: [
+        { label: 'Home', url: '/' },
+        { label: 'Features', url: '/#features' },
+        { label: 'Pricing', url: '/#pricing' },
+        { label: 'Tools', url: '/#tools' },
+        { label: 'FAQ', url: '/#faq' }
+      ]
+    },
+    {
+      id: 'col-2',
+      title: 'Solutions',
+      links: [
+        { label: 'Business', url: '/#business' },
+        { label: 'Education', url: '/#education' },
+        { label: 'Developers', url: '/#developers' }
+      ]
+    },
+    {
+      id: 'col-3',
+      title: 'Applications',
+      links: [
+        { label: 'iLoveAPI', url: '/#api' }
+      ]
+    },
+    {
+      id: 'col-4',
+      title: 'Company',
+      links: [
+        { label: 'Our Story', url: '/#about' },
+        { label: 'Blog', url: '/#blog' },
+        { label: 'Careers', url: '/#careers' },
+        { label: 'Press', url: '/#press' }
+      ]
+    },
+    {
+      id: 'col-5',
+      title: 'Support',
+      links: [
+        { label: 'Help & Support', url: '/help' },
+        { label: 'Terms & Conditions', url: '/terms' },
+        { label: 'Privacy Policy', url: '/privacy' },
+        { label: 'Contact Support', url: '/contact' }
+      ]
+    },
+    {
+      id: 'col-6',
+      title: 'Other Products',
+      links: [
+        { label: 'iLoveIMG', url: 'https://www.iloveimg.com' },
+        { label: 'iLoveSign', url: 'https://www.ilovesign.com' },
+        { label: 'iLoveAPI', url: 'https://www.iloveapi.com' }
+      ]
+    }
+  ],
+  footerButtons: [
+    { label: 'Terms', url: '/terms' },
+    { label: 'Privacy', url: '/privacy' },
+    { label: 'Help', url: '/help' }
+  ],
+  socialLinks: {
+    twitter: 'https://twitter.com',
+    facebook: 'https://facebook.com',
+    linkedin: 'https://linkedin.com',
+    instagram: 'https://instagram.com'
+  }
+};
+
 // ─── Home Page (combined hero + tools + pricing) ───────────────────────────────
-function HomePage({ toolsConfig }) {
+function HomePage({ toolsConfig, siteContent }) {
   const navigate = useNavigate();
   return (
     <>
-      <Hero />
+      <Hero siteContent={siteContent} />
       <ToolsGrid
         toolsConfig={toolsConfig}
+        siteContent={siteContent}
         onSelectTool={(tool) => navigate(`/tool/${tool.id.replace('tool-', '')}`)}
       />
-      <Pricing onContactSales={() => navigate('/contact')} />
+      <Pricing siteContent={siteContent} onContactSales={() => navigate('/contact')} />
     </>
   );
 }
@@ -285,6 +377,7 @@ function App() {
     monthlyBusinessPrice: 12.00,
     autoCleanupEnabled: true
   });
+  const [siteContent, setSiteContent] = useState(defaultSiteContent);
 
   // Fetch db.json data on mount
   useEffect(() => {
@@ -297,6 +390,7 @@ function App() {
           if (db.recentFiles) setRecentFiles(db.recentFiles);
           if (db.toolsConfig) setToolsConfig(db.toolsConfig);
           if (db.systemSettings) setSystemSettings(db.systemSettings);
+          if (db.siteContent) setSiteContent(prev => ({ ...prev, ...db.siteContent }));
         }
       } catch (err) {
         console.error('Failed to load database from backend:', err);
@@ -344,6 +438,20 @@ function App() {
     setSystemSettings(resolved);
     try {
       await fetch('http://localhost:5000/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resolved)
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const updateSiteContent = async (newVal) => {
+    const resolved = typeof newVal === 'function' ? newVal(siteContent) : newVal;
+    setSiteContent(resolved);
+    try {
+      await fetch('http://localhost:5000/api/admin/site-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(resolved)
@@ -407,18 +515,36 @@ function App() {
     recentFiles, setRecentFiles: updateRecentFiles,
     toolsConfig, setToolsConfig: updateToolsConfig,
     systemSettings, setSystemSettings: updateSystemSettings,
+    siteContent, setSiteContent: updateSiteContent,
     addRecentFile,
     isLoggedIn,
   };
 
-  // ── Maintenance check ──────────────────────────────────────────────────────
-  const isMaintenanceActive = systemSettings.maintenanceMode && !bypassMaintenance;
+  // ── Path & Maintenance check ──────────────────────────────────────────────
+  const fullUrl = (location.pathname + location.search + location.hash).toLowerCase();
+  const isAdminPage = fullUrl.includes('admin');
+  const isDashboardPage = fullUrl.includes('dashboard');
+  const isDashboardOrAdmin = isDashboardPage || isAdminPage;
+  const isMaintenanceActive = systemSettings?.maintenanceMode && !bypassMaintenance && !isAdminPage;
 
   if (isMaintenanceActive) {
     return <MaintenanceScreen onAdminAccess={() => { setBypassMaintenance(true); navigate('/admin'); }} />;
   }
 
-  const isDashboardOrAdmin = location.pathname === '/dashboard' || location.pathname === '/admin';
+  const adminPanelComponent = (
+    <AdminPanel
+      usersData={usersData}
+      setUsersData={updateUsersData}
+      recentFiles={recentFiles}
+      setRecentFiles={updateRecentFiles}
+      toolsConfig={toolsConfig}
+      setToolsConfig={updateToolsConfig}
+      systemSettings={systemSettings}
+      setSystemSettings={updateSystemSettings}
+      siteContent={siteContent}
+      setSiteContent={updateSiteContent}
+    />
+  );
 
   return (
     <AppContext.Provider value={contextValue}>
@@ -428,6 +554,7 @@ function App() {
           theme={theme}
           toggleTheme={toggleTheme}
           isLoggedIn={isLoggedIn}
+          siteContent={siteContent}
           onLoginClick={handleLoginClick}
           onSignupClick={handleSignupClick}
           onLogoutClick={() => setShowLogoutModal(true)}
@@ -461,7 +588,7 @@ function App() {
         <main className="main-content" style={{ marginTop:'64px', flex: 1 }}>
           <Routes>
             {/* Public Routes */}
-            <Route path="/"        element={<HomePage toolsConfig={toolsConfig} />} />
+            <Route path="/" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} />} />
             <Route path="/tool/:toolId" element={<ToolPage toolsConfig={toolsConfig} />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/terms"   element={<TermsAndConditions />} />
@@ -479,25 +606,15 @@ function App() {
             } />
 
             {/* Admin Panel */}
-            <Route path="/admin" element={
-              <AdminPanel
-                usersData={usersData}
-                setUsersData={updateUsersData}
-                recentFiles={recentFiles}
-                setRecentFiles={updateRecentFiles}
-                toolsConfig={toolsConfig}
-                setToolsConfig={updateToolsConfig}
-                systemSettings={systemSettings}
-                setSystemSettings={updateSystemSettings}
-              />
-            } />
+            <Route path="/admin" element={adminPanelComponent} />
+            <Route path="/admin/*" element={adminPanelComponent} />
 
             {/* Catch-all */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={isAdminPage ? adminPanelComponent : <Navigate to="/" replace />} />
           </Routes>
         </main>
 
-        {!isDashboardOrAdmin && <Footer />}
+        {!isDashboardOrAdmin && <Footer siteContent={siteContent} />}
       </div>
     </AppContext.Provider>
   );

@@ -10,7 +10,7 @@ import {
   SignPdfIcon, RedactPdfIcon, ComparePdfIcon, TranslatePdfIcon, PdfToMarkdownIcon
 } from './Icons';
 
-export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, onSignupClick, onLogoutClick }) {
+export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, onSignupClick, onLogoutClick, siteContent }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,10 +53,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
   return (
     <header className="header">
       <div className="header-left">
-        <a href="#home" className="brand" onClick={() => { setView('home'); setMobileMenuOpen(false); }} style={{ gap: '2px' }}>
-          <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>I</span>
-          <span style={{ color: 'var(--primary-red)', fontSize: '22px', display: 'flex', alignItems: 'center' }}>❤️</span>
-          <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>PDF</span>
+        <a href="#home" className="brand" onClick={() => { setView('home'); setMobileMenuOpen(false); }} style={{ gap: '4px' }}>
+          <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>{siteContent?.brandPrefix || 'I'}</span>
+          <span style={{ color: 'var(--primary-red)', fontSize: '20px', display: 'flex', alignItems: 'center' }}>{siteContent?.brandIcon || '❤️'}</span>
+          <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>{siteContent?.brandName || 'PDF'}</span>
         </a>
 
         {/* Desktop Navigation */}
@@ -423,6 +423,27 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           Home
         </button>
 
+        <button
+          onClick={() => setView('admin')}
+          className="btn btn-secondary hide-mobile"
+          style={{
+            border: currentView === 'admin' ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+            fontWeight: '700',
+            color: currentView === 'admin' ? 'var(--primary-red)' : 'var(--text-dark)',
+            backgroundColor: currentView === 'admin' ? 'rgba(229,36,36,0.08)' : 'var(--bg-card)',
+            cursor: 'pointer',
+            fontSize: '13px',
+            padding: '7px 14px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s'
+          }}
+        >
+          ⚙️ Admin Panel
+        </button>
+
         {isLoggedIn ? (
           <>
             {/* Logout Button */}
@@ -665,6 +686,9 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </a>
           <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
             COMPRESS PDF <ArrowRight size={16} />
+          </a>
+          <a href="#admin" className="mobile-nav-item" onClick={() => { setView('admin'); setMobileMenuOpen(false); }} style={{ fontWeight: '700', color: 'var(--primary-red)' }}>
+            ⚙️ ADMIN PANEL <ArrowRight size={16} />
           </a>
           {isLoggedIn && (
             <>

@@ -209,5 +209,8 @@
     "monthlyPremiumPrice": 8.99,
     "monthlyBusinessPrice": 12,
     "autoCleanupEnabled": true
+  },
+  "siteContent": {
+    "heroTitle": "Every tool you need to work with PDFs in one place"
   }
 }

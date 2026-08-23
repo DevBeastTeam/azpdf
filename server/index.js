@@ -76,6 +76,13 @@ async function initDatabase() {
       )
     `);
 
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS site_content (
+        key TEXT PRIMARY KEY,
+        val TEXT
+      )
+    `);
+
     const usersCount = await dbQuery('SELECT COUNT(*) as count FROM users');
     const jsonDbPath = path.join(__dirname, 'db.json');
     let seedData = null;
@@ -133,8 +140,19 @@ async function initDatabase() {
           ]
         );
       }
-      console.log('[SQLite3] Seeding complete.');
     }
+
+    // Seed or sync site_content
+    if (seedData && seedData.siteContent) {
+      for (const [key, val] of Object.entries(seedData.siteContent)) {
+        const valStr = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        await dbRun(
+          'INSERT OR IGNORE INTO site_content (key, val) VALUES (?, ?)',
+          [key, valStr]
+        );
+      }
+    }
+    console.log('[SQLite3] Seeding complete.');
   } catch (err) {
     console.error('[SQLite3] Error initializing database:', err);
   }
@@ -205,6 +223,7 @@ app.get('/api/admin/data', async (req, res, next) => {
     const files = await dbQuery('SELECT * FROM recent_files ORDER BY id DESC');
     const toolsRows = await dbQuery('SELECT * FROM tools_config');
     const settingsRows = await dbQuery('SELECT * FROM system_settings WHERE id = 1');
+    const contentRows = await dbQuery('SELECT * FROM site_content');
 
     // Map tools config rows to object structure
     const toolsConfig = {};
@@ -232,12 +251,51 @@ app.get('/api/admin/data', async (req, res, next) => {
       autoCleanupEnabled: true
     };
 
+    // Map site content key-value rows
+    const siteContent = {};
+    contentRows.forEach(row => {
+      let val = row.val;
+      if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
+        try {
+          val = JSON.parse(val);
+        } catch (e) {}
+      }
+      siteContent[row.key] = val;
+    });
+
     res.json({
       usersData: users,
       recentFiles: files,
       toolsConfig,
-      systemSettings
+      systemSettings,
+      siteContent
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/admin/site-content', async (req, res, next) => {
+  try {
+    const newContent = req.body || {};
+    for (const [key, val] of Object.entries(newContent)) {
+      const valStr = typeof val === 'object' ? JSON.stringify(val) : String(val);
+      await dbRun(
+        'INSERT INTO site_content (key, val) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET val = excluded.val',
+        [key, valStr]
+      );
+    }
+    const jsonDbPath = path.join(__dirname, 'db.json');
+    if (fs.existsSync(jsonDbPath)) {
+      try {
+        const fullDb = JSON.parse(fs.readFileSync(jsonDbPath, 'utf8'));
+        fullDb.siteContent = newContent;
+        fs.writeFileSync(jsonDbPath, JSON.stringify(fullDb, null, 2), 'utf8');
+      } catch (e) {
+        console.error('Failed to update db.json file:', e);
+      }
+    }
+    res.json({ success: true, siteContent: newContent });
   } catch (err) {
     next(err);
   }
