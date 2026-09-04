@@ -423,26 +423,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           Home
         </button>
 
-        <button
-          onClick={() => setView('admin')}
-          className="btn btn-secondary hide-mobile"
-          style={{
-            border: currentView === 'admin' ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
-            fontWeight: '700',
-            color: currentView === 'admin' ? 'var(--primary-red)' : 'var(--text-dark)',
-            backgroundColor: currentView === 'admin' ? 'rgba(229,36,36,0.08)' : 'var(--bg-card)',
-            cursor: 'pointer',
-            fontSize: '13px',
-            padding: '7px 14px',
-            borderRadius: '8px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            transition: 'all 0.2s'
-          }}
-        >
-          ⚙️ Admin Panel
-        </button>
+
 
         {isLoggedIn ? (
           <>
@@ -687,9 +668,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
             COMPRESS PDF <ArrowRight size={16} />
           </a>
-          <a href="#admin" className="mobile-nav-item" onClick={() => { setView('admin'); setMobileMenuOpen(false); }} style={{ fontWeight: '700', color: 'var(--primary-red)' }}>
-            ⚙️ ADMIN PANEL <ArrowRight size={16} />
-          </a>
+
           {isLoggedIn && (
             <>
               <button className="mobile-nav-item" onClick={() => { onLogoutClick(); setMobileMenuOpen(false); }} style={{ color: '#ef4444', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', fontWeight: '700', fontSize: '15px' }}>

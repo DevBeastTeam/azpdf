@@ -5,6 +5,7 @@ import {
   FileType, Sparkles, Layers, RotateCw, Lock, Eye, Edit3, Globe
 } from 'lucide-react';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
+import PdfInteractiveEditor from './PdfInteractiveEditor';
 
 export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcessed }) {
   const [files, setFiles] = useState([]);
@@ -1016,7 +1017,25 @@ startxref
         )}
 
         {/* State 2: Queued File List & Interactive Tool Controls */}
-        {status === 'queued' && (
+        {status === 'queued' && tool.id.includes('edit') && files.length > 0 ? (
+          <PdfInteractiveEditor 
+            file={files[0]} 
+            onSave={(editedBlob, filename) => {
+              setDownloadBlob(editedBlob);
+              setDownloadFilename(filename);
+              setStatus('success');
+              triggerDownload(editedBlob, filename);
+              if (typeof onFileProcessed === 'function') {
+                onFileProcessed({
+                  name: filename,
+                  tool: tool.title,
+                  size: files[0] ? files[0].size : '1.45 MB'
+                });
+              }
+            }}
+            onCancel={() => resetWorkspace()}
+          />
+        ) : status === 'queued' && (
           <div style={{ width: '100%', maxWidth: '800px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', textAlign: 'center' }}>
               Files Selected for {tool.title}

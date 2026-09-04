@@ -608,6 +608,8 @@ function App() {
             {/* Admin Panel */}
             <Route path="/admin" element={adminPanelComponent} />
             <Route path="/admin/*" element={adminPanelComponent} />
+            <Route path="/adminpanel" element={adminPanelComponent} />
+            <Route path="/adminpanel/*" element={adminPanelComponent} />
 
             {/* Catch-all */}
             <Route path="*" element={isAdminPage ? adminPanelComponent : <Navigate to="/" replace />} />
