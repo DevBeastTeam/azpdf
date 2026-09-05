@@ -1,51 +1,111 @@
 const pdfParse = require('pdf-parse');
 
 class PDFToPowerPointService {
+  /**
+   * Converts PDF to a PowerPoint-compatible text outline.
+   * Creates one slide per PDF page with proper title/bullet structure.
+   * Max 6 bullet points per slide for readability.
+   * @param {Object} file - file with .buffer and .originalname
+   * @returns {Buffer} - UTF-8 text outline buffer
+   */
   async process(file) {
-    let textContent = '';
+    let rawText = '';
+    let pageTexts = [];
+    let pageCount = 1;
+    const fileName = file ? file.originalname : 'document.pdf';
+    const baseName = fileName.replace(/\.pdf$/i, '');
+
     if (file && file.buffer) {
       try {
-        const parsed = await pdfParse(file.buffer);
-        if (parsed && parsed.text) textContent = parsed.text;
-      } catch (e) {}
-    }
-
-    const paragraphs = textContent ? textContent.split('\n\n').filter(p => p.trim().length > 10) : [];
-    
-    let pptOutline = `====================================================\n`;
-    pptOutline += `   azPDF Slide Deck Presentation Outline            \n`;
-    pptOutline += `   Source: ${file ? file.originalname : 'document.pdf'}\n`;
-    pptOutline += `====================================================\n\n`;
-
-    pptOutline += `[SLIDE 1: Title Slide]\n`;
-    pptOutline += `Title: ${file ? file.originalname.replace(/\.pdf$/i, '') : 'Presentation'}\n`;
-    pptOutline += `Subtitle: Generated automatically via azPDF AI Slide Engine\n`;
-    pptOutline += `Date: ${new Date().toLocaleDateString()}\n\n`;
-
-    if (paragraphs.length > 0) {
-      paragraphs.slice(0, 8).forEach((para, idx) => {
-        pptOutline += `----------------------------------------------------\n`;
-        pptOutline += `[SLIDE ${idx + 2}: Section Outline ${idx + 1}]\n`;
-        pptOutline += `----------------------------------------------------\n`;
-        const lines = para.split('\n').filter(l => l.trim().length > 0).slice(0, 4);
-        lines.forEach(line => {
-          pptOutline += `* ${line.trim()}\n`;
+        const parsed = await pdfParse(file.buffer, {
+          pagerender: (pageData) => {
+            return pageData.getTextContent().then((tc) => {
+              const text = tc.items.map(i => i.str).join(' ').trim();
+              pageTexts.push(text);
+              return text;
+            });
+          }
         });
-        pptOutline += `\n`;
-      });
-    } else {
-      pptOutline += `----------------------------------------------------\n`;
-      pptOutline += `[SLIDE 2: Core Findings]\n`;
-      pptOutline += `----------------------------------------------------\n`;
-      pptOutline += `* Bullet point 1: Extracted metadata structures align correctly.\n`;
-      pptOutline += `* Bullet point 2: Processing completed with high accuracy.\n\n`;
+        rawText = parsed.text || '';
+        pageCount = parsed.numpages || 1;
+        if (pageTexts.length === 0 && rawText) {
+          pageTexts = rawText.split('\n\n').filter(p => p.trim().length > 0);
+        }
+      } catch (e) {
+        console.warn('[PDFToPowerPointService] Parse error:', e.message);
+        pageTexts = ['Content could not be extracted from this PDF.'];
+        pageCount = 1;
+      }
     }
 
-    pptOutline += `====================================================\n`;
-    pptOutline += `[SLIDE END: Thank You!]\n`;
-    pptOutline += `====================================================\n`;
+    const HR = '═'.repeat(54);
+    const hr = '─'.repeat(54);
+    let outline = '';
 
-    return Buffer.from(pptOutline, 'utf-8');
+    outline += `${HR}\n`;
+    outline += `  azPDF SLIDE DECK EXPORT\n`;
+    outline += `  Source: ${fileName}\n`;
+    outline += `  Total PDF Pages: ${pageCount} | Generated: ${new Date().toLocaleString()}\n`;
+    outline += `${HR}\n\n`;
+
+    // Title Slide
+    outline += `[SLIDE 1 — TITLE SLIDE]\n${hr}\n`;
+    outline += `TITLE:    ${baseName}\n`;
+    outline += `SUBTITLE: Converted from PDF via azPDF Document Engine\n`;
+    outline += `DATE:     ${new Date().toLocaleDateString()}\n`;
+    outline += `PAGES:    ${pageCount} source pages → ${pageTexts.length} slides\n\n`;
+
+    // Content slides — one per page
+    for (let i = 0; i < pageTexts.length; i++) {
+      const pageText = pageTexts[i];
+      if (!pageText || pageText.trim().length < 5) continue;
+
+      const lines = pageText
+        .split(/[\n.!?]/)
+        .map(l => l.trim())
+        .filter(l => l.length > 8 && l.length < 200);
+
+      // First meaningful line = slide title
+      const title = lines[0] || `Section ${i + 1}`;
+      const bullets = lines.slice(1, 7); // max 6 bullets
+
+      outline += `\n[SLIDE ${i + 2} — PAGE ${i + 1}]\n${hr}\n`;
+      outline += `TITLE:    ${this._truncate(title, 80)}\n`;
+
+      if (bullets.length > 0) {
+        outline += `CONTENT:\n`;
+        bullets.forEach((b, bi) => {
+          outline += `  ${bi + 1}. ${this._truncate(b, 120)}\n`;
+        });
+      } else {
+        // If only one line, use it as both title and summary
+        outline += `CONTENT:\n`;
+        outline += `  • ${this._truncate(pageText, 200)}\n`;
+      }
+
+      // Speaker notes = full page text preview
+      const notes = pageText.substring(0, 300).replace(/\n/g, ' ').trim();
+      if (notes.length > 20) {
+        outline += `NOTES:    ${notes}${notes.length === 300 ? '...' : ''}\n`;
+      }
+    }
+
+    // Thank You Slide
+    outline += `\n${HR}\n`;
+    outline += `[SLIDE ${pageTexts.length + 2} — CLOSING SLIDE]\n${hr}\n`;
+    outline += `TITLE:    Thank You\n`;
+    outline += `CONTENT:\n  • Presentation generated by azPDF\n`;
+    outline += `  • Source: ${fileName}\n`;
+    outline += `  • ${pageCount} pages processed\n`;
+    outline += `${HR}\n`;
+
+    console.log(`[PDFToPowerPointService] Created ${pageTexts.length + 2} slides from ${pageCount} PDF pages`);
+
+    return Buffer.from(outline, 'utf-8');
+  }
+
+  _truncate(str, max) {
+    return str.length > max ? str.substring(0, max - 3) + '...' : str;
   }
 }
 

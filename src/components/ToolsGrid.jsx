@@ -331,7 +331,8 @@ export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
   }, [activeCategory, searchQuery]);
 
   return (
-    <div>
+    <div id="tools">
+      <span id="features" style={{ display: 'block', position: 'relative', top: '-70px', visibility: 'hidden' }} />
       {/* Dynamic Tools Section Header */}
       {siteContent?.toolsTitle && (
         <div style={{ textAlign: 'center', margin: '10px 0 24px 0' }}>

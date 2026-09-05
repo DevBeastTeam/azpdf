@@ -5,7 +5,7 @@ export default function Pricing({ onContactSales, siteContent }) {
   const [isYearly, setIsYearly] = useState(true);
 
   return (
-    <section className="pricing-section" style={{
+    <section id="pricing" className="pricing-section" style={{
       padding: '80px 24px',
       backgroundColor: 'var(--bg-light)',
       display: 'flex',
@@ -353,7 +353,7 @@ export default function Pricing({ onContactSales, siteContent }) {
         </div>
 
         {/* Trust & Guarantees Bar */}
-        <div style={{
+        <div id="faq" style={{
           marginTop: '60px',
           display: 'flex',
           justifyContent: 'center',

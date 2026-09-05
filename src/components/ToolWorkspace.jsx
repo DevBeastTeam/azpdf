@@ -9,6 +9,7 @@ import PdfInteractiveEditor from './PdfInteractiveEditor';
 
 export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcessed }) {
   const [files, setFiles] = useState([]);
+  const [mergeOrder, setMergeOrder] = useState([]); // tracks explicit merge order
   const [dragActive, setDragActive] = useState(false);
   const [status, setStatus] = useState('upload'); // 'upload', 'queued', 'processing', 'success'
   const [progress, setProgress] = useState(0);
@@ -95,8 +96,34 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
         type: file.type || 'application/pdf'
       };
     });
-    setFiles(prev => [...prev, ...parsedFiles]);
+    setFiles(prev => {
+      const updated = [...prev, ...parsedFiles];
+      setMergeOrder(updated.map((_, i) => i));
+      return updated;
+    });
     setStatus('queued');
+  };
+
+  // Move a file up in the merge order
+  const moveFileUp = (idx) => {
+    if (idx === 0) return;
+    setFiles(prev => {
+      const updated = [...prev];
+      [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+      setMergeOrder(updated.map((_, i) => i));
+      return updated;
+    });
+  };
+
+  // Move a file down in the merge order
+  const moveFileDown = (idx) => {
+    setFiles(prev => {
+      if (idx >= prev.length - 1) return prev;
+      const updated = [...prev];
+      [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+      setMergeOrder(updated.map((_, i) => i));
+      return updated;
+    });
   };
 
   const loadMockFiles = async (e) => {
@@ -204,10 +231,14 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     const endpoint = getEndpointForTool(tool.id);
     const formData = new FormData();
 
+    // For merge: files are already in the user-selected order (moved via ↑↓ buttons).
+    // Append them sequentially — server will merge in this exact order.
     files.forEach((f, idx) => {
       const blob = f.rawFile || new Blob(["sample content"], { type: 'application/pdf' });
       formData.append('files', blob, f.name || `file_${idx}.pdf`);
     });
+    // Send explicit order indices for server-side validation
+    formData.append('fileOrder', files.map((_, i) => i).join(','));
 
     // Pass parameters
     formData.append('pages', splitPagesRange);
@@ -227,6 +258,7 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
 
     let backendSuccess = false;
     let resultBlob = null;
+    let finalFilename = targetFilename;
 
     try {
       setProgress(45);
@@ -247,13 +279,10 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
         if (disposition && disposition.includes('filename=')) {
           const match = disposition.match(/filename="?([^"]+)"?/);
           if (match && match[1]) {
-            setDownloadFilename(match[1]);
-          } else {
-            setDownloadFilename(targetFilename);
+            finalFilename = match[1];
           }
-        } else {
-          setDownloadFilename(targetFilename);
         }
+        setDownloadFilename(finalFilename);
       }
     } catch (err) {
       console.warn('Backend server offline or failed, activating high-precision client fallback:', err.message);
@@ -264,7 +293,8 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       setProgress(70);
       setActiveStepText('Processing directly in browser engine (pdf-lib)...');
       resultBlob = await processClientSideTool();
-      setDownloadFilename(targetFilename);
+      finalFilename = targetFilename;
+      setDownloadFilename(finalFilename);
     }
 
     setProgress(100);
@@ -278,14 +308,14 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
 
     if (typeof onFileProcessed === 'function') {
       onFileProcessed({
-        name: downloadFilename || targetFilename,
+        name: finalFilename,
         tool: tool.title,
         size: totalSizeMb
       });
     }
 
     if (resultBlob) {
-      triggerDownload(resultBlob, downloadFilename || targetFilename);
+      triggerDownload(resultBlob, finalFilename);
     }
   };
 
@@ -1041,19 +1071,101 @@ startxref
               Files Selected for {tool.title}
             </h2>
 
+            {/* Merge: show order badge + reorder hint */}
+            {tool.id.includes('merge') && files.length >= 2 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', padding: '8px 14px', backgroundColor: 'rgba(229,36,36,0.07)', borderRadius: '8px', border: '1px solid rgba(229,36,36,0.18)' }}>
+                <Layers size={16} style={{ color: 'var(--primary-red)', flexShrink: 0 }} />
+                <span style={{ fontSize: '13px', color: 'var(--text-dark)', fontWeight: '600' }}>
+                  Files will be merged in the exact order shown below. Use <strong>↑ ↓</strong> to reorder.
+                </span>
+              </div>
+            )}
+
             <div className="file-list-container" style={{ marginBottom: '24px' }}>
               {files.map((file, idx) => (
-                <div key={idx} className="file-row" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '12px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div className="file-info" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <FileText className="file-icon" size={24} style={{ color: 'var(--primary-red)' }} />
-                    <div>
-                      <div className="file-name" style={{ color: 'var(--text-dark)', fontWeight: '700', fontSize: '15px' }}>{file.name}</div>
+                <div
+                  key={idx}
+                  className="file-row"
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
+                    transition: 'box-shadow 0.15s',
+                  }}
+                >
+                  <div className="file-info" style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                    {/* Order badge — only for merge */}
+                    {tool.id.includes('merge') && (
+                      <div style={{
+                        width: '28px', height: '28px', borderRadius: '50%',
+                        backgroundColor: 'var(--primary-red)', color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '13px', fontWeight: '800', flexShrink: 0
+                      }}>
+                        {idx + 1}
+                      </div>
+                    )}
+                    <FileText className="file-icon" size={24} style={{ color: 'var(--primary-red)', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="file-name" style={{ color: 'var(--text-dark)', fontWeight: '700', fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '380px' }}>{file.name}</div>
                       <div className="file-size" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>{file.size}</div>
                     </div>
                   </div>
-                  <button className="file-remove" onClick={() => removeFile(idx)} aria-label="Delete File" style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <Trash2 size={18} />
-                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    {/* Reorder buttons — only for merge */}
+                    {tool.id.includes('merge') && (
+                      <>
+                        <button
+                          onClick={() => moveFileUp(idx)}
+                          disabled={idx === 0}
+                          title="Move Up"
+                          style={{
+                            width: '30px', height: '30px', borderRadius: '6px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: idx === 0 ? 'var(--bg-light)' : 'var(--bg-card)',
+                            color: idx === 0 ? 'var(--text-gray)' : 'var(--text-dark)',
+                            cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '16px', fontWeight: '700', opacity: idx === 0 ? 0.4 : 1,
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={() => moveFileDown(idx)}
+                          disabled={idx === files.length - 1}
+                          title="Move Down"
+                          style={{
+                            width: '30px', height: '30px', borderRadius: '6px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: idx === files.length - 1 ? 'var(--bg-light)' : 'var(--bg-card)',
+                            color: idx === files.length - 1 ? 'var(--text-gray)' : 'var(--text-dark)',
+                            cursor: idx === files.length - 1 ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '16px', fontWeight: '700', opacity: idx === files.length - 1 ? 0.4 : 1,
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          ↓
+                        </button>
+                      </>
+                    )}
+                    <button
+                      className="file-remove"
+                      onClick={() => removeFile(idx)}
+                      aria-label="Delete File"
+                      style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

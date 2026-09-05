@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users, Crown, Star, User, Search, ShieldAlert, BadgeCheck, XCircle,
   Trash2, Edit, Plus, Settings, FileText, Server, Activity, DollarSign,
-  Database, Clock, ArrowLeft, RefreshCw, Download, Save, CheckCircle, AlertTriangle
+  Database, Clock, ArrowLeft, RefreshCw, Download, Save, CheckCircle, AlertTriangle, Smartphone, Eye, EyeOff
 } from 'lucide-react';
+import StoreBadges from './StoreBadges';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -82,7 +83,16 @@ export default function AdminPanel({
     footerCopyright: siteContent?.footerCopyright || '© 2026 iLovePDF. All Rights Reserved.',
     footerColumns: siteContent?.footerColumns || [],
     footerButtons: siteContent?.footerButtons || [],
-    socialLinks: siteContent?.socialLinks || { twitter: '', facebook: '', linkedin: '', instagram: '' }
+    socialLinks: siteContent?.socialLinks || { twitter: '', facebook: '', linkedin: '', instagram: '' },
+    appStoreBadges: siteContent?.appStoreBadges || {
+      enabled: true,
+      title: 'Download azPDF Desktop & Mobile App',
+      subtitle: 'Work with PDFs directly on Windows, Mac, Android and iOS devices.',
+      googlePlay: { enabled: true, url: 'https://play.google.com/store/apps' },
+      appStore: { enabled: true, url: 'https://apps.apple.com' },
+      macAppStore: { enabled: true, url: 'https://apps.apple.com/macos' },
+      microsoftStore: { enabled: true, url: 'https://apps.microsoft.com' }
+    }
   });
   const [contentSaved, setContentSaved] = useState(false);
   const [isSavingContent, setIsSavingContent] = useState(false);
@@ -94,7 +104,8 @@ export default function AdminPanel({
         ...siteContent,
         footerColumns: siteContent.footerColumns || prev.footerColumns,
         footerButtons: siteContent.footerButtons || prev.footerButtons,
-        socialLinks: siteContent.socialLinks || prev.socialLinks
+        socialLinks: siteContent.socialLinks || prev.socialLinks,
+        appStoreBadges: siteContent.appStoreBadges || prev.appStoreBadges
       }));
     }
   }, [siteContent]);
@@ -205,6 +216,68 @@ export default function AdminPanel({
       ...prev,
       socialLinks: { ...prev.socialLinks, [key]: value }
     }));
+  };
+
+  // App Store Badges Handlers (Master & Individual Store Toggles/URLs)
+  const handleAppStoreToggle = (field) => {
+    setContentForm(prev => {
+      const current = prev.appStoreBadges || {
+        enabled: true,
+        title: 'Download azPDF Desktop & Mobile App',
+        subtitle: 'Work with PDFs directly on Windows, Mac, Android and iOS devices.',
+        googlePlay: { enabled: true, url: 'https://play.google.com/store/apps' },
+        appStore: { enabled: true, url: 'https://apps.apple.com' },
+        macAppStore: { enabled: true, url: 'https://apps.apple.com/macos' },
+        microsoftStore: { enabled: true, url: 'https://apps.microsoft.com' }
+      };
+
+      if (field === 'master') {
+        return {
+          ...prev,
+          appStoreBadges: { ...current, enabled: !current.enabled }
+        };
+      }
+
+      return {
+        ...prev,
+        appStoreBadges: {
+          ...current,
+          [field]: {
+            ...current[field],
+            enabled: !current[field]?.enabled
+          }
+        }
+      };
+    });
+  };
+
+  const handleAppStoreUrlChange = (field, url) => {
+    setContentForm(prev => {
+      const current = prev.appStoreBadges || {};
+      return {
+        ...prev,
+        appStoreBadges: {
+          ...current,
+          [field]: {
+            ...current[field],
+            url
+          }
+        }
+      };
+    });
+  };
+
+  const handleAppStoreTextChange = (field, text) => {
+    setContentForm(prev => {
+      const current = prev.appStoreBadges || {};
+      return {
+        ...prev,
+        appStoreBadges: {
+          ...current,
+          [field]: text
+        }
+      };
+    });
   };
 
   // CPU and latency simulation
@@ -395,10 +468,20 @@ export default function AdminPanel({
     f.tool.toLowerCase().includes(fileSearch.toLowerCase())
   );
 
-  const planMeta = {
-    Premium: { color: '#d97706', bg: '#fffbeb', icon: <Star size={12} /> },
-    Free: { color: '#6b7280', bg: '#f9fafb', icon: <User size={12} /> },
+  const getPlanMeta = (plan = '') => {
+    const p = String(plan || '').toUpperCase();
+    if (p === 'BUSINESS') {
+      return { color: '#2563eb', bg: '#eff6ff', icon: <Crown size={12} /> };
+    }
+    if (p === 'PREMIUM') {
+      return { color: '#d97706', bg: '#fffbeb', icon: <Star size={12} /> };
+    }
+    return { color: '#6b7280', bg: '#f9fafb', icon: <User size={12} /> };
   };
+
+  const planMeta = new Proxy({}, {
+    get: (target, prop) => getPlanMeta(prop)
+  });
 
   return (
     <div style={{
@@ -1862,6 +1945,258 @@ export default function AdminPanel({
                         style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
                       />
                     </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* 6. App Store & Mobile Badges Manager (Image/Store Icons matching screenshot) */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(229,36,36,0.1)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Smartphone size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                        App Store & Mobile Badges Manager
+                      </h3>
+                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>
+                        Manage Google Play, Apple App Store, Mac App Store, and Microsoft Store download badges displayed in the footer.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Master Toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: contentForm.appStoreBadges?.enabled !== false ? '#059669' : 'var(--text-gray)' }}>
+                      {contentForm.appStoreBadges?.enabled !== false ? '● Visible on Site' : '○ Section Hidden'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleAppStoreToggle('master')}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: contentForm.appStoreBadges?.enabled !== false ? '#d1fae5' : '#f3f4f6',
+                        color: contentForm.appStoreBadges?.enabled !== false ? '#065f46' : '#6b7280',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {contentForm.appStoreBadges?.enabled !== false ? (
+                        <>
+                          <Eye size={14} /> Active
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff size={14} /> Hidden
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section Title & Subtitle */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Section Heading Title</label>
+                    <input
+                      type="text"
+                      value={contentForm.appStoreBadges?.title || ''}
+                      onChange={e => handleAppStoreTextChange('title', e.target.value)}
+                      placeholder="e.g. Download azPDF Desktop & Mobile App"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Section Subtitle</label>
+                    <input
+                      type="text"
+                      value={contentForm.appStoreBadges?.subtitle || ''}
+                      onChange={e => handleAppStoreTextChange('subtitle', e.target.value)}
+                      placeholder="e.g. Work with PDFs directly on Windows, Mac, Android and iOS devices."
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                    />
+                  </div>
+                </div>
+
+                <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '16px 0 20px 0' }} />
+
+                {/* 4 App Store Badges Management Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  
+                  {/* Google Play */}
+                  <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>▶️</span>
+                        <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>Google Play</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAppStoreToggle('googlePlay')}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '16px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          border: 'none',
+                          cursor: 'pointer',
+                          backgroundColor: contentForm.appStoreBadges?.googlePlay?.enabled !== false ? '#d1fae5' : '#fee2e2',
+                          color: contentForm.appStoreBadges?.googlePlay?.enabled !== false ? '#065f46' : '#991b1b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {contentForm.appStoreBadges?.googlePlay?.enabled !== false ? 'Visible' : 'Hidden'}
+                      </button>
+                    </div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Google Play Store URL</label>
+                    <input
+                      type="text"
+                      value={contentForm.appStoreBadges?.googlePlay?.url || ''}
+                      onChange={e => handleAppStoreUrlChange('googlePlay', e.target.value)}
+                      placeholder="https://play.google.com/store/apps/..."
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                    />
+                  </div>
+
+                  {/* Apple App Store */}
+                  <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>🍎</span>
+                        <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>App Store (iOS)</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAppStoreToggle('appStore')}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '16px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          border: 'none',
+                          cursor: 'pointer',
+                          backgroundColor: contentForm.appStoreBadges?.appStore?.enabled !== false ? '#d1fae5' : '#fee2e2',
+                          color: contentForm.appStoreBadges?.appStore?.enabled !== false ? '#065f46' : '#991b1b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {contentForm.appStoreBadges?.appStore?.enabled !== false ? 'Visible' : 'Hidden'}
+                      </button>
+                    </div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Apple App Store URL</label>
+                    <input
+                      type="text"
+                      value={contentForm.appStoreBadges?.appStore?.url || ''}
+                      onChange={e => handleAppStoreUrlChange('appStore', e.target.value)}
+                      placeholder="https://apps.apple.com/app/..."
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                    />
+                  </div>
+
+                  {/* Mac App Store */}
+                  <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>💻</span>
+                        <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>Mac App Store</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAppStoreToggle('macAppStore')}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '16px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          border: 'none',
+                          cursor: 'pointer',
+                          backgroundColor: contentForm.appStoreBadges?.macAppStore?.enabled !== false ? '#d1fae5' : '#fee2e2',
+                          color: contentForm.appStoreBadges?.macAppStore?.enabled !== false ? '#065f46' : '#991b1b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {contentForm.appStoreBadges?.macAppStore?.enabled !== false ? 'Visible' : 'Hidden'}
+                      </button>
+                    </div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Mac App Store URL</label>
+                    <input
+                      type="text"
+                      value={contentForm.appStoreBadges?.macAppStore?.url || ''}
+                      onChange={e => handleAppStoreUrlChange('macAppStore', e.target.value)}
+                      placeholder="https://apps.apple.com/macos/..."
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                    />
+                  </div>
+
+                  {/* Microsoft Store */}
+                  <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '18px' }}>🪟</span>
+                        <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>Microsoft Store</strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAppStoreToggle('microsoftStore')}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: '16px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          border: 'none',
+                          cursor: 'pointer',
+                          backgroundColor: contentForm.appStoreBadges?.microsoftStore?.enabled !== false ? '#d1fae5' : '#fee2e2',
+                          color: contentForm.appStoreBadges?.microsoftStore?.enabled !== false ? '#065f46' : '#991b1b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {contentForm.appStoreBadges?.microsoftStore?.enabled !== false ? 'Visible' : 'Hidden'}
+                      </button>
+                    </div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Microsoft Store URL</label>
+                    <input
+                      type="text"
+                      value={contentForm.appStoreBadges?.microsoftStore?.url || ''}
+                      onChange={e => handleAppStoreUrlChange('microsoftStore', e.target.value)}
+                      placeholder="https://apps.microsoft.com/..."
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                    />
+                  </div>
+
+                </div>
+
+                {/* Live Preview Card */}
+                <div style={{ backgroundColor: '#0f172a', borderRadius: '14px', padding: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.8px', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>👁️ Real Footer Badges Live Preview:</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ color: '#ffffff', fontWeight: '800', fontSize: '15px' }}>
+                        {contentForm.appStoreBadges?.title || 'Download azPDF Desktop & Mobile App'}
+                      </div>
+                      <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '2px' }}>
+                        {contentForm.appStoreBadges?.subtitle || 'Work with PDFs directly on Windows, Mac, Android and iOS devices.'}
+                      </div>
+                    </div>
+                    <StoreBadges config={contentForm.appStoreBadges} isPreview={true} />
                   </div>
                 </div>
 

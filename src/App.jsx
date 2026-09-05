@@ -146,6 +146,27 @@ const defaultSiteContent = {
     facebook: 'https://facebook.com',
     linkedin: 'https://linkedin.com',
     instagram: 'https://instagram.com'
+  },
+  appStoreBadges: {
+    enabled: true,
+    title: 'Download azPDF Desktop & Mobile App',
+    subtitle: 'Work with PDFs directly on Windows, Mac, Android and iOS devices.',
+    googlePlay: {
+      enabled: true,
+      url: 'https://play.google.com/store/apps'
+    },
+    appStore: {
+      enabled: true,
+      url: 'https://apps.apple.com'
+    },
+    macAppStore: {
+      enabled: true,
+      url: 'https://apps.apple.com/macos'
+    },
+    microsoftStore: {
+      enabled: true,
+      url: 'https://apps.microsoft.com'
+    }
   }
 };
 

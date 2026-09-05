@@ -45,14 +45,38 @@ function sendFileBuffer(res, buffer, filename, contentType = 'application/pdf') 
 // Controller handlers
 exports.mergePdfs = async (req, res) => {
   try {
-    const files = req.files || [];
-    if (!files || files.length < 1) {
-      return res.status(400).json({ error: 'No files provided for merging.' });
+    let files = req.files || [];
+
+    if (!files || files.length < 2) {
+      return res.status(400).json({
+        error: `At least 2 PDF files are required for merging. Received: ${files.length}.`
+      });
     }
-    const resultBuffer = await PDFMergeService.process(files, req.body);
+
+    // Honour explicit fileOrder sent by frontend (↑↓ reorder buttons)
+    // fileOrder = "0,2,1" means: use files[0], files[2], files[1] in that sequence
+    const fileOrderParam = req.body && req.body.fileOrder;
+    if (fileOrderParam) {
+      const orderIndices = String(fileOrderParam)
+        .split(',')
+        .map(n => parseInt(n.trim(), 10))
+        .filter(n => !isNaN(n) && n >= 0 && n < files.length);
+
+      // Only reorder if we received a valid full order
+      if (orderIndices.length === files.length) {
+        files = orderIndices.map(i => files[i]);
+        console.log(
+          `[mergePdfs] Reordered ${files.length} files per fileOrder: [${orderIndices.join(',')}]`
+        );
+      }
+    }
+
+    // Process merge with strictly ordered files
+    const resultBuffer = await PDFMergeService.process(files);
+
     return sendFileBuffer(res, resultBuffer, 'merged_document.pdf');
   } catch (err) {
-    console.error('Error in mergePdfs:', err);
+    console.error('[mergePdfs] Error:', err.message);
     return res.status(500).json({ error: err.message || 'Failed to merge PDF files.' });
   }
 };
@@ -62,11 +86,17 @@ exports.splitPdf = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file to split.' });
-    const resultBuffer = await PDFSplitService.process(file, req.body.pages || req.body.range);
-    return sendFileBuffer(res, resultBuffer, 'split_document.pdf');
+    // Pass res so the service can stream a multi-part ZIP directly if needed
+    const resultBuffer = await PDFSplitService.process(file, req.body.pages || req.body.range, res);
+    // If service already streamed the ZIP response, resultBuffer is null — nothing more to do
+    if (resultBuffer) {
+      return sendFileBuffer(res, resultBuffer, 'split_document.pdf');
+    }
   } catch (err) {
     console.error('Error in splitPdf:', err);
-    return res.status(500).json({ error: err.message || 'Failed to split PDF file.' });
+    if (!res.headersSent) {
+      return res.status(500).json({ error: err.message || 'Failed to split PDF file.' });
+    }
   }
 };
 
@@ -75,7 +105,9 @@ exports.compressPdf = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file to compress.' });
-    const resultBuffer = await PDFCompressService.process(file, req.body);
+    // Extract compression level string (not the whole body object)
+    const level = req.body.compression || req.body.level || req.body.compressionLevel || 'recommended';
+    const resultBuffer = await PDFCompressService.process(file, level);
     return sendFileBuffer(res, resultBuffer, 'compressed_document.pdf');
   } catch (err) {
     console.error('Error in compressPdf:', err);
@@ -100,8 +132,10 @@ exports.pdfToJpg = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file.' });
-    const resultBuffer = await PDFToJPGService.process(file, req.body);
-    return sendFileBuffer(res, resultBuffer, 'pdf_pages.zip', 'application/zip');
+    // Service now returns a Buffer (ZIP) — no res needed
+    const baseName = file.originalname.replace(/\.pdf$/i, '');
+    const resultBuffer = await PDFToJPGService.process(file);
+    return sendFileBuffer(res, resultBuffer, `${baseName}_images.zip`, 'application/zip');
   } catch (err) {
     console.error('Error in pdfToJpg:', err);
     return res.status(500).json({ error: err.message || 'Failed to convert PDF to JPG.' });
@@ -285,7 +319,9 @@ exports.translatePdf = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file.' });
-    const resultBuffer = await PDFTranslateService.process(file, req.body.targetLang);
+    // Accept language from multiple field names the frontend might send
+    const targetLang = req.body.language || req.body.targetLang || req.body.lang || 'Urdu';
+    const resultBuffer = await PDFTranslateService.process(file, targetLang);
     return sendFileBuffer(res, resultBuffer, 'translated_document.pdf');
   } catch (err) {
     console.error('Error in translatePdf:', err);
@@ -311,7 +347,11 @@ exports.editPdf = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file to edit.' });
-    const resultBuffer = await PDFEditService.process(file, req.body);
+    // Extract individual params from body — service takes (file, annotationText, annotationType, targetPage)
+    const annotationText = req.body.annotation || req.body.text || req.body.annotationText || 'Approved & Reviewed';
+    const annotationType = req.body.annotationType || req.body.type || 'note';
+    const targetPage = req.body.targetPage || req.body.page || 'all';
+    const resultBuffer = await PDFEditService.process(file, annotationText, annotationType, targetPage);
     return sendFileBuffer(res, resultBuffer, 'edited_document.pdf');
   } catch (err) {
     console.error('Error in editPdf:', err);
@@ -324,7 +364,9 @@ exports.signPdf = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file to sign.' });
-    const resultBuffer = await PDFSignService.process(file, req.body.signatureData);
+    // Extract signer name from multiple possible field names
+    const signerName = req.body.signer || req.body.signerName || req.body.signatureData || req.body.name || 'Alex Johnson';
+    const resultBuffer = await PDFSignService.process(file, signerName);
     return sendFileBuffer(res, resultBuffer, 'signed_document.pdf');
   } catch (err) {
     console.error('Error in signPdf:', err);
@@ -334,8 +376,22 @@ exports.signPdf = async (req, res) => {
 
 exports.htmlToPdf = async (req, res) => {
   try {
-    const htmlContent = req.body.html || '<h1>Sample Document</h1>';
-    const resultBuffer = await HTMLToPDFService.process(htmlContent);
+    const htmlContent = req.body.html || req.body.content || '';
+    const urlParam = req.body.url || req.body.siteUrl || '';
+    const files = req.files || [];
+    const uploadedFile = files[0]; // optional HTML file upload
+
+    // Build file-like object from inline HTML or use uploaded file
+    let fileObj = uploadedFile;
+    if (!fileObj && htmlContent) {
+      fileObj = {
+        buffer: Buffer.from(htmlContent, 'utf-8'),
+        originalname: 'webpage.html',
+        mimetype: 'text/html'
+      };
+    }
+
+    const resultBuffer = await HTMLToPDFService.process(fileObj, urlParam);
     return sendFileBuffer(res, resultBuffer, 'webpage.pdf');
   } catch (err) {
     console.error('Error in htmlToPdf:', err);
@@ -438,7 +494,16 @@ exports.cropPdf = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file.' });
-    const resultBuffer = await PDFCropService.process(file, req.body.cropBounds);
+    // Build crop options object from body params
+    const cropOptions = {
+      mode: req.body.mode || req.body.cropMode || 'standard',
+      marginTop: parseInt(req.body.marginTop || req.body.top || '40', 10),
+      marginBottom: parseInt(req.body.marginBottom || req.body.bottom || '40', 10),
+      marginLeft: parseInt(req.body.marginLeft || req.body.left || '50', 10),
+      marginRight: parseInt(req.body.marginRight || req.body.right || '50', 10),
+      pages: req.body.pages || 'all'
+    };
+    const resultBuffer = await PDFCropService.process(file, cropOptions);
     return sendFileBuffer(res, resultBuffer, 'cropped_document.pdf');
   } catch (err) {
     console.error('Error in cropPdf:', err);
