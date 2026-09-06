@@ -12,6 +12,7 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import HelpAndSupport from './components/HelpAndSupport';
 import ToolWorkspace from './components/ToolWorkspace';
 import Footer from './components/Footer';
+import { Eye, EyeOff } from 'lucide-react';
 import './App.css';
 
 // ─── Global App Context ────────────────────────────────────────────────────────
@@ -77,11 +78,11 @@ const defaultSiteContent = {
   businessPlanDesc: 'Custom team management, dedicated support, and enterprise API access.',
   footerBrand: 'I ❤️ PDF',
   footerDesc: 'The all-in-one PDF solution to make working with documents fast, simple, and completely secure.',
-  footerCopyright: '© 2026 iLovePDF. All Rights Reserved.',
+  footerCopyright: '© iLovePDF 2026 ® - Your PDF Editor',
   footerColumns: [
     {
       id: 'col-1',
-      title: 'Quick Navigation',
+      title: 'PRODUCT',
       links: [
         { label: 'Home', url: '/' },
         { label: 'Features', url: '/#features' },
@@ -92,47 +93,41 @@ const defaultSiteContent = {
     },
     {
       id: 'col-2',
-      title: 'Solutions',
+      title: 'RESOURCES',
       links: [
-        { label: 'Business', url: '/#business' },
-        { label: 'Education', url: '/#education' },
-        { label: 'Developers', url: '/#developers' }
+        { label: 'iLovePDF Desktop', url: '/#desktop' },
+        { label: 'iLovePDF Mobile', url: '/#app-downloads' },
+        { label: 'iLoveSign', url: '/#tools' },
+        { label: 'iLoveAPI', url: '/#developers' },
+        { label: 'iLoveIMG', url: 'https://www.iloveimg.com' }
       ]
     },
     {
       id: 'col-3',
-      title: 'Applications',
+      title: 'SOLUTIONS',
       links: [
-        { label: 'iLoveAPI', url: '/#api' }
+        { label: 'Business', url: '/#pricing' },
+        { label: 'Education', url: '/#pricing' }
       ]
     },
     {
       id: 'col-4',
-      title: 'Company',
+      title: 'LEGAL',
       links: [
-        { label: 'Our Story', url: '/#about' },
-        { label: 'Blog', url: '/#blog' },
-        { label: 'Careers', url: '/#careers' },
-        { label: 'Press', url: '/#press' }
+        { label: 'Security', url: '/privacy' },
+        { label: 'Privacy policy', url: '/privacy' },
+        { label: 'Terms & conditions', url: '/terms' },
+        { label: 'Cookies', url: '/privacy' }
       ]
     },
     {
       id: 'col-5',
-      title: 'Support',
+      title: 'COMPANY',
       links: [
-        { label: 'Help & Support', url: '/help' },
-        { label: 'Terms & Conditions', url: '/terms' },
-        { label: 'Privacy Policy', url: '/privacy' },
-        { label: 'Contact Support', url: '/contact' }
-      ]
-    },
-    {
-      id: 'col-6',
-      title: 'Other Products',
-      links: [
-        { label: 'iLoveIMG', url: 'https://www.iloveimg.com' },
-        { label: 'iLoveSign', url: 'https://www.ilovesign.com' },
-        { label: 'iLoveAPI', url: 'https://www.iloveapi.com' }
+        { label: 'About us', url: '/#about' },
+        { label: 'Contact us', url: '/contact' },
+        { label: 'Blog', url: '/#blog' },
+        { label: 'Press', url: '/#press' }
       ]
     }
   ],
@@ -145,7 +140,9 @@ const defaultSiteContent = {
     twitter: 'https://twitter.com',
     facebook: 'https://facebook.com',
     linkedin: 'https://linkedin.com',
-    instagram: 'https://instagram.com'
+    instagram: 'https://instagram.com',
+    tiktok: 'https://tiktok.com',
+    reddit: 'https://reddit.com'
   },
   appStoreBadges: {
     enabled: true,
@@ -171,7 +168,7 @@ const defaultSiteContent = {
 };
 
 // ─── Home Page (combined hero + tools + pricing) ───────────────────────────────
-function HomePage({ toolsConfig, siteContent }) {
+function HomePage({ toolsConfig, siteContent, isLoggedIn, onOpenAuth }) {
   const navigate = useNavigate();
   return (
     <>
@@ -181,7 +178,22 @@ function HomePage({ toolsConfig, siteContent }) {
         siteContent={siteContent}
         onSelectTool={(tool) => navigate(`/tool/${tool.id.replace('tool-', '')}`)}
       />
-      <Pricing siteContent={siteContent} onContactSales={() => navigate('/contact')} />
+      <Pricing 
+        siteContent={siteContent} 
+        onContactSales={() => navigate('/contact')} 
+        onGetStarted={() => {
+          const el = document.getElementById('tools');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+          else navigate('/#tools');
+        }}
+        onGoPremium={() => {
+          if (isLoggedIn) {
+            navigate('/dashboard');
+          } else {
+            onOpenAuth('signup');
+          }
+        }}
+      />
     </>
   );
 }
@@ -294,32 +306,59 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
     setLoading(true);
 
-    const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/signup';
-    try {
-      const res = await fetch(`http://localhost:5000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name })
-      });
-      const data = await res.json();
-      setLoading(false);
-      if (data.success) {
-        onSuccess(data.user);
-        onClose();
-      } else {
-        setError(data.message || 'Authentication failed. Please try again.');
+    if (mode === 'signup') {
+      try {
+        const res = await fetch('http://localhost:5000/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, name })
+        });
+        const data = await res.json();
+        setLoading(false);
+        if (data.success) {
+          // Switch directly to Login popup so user logs in to reveal Dashboard
+          setMode('login');
+          setSuccessMsg('Account created successfully! Please enter your password to log in.');
+          setPassword('');
+          setError('');
+        } else {
+          setError(data.message || 'Signup failed. Please try again.');
+        }
+      } catch (err) {
+        setLoading(false);
+        setError('Could not connect to Node.js backend server. Make sure backend is running.');
       }
-    } catch (err) {
-      setLoading(false);
-      setError('Could not connect to Node.js backend server. Make sure backend is running.');
+    } else {
+      // mode === 'login'
+      try {
+        const res = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        setLoading(false);
+        if (data.success) {
+          onSuccess(data.user);
+          onClose();
+        } else {
+          setError(data.message || 'Login failed. Please try again.');
+        }
+      } catch (err) {
+        setLoading(false);
+        setError('Could not connect to Node.js backend server. Make sure backend is running.');
+      }
     }
   };
 
@@ -348,8 +387,31 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
 
           <div>
             <label style={{ display:'block', fontSize:'13px', fontWeight:'700', color:'var(--text-dark)', marginBottom:'6px' }}>Password</label>
-            <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required style={{ width:'100%', padding:'12px 14px', borderRadius:'10px', border:'1px solid var(--border-light)', backgroundColor:'var(--bg-light)', color:'var(--text-dark)', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
+            <div style={{ position:'relative', display:'flex', alignItems:'center' }}>
+              <input 
+                type={showPassword ? 'text' : 'password'} 
+                placeholder="••••••••" 
+                value={password} 
+                onChange={e => setPassword(e.target.value)} 
+                required 
+                style={{ width:'100%', padding:'12px 42px 12px 14px', borderRadius:'10px', border:'1px solid var(--border-light)', backgroundColor:'var(--bg-light)', color:'var(--text-dark)', fontSize:'14px', outline:'none', boxSizing:'border-box' }} 
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position:'absolute', right:'12px', background:'none', border:'none', cursor:'pointer', color:'var(--text-gray)', display:'flex', alignItems:'center', padding:0 }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
+
+          {successMsg && (
+            <div style={{ color:'#15803d', backgroundColor:'#dcfce7', border:'1px solid #bbf7d0', padding:'10px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:'600' }}>
+              ✓ {successMsg}
+            </div>
+          )}
 
           {error && (
             <div style={{ color:'#dc2626', backgroundColor:'#fef2f2', border:'1px solid #fecaca', padding:'10px 14px', borderRadius:'8px', fontSize:'13px', fontWeight:'600' }}>
@@ -364,9 +426,9 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
 
         <div style={{ marginTop:'24px', textAlign:'center', fontSize:'14px', color:'var(--text-gray)' }}>
           {mode === 'login' ? (
-            <>Don't have an account? <span onClick={() => { setMode('signup'); setError(''); }} style={{ color:'var(--primary-red)', fontWeight:'700', cursor:'pointer' }}>Sign up</span></>
+            <>Don't have an account? <span onClick={() => { setMode('signup'); setError(''); setSuccessMsg(''); }} style={{ color:'var(--primary-red)', fontWeight:'700', cursor:'pointer' }}>Sign up</span></>
           ) : (
-            <>Already have an account? <span onClick={() => { setMode('login'); setError(''); }} style={{ color:'var(--primary-red)', fontWeight:'700', cursor:'pointer' }}>Log in</span></>
+            <>Already have an account? <span onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); }} style={{ color:'var(--primary-red)', fontWeight:'700', cursor:'pointer' }}>Log in</span></>
           )}
         </div>
       </div>
@@ -377,7 +439,19 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
 // ─── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [theme, setTheme] = useState('light');
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('azpdf_active_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u && u.email) return u;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+  const isLoggedIn = !!currentUser;
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login');
@@ -501,7 +575,14 @@ function App() {
   };
 
   const handleAuthSuccess = (user) => {
-    setIsLoggedIn(true);
+    setCurrentUser(user);
+    try {
+      if (user) {
+        localStorage.setItem('azpdf_active_user', JSON.stringify(user));
+      }
+    } catch (e) {
+      console.error(e);
+    }
     if (user && user.name) {
       setUsersData(prev => {
         const exists = prev.some(u => u.email === user.email);
@@ -512,7 +593,14 @@ function App() {
 
   const handleLogout = () => {
     setShowLogoutModal(false);
-    setIsLoggedIn(false);
+    setCurrentUser(null);
+    try {
+      localStorage.removeItem('azpdf_active_user');
+      localStorage.removeItem('azpdf_auth');
+      localStorage.removeItem('azpdf_user');
+    } catch (e) {
+      console.error(e);
+    }
     navigate('/');
   };
 
@@ -609,21 +697,25 @@ function App() {
         <main className="main-content" style={{ marginTop:'64px', flex: 1 }}>
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} />} />
+            <Route path="/" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
             <Route path="/tool/:toolId" element={<ToolPage toolsConfig={toolsConfig} />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/terms"   element={<TermsAndConditions />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/help"    element={<HelpAndSupport />} />
 
-            {/* User Dashboard */}
+            {/* User Dashboard - Strictly Protected (Only visible when logged in) */}
             <Route path="/dashboard" element={
-              <Dashboard
-                usersData={usersData}
-                setUsersData={updateUsersData}
-                recentFiles={recentFiles}
-                setRecentFiles={updateRecentFiles}
-              />
+              isLoggedIn ? (
+                <Dashboard
+                  usersData={usersData}
+                  setUsersData={updateUsersData}
+                  recentFiles={recentFiles}
+                  setRecentFiles={updateRecentFiles}
+                />
+              ) : (
+                <Navigate to="/" replace />
+              )
             } />
 
             {/* Admin Panel */}

@@ -322,7 +322,7 @@ exports.translatePdf = async (req, res) => {
     // Accept language from multiple field names the frontend might send
     const targetLang = req.body.language || req.body.targetLang || req.body.lang || 'Urdu';
     const resultBuffer = await PDFTranslateService.process(file, targetLang);
-    return sendFileBuffer(res, resultBuffer, 'translated_document.pdf');
+    return sendFileBuffer(res, resultBuffer, 'translated_document.txt', 'text/plain; charset=utf-8');
   } catch (err) {
     console.error('Error in translatePdf:', err);
     return res.status(500).json({ error: err.message || 'Failed to translate PDF.' });
@@ -441,9 +441,8 @@ exports.pageNumbers = async (req, res) => {
 exports.scanPdf = async (req, res) => {
   try {
     const files = req.files || [];
-    const file = files[0];
-    if (!file) return res.status(400).json({ error: 'Please upload a file or document.' });
-    const resultBuffer = await ScanToPDFService.process(file);
+    if (!files || files.length === 0) return res.status(400).json({ error: 'Please upload a file or document.' });
+    const resultBuffer = await ScanToPDFService.process(files);
     return sendFileBuffer(res, resultBuffer, 'scanned_document.pdf');
   } catch (err) {
     console.error('Error in scanPdf:', err);
@@ -468,7 +467,7 @@ exports.comparePdfs = async (req, res) => {
   try {
     const files = req.files || [];
     if (!files || files.length < 2) return res.status(400).json({ error: 'Please upload 2 PDF files to compare.' });
-    const resultBuffer = await PDFCompareService.process(files[0], files[1]);
+    const resultBuffer = await PDFCompareService.process(files);
     return sendFileBuffer(res, resultBuffer, 'comparison_report.pdf');
   } catch (err) {
     console.error('Error in comparePdfs:', err);
@@ -481,7 +480,8 @@ exports.redactPdf = async (req, res) => {
     const files = req.files || [];
     const file = files[0];
     if (!file) return res.status(400).json({ error: 'Please upload a PDF file.' });
-    const resultBuffer = await PDFRedactService.process(file, req.body.terms);
+    const keywords = req.body.terms || req.body.keywords || req.body.text || req.body.query || '';
+    const resultBuffer = await PDFRedactService.process(file, keywords);
     return sendFileBuffer(res, resultBuffer, 'redacted_document.pdf');
   } catch (err) {
     console.error('Error in redactPdf:', err);

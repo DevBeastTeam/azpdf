@@ -33,6 +33,7 @@ class PDFCompressService {
     if (level === 'extreme') {
       pdfDoc.setTitle('');
       pdfDoc.setAuthor('');
+
       pdfDoc.setSubject('');
       pdfDoc.setKeywords([]);
     }

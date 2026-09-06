@@ -45,39 +45,42 @@ export default function StoreBadges({ config, layout = 'horizontal', isPreview =
   const microsoftStore = badges.microsoftStore || { enabled: true, url: 'https://apps.microsoft.com' };
 
   // Common badge style
+  const isVertical = layout === 'vertical';
   const badgeStyle = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '12px',
-    backgroundColor: '#1b1e28',
+    backgroundColor: '#1c1e26',
     color: '#ffffff',
-    padding: '7px 16px',
-    borderRadius: '10px',
-    border: '1.5px solid rgba(255, 255, 255, 0.85)',
-    minWidth: '185px',
-    height: '50px',
+    padding: '0 14px',
+    borderRadius: '8px',
+    border: '1.2px solid rgba(255, 255, 255, 0.85)',
+    width: isVertical ? '170px' : 'auto',
+    minWidth: isVertical ? '170px' : '170px',
+    height: '44px',
     textDecoration: 'none',
+    boxSizing: 'border-box',
     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
     cursor: 'pointer',
     userSelect: 'none',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
   };
 
   const onBadgeHover = (e, hover) => {
     e.currentTarget.style.transform = hover ? 'translateY(-2px)' : 'translateY(0)';
     e.currentTarget.style.borderColor = hover ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
-    e.currentTarget.style.backgroundColor = hover ? '#272c3b' : '#1b1e28';
-    e.currentTarget.style.boxShadow = hover ? '0 6px 16px rgba(0, 0, 0, 0.4)' : '0 2px 8px rgba(0, 0, 0, 0.25)';
+    e.currentTarget.style.backgroundColor = hover ? '#272a36' : '#1c1e26';
+    e.currentTarget.style.boxShadow = hover ? '0 4px 14px rgba(0, 0, 0, 0.45)' : '0 2px 6px rgba(0, 0, 0, 0.3)';
   };
 
   return (
     <div
       style={{
         display: 'flex',
-        flexDirection: layout === 'vertical' ? 'column' : 'row',
+        flexDirection: isVertical ? 'column' : 'row',
         flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: '12px',
+        alignItems: isVertical ? 'flex-start' : 'center',
+        gap: '10px',
       }}
     >
       {/* 1. Google Play */}
@@ -92,12 +95,12 @@ export default function StoreBadges({ config, layout = 'horizontal', isPreview =
           title="Get it on Google Play"
           aria-label="Get it on Google Play"
         >
-          <GooglePlayIcon size={24} />
+          <GooglePlayIcon size={22} />
           <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: '1.15' }}>
-            <span style={{ fontSize: '9.5px', textTransform: 'uppercase', color: '#cbd5e1', fontWeight: '600', letterSpacing: '0.4px' }}>
+            <span style={{ fontSize: '8.5px', textTransform: 'uppercase', color: '#cbd5e1', fontWeight: '600', letterSpacing: '0.4px' }}>
               GET IT ON
             </span>
-            <span style={{ fontSize: '15px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.2px' }}>
+            <span style={{ fontSize: '14px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.2px' }}>
               Google Play
             </span>
           </div>
@@ -116,65 +119,19 @@ export default function StoreBadges({ config, layout = 'horizontal', isPreview =
           title="Download on the App Store"
           aria-label="Download on the App Store"
         >
-          <AppleIcon size={21} />
+          <AppleIcon size={20} />
           <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: '1.15' }}>
-            <span style={{ fontSize: '9.5px', color: '#cbd5e1', fontWeight: '500', letterSpacing: '0.2px' }}>
+            <span style={{ fontSize: '8.5px', color: '#cbd5e1', fontWeight: '500', letterSpacing: '0.2px' }}>
               Download on the
             </span>
-            <span style={{ fontSize: '15px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.2px' }}>
+            <span style={{ fontSize: '14px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.2px' }}>
               App Store
             </span>
           </div>
         </a>
       )}
 
-      {/* 3. Mac App Store */}
-      {macAppStore.enabled && (
-        <a
-          href={macAppStore.url || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={badgeStyle}
-          onMouseEnter={(e) => onBadgeHover(e, true)}
-          onMouseLeave={(e) => onBadgeHover(e, false)}
-          title="Download on the Mac App Store"
-          aria-label="Download on the Mac App Store"
-        >
-          <AppleIcon size={21} />
-          <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: '1.15' }}>
-            <span style={{ fontSize: '9.5px', color: '#cbd5e1', fontWeight: '500', letterSpacing: '0.2px' }}>
-              Download on the
-            </span>
-            <span style={{ fontSize: '15px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.2px' }}>
-              Mac App Store
-            </span>
-          </div>
-        </a>
-      )}
-
-      {/* 4. Microsoft Store */}
-      {microsoftStore.enabled && (
-        <a
-          href={microsoftStore.url || '#'}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={badgeStyle}
-          onMouseEnter={(e) => onBadgeHover(e, true)}
-          onMouseLeave={(e) => onBadgeHover(e, false)}
-          title="Get from Microsoft Store"
-          aria-label="Get from Microsoft Store"
-        >
-          <MicrosoftStoreIcon size={20} />
-          <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', lineHeight: '1.15' }}>
-            <span style={{ fontSize: '9.5px', textTransform: 'uppercase', color: '#cbd5e1', fontWeight: '600', letterSpacing: '0.4px' }}>
-              GET IT FROM
-            </span>
-            <span style={{ fontSize: '14.5px', fontWeight: '800', color: '#ffffff', letterSpacing: '-0.2px' }}>
-              Microsoft Store
-            </span>
-          </div>
-        </a>
-      )}
     </div>
   );
 }
+

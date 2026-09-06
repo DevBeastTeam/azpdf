@@ -27,6 +27,9 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const [targetLanguage, setTargetLanguage] = useState('Urdu');
   const [editAnnotationText, setEditAnnotationText] = useState('Approved & Verified Document');
   const [htmlInputUrl, setHtmlInputUrl] = useState('https://example.com');
+  const [redactKeywords, setRedactKeywords] = useState('confidential, secret, password');
+  const [organizePageOrder, setOrganizePageOrder] = useState('1, 2, 3');
+  const [cropMargin, setCropMargin] = useState('40');
 
   const fileInputRef = useRef(null);
 
@@ -252,6 +255,14 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     formData.append('language', targetLanguage);
     formData.append('annotation', editAnnotationText);
     formData.append('url', htmlInputUrl);
+    formData.append('terms', redactKeywords);
+    formData.append('keywords', redactKeywords);
+    formData.append('pageOrder', organizePageOrder);
+    formData.append('mode', 'custom');
+    formData.append('marginTop', cropMargin);
+    formData.append('marginBottom', cropMargin);
+    formData.append('marginLeft', cropMargin);
+    formData.append('marginRight', cropMargin);
 
     const firstFileName = files[0] ? files[0].name : 'document.pdf';
     const targetFilename = getOutputFilename(tool.id, firstFileName);
@@ -260,16 +271,63 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     let resultBlob = null;
     let finalFilename = targetFilename;
 
-    try {
-      setProgress(45);
-      setActiveStepText('Sending files to engine backend...');
+    if (tool.id.includes('pdftojpg')) {
+      setProgress(40);
+      setActiveStepText('Rendering PDF pages into high-resolution JPG images...');
+      try {
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url
+        ).toString();
+        const JSZip = (await import('jszip')).default;
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        body: formData
-      });
+        let pdfData;
+        if (files[0].rawFile && typeof files[0].rawFile.arrayBuffer === 'function') {
+          pdfData = await files[0].rawFile.arrayBuffer();
+        } else {
+          pdfData = await (await fetch(URL.createObjectURL(files[0].rawFile))).arrayBuffer();
+        }
 
-      if (response.ok) {
+        const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+        const zip = new JSZip();
+        const numPages = pdfDoc.numPages;
+
+        for (let i = 1; i <= numPages; i++) {
+          setProgress(40 + Math.floor((i / numPages) * 50));
+          setActiveStepText(`Rendering page ${i} of ${numPages} to JPG...`);
+          const page = await pdfDoc.getPage(i);
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          const jpgBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.95));
+          const arrayBuf = await jpgBlob.arrayBuffer();
+          const baseName = firstFileName.replace(/\.pdf$/i, '');
+          zip.file(`${baseName}_page_${i}.jpg`, arrayBuf);
+        }
+
+        resultBlob = await zip.generateAsync({ type: 'blob' });
+        backendSuccess = true;
+        finalFilename = targetFilename;
+        setDownloadFilename(finalFilename);
+      } catch (jpgErr) {
+        console.warn('High-res client rendering error:', jpgErr);
+      }
+    } else {
+      try {
+        setProgress(45);
+        setActiveStepText('Sending files to engine backend...');
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
         setProgress(85);
         setActiveStepText('Finalizing processed output...');
         resultBlob = await response.blob();
@@ -287,6 +345,7 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     } catch (err) {
       console.warn('Backend server offline or failed, activating high-precision client fallback:', err.message);
     }
+  }
 
     // Client fallback if backend is offline or failed
     if (!backendSuccess || !resultBlob) {
@@ -1473,8 +1532,80 @@ startxref
                 </div>
               )}
 
+              {/* Redact PDF controls */}
+              {tool.id.includes('redact') && (
+                <div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '8px' }}>
+                    Keywords / sensitive terms to redact (comma-separated):
+                  </p>
+                  <input 
+                    type="text" 
+                    value={redactKeywords} 
+                    onChange={(e) => setRedactKeywords(e.target.value)}
+                    placeholder="e.g. confidential, secret, password, SSN" 
+                    style={{ 
+                      padding: '10px 14px', borderRadius: '8px', 
+                      border: '1px solid var(--border-light)', fontSize: '14px', 
+                      width: '100%', maxWidth: '420px', fontWeight: '600',
+                      backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                    }}
+                  />
+                  <p style={{ fontSize: '11px', color: '#64748b', margin: '6px 0 0 0' }}>
+                    Matching text across pages will be searched and covered with solid redaction blocks.
+                  </p>
+                </div>
+              )}
+
+              {/* Organize PDF controls */}
+              {tool.id.includes('organize') && (
+                <div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '8px' }}>
+                    Page order or deletion (e.g. "3,1,2" or "reverse" or "delete:2"):
+                  </p>
+                  <input 
+                    type="text" 
+                    value={organizePageOrder} 
+                    onChange={(e) => setOrganizePageOrder(e.target.value)}
+                    placeholder="e.g. 1, 2, 3 or reverse" 
+                    style={{ 
+                      padding: '10px 14px', borderRadius: '8px', 
+                      border: '1px solid var(--border-light)', fontSize: '14px', 
+                      width: '100%', maxWidth: '320px', fontWeight: '600',
+                      backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Crop PDF controls */}
+              {tool.id.includes('crop') && (
+                <div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '8px' }}>
+                    Crop Margins (points cut from edges):
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                    {['20', '40', '60', '80'].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setCropMargin(m)}
+                        style={{
+                          padding: '8px 16px', borderRadius: '6px',
+                          border: cropMargin === m ? '2px solid var(--primary-red)' : '1px solid var(--border-light)',
+                          backgroundColor: cropMargin === m ? 'rgba(229,36,36,0.1)' : 'var(--bg-light)',
+                          color: cropMargin === m ? 'var(--primary-red)' : 'var(--text-dark)',
+                          fontWeight: '700', cursor: 'pointer'
+                        }}
+                      >
+                        {m} pt {m === '40' ? '(Standard)' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* General ready notice */}
-              {!tool.id.includes('split') && !tool.id.includes('rotate') && !tool.id.includes('watermark') && !tool.id.includes('protect') && !tool.id.includes('unlock') && !tool.id.includes('compress') && !tool.id.includes('pagenumber') && !tool.id.includes('sign') && !tool.id.includes('translate') && !tool.id.includes('edit') && !tool.id.includes('htmltopdf') && (
+              {!tool.id.includes('split') && !tool.id.includes('rotate') && !tool.id.includes('watermark') && !tool.id.includes('protect') && !tool.id.includes('unlock') && !tool.id.includes('compress') && !tool.id.includes('pagenumber') && !tool.id.includes('sign') && !tool.id.includes('translate') && !tool.id.includes('edit') && !tool.id.includes('htmltopdf') && !tool.id.includes('redact') && !tool.id.includes('organize') && !tool.id.includes('crop') && (
                 <p style={{ fontSize: '13px', color: 'var(--text-gray)', margin: 0 }}>
                   Ready to process <strong>{files.length}</strong> file(s) with high accuracy vector conversion.
                 </p>

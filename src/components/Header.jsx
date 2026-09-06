@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft } from 'lucide-react';
+import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft, LayoutDashboard } from 'lucide-react';
 import { 
   JpgToPdfIcon, WordToPdfIcon, PowerpointToPdfIcon, ExcelToPdfIcon, HtmlToPdfIcon,
   PdfToJpgIcon, PdfToWordIcon, PdfToPowerpointIcon, PdfToExcelIcon, PdfToPdfaIcon,
@@ -40,7 +40,12 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
       color: isActive ? 'var(--primary-red)' : 'var(--text-dark)',
       fontWeight: '700',
       fontSize: '14px',
-      letterSpacing: '0.5px'
+      letterSpacing: '0.5px',
+      whiteSpace: 'nowrap',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      flexShrink: 0
     };
   };
 
@@ -423,10 +428,48 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           Home
         </button>
 
-
+        <a
+          href="/#pricing"
+          onClick={(e) => {
+            e.preventDefault();
+            if (location.pathname !== '/') {
+              navigate('/');
+              setTimeout(() => {
+                const el = document.getElementById('pricing');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }, 100);
+            } else {
+              const el = document.getElementById('pricing');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }
+          }}
+          className="btn btn-secondary hide-mobile"
+          style={{ border: 'none', fontWeight: '700', color: 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', textDecoration: 'none' }}
+        >
+          Pricing
+        </a>
 
         {isLoggedIn ? (
           <>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="btn btn-secondary hide-mobile"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                backgroundColor: currentView === 'dashboard' ? 'rgba(229, 36, 36, 0.1)' : 'var(--bg-light)',
+                border: currentView === 'dashboard' ? '1px solid var(--primary-red)' : '1px solid var(--border-light)',
+                color: currentView === 'dashboard' ? 'var(--primary-red)' : 'var(--text-dark)',
+                fontWeight: '700',
+                fontSize: '13px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <LayoutDashboard size={15} /> Dashboard
+            </button>
+
             {/* Logout Button */}
             <button
               onClick={onLogoutClick}
@@ -668,9 +711,15 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
             COMPRESS PDF <ArrowRight size={16} />
           </a>
+          <a href="#pricing" className="mobile-nav-item" onClick={() => { navigate('/#pricing'); setMobileMenuOpen(false); }}>
+            PRICING <ArrowRight size={16} />
+          </a>
 
           {isLoggedIn && (
             <>
+              <a href="#dashboard" className="mobile-nav-item" onClick={() => { navigate('/dashboard'); setMobileMenuOpen(false); }}>
+                DASHBOARD <ArrowRight size={16} />
+              </a>
               <button className="mobile-nav-item" onClick={() => { onLogoutClick(); setMobileMenuOpen(false); }} style={{ color: '#ef4444', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', fontWeight: '700', fontSize: '15px' }}>
                 <LogOut size={16} /> Logout
               </button>
@@ -681,7 +730,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
               <a href="#login" className="mobile-nav-item" onClick={() => { onLoginClick(); setMobileMenuOpen(false); }}>
                 Login <ArrowRight size={16} />
               </a>
-              <a href="#register" className="mobile-nav-item" onClick={() => setMobileMenuOpen(false)} style={{ color: 'var(--primary-red)' }}>
+              <a href="#register" className="mobile-nav-item" onClick={() => { onSignupClick(); setMobileMenuOpen(false); }} style={{ color: 'var(--primary-red)' }}>
                 Sign up <ArrowRight size={16} />
               </a>
             </>

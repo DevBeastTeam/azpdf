@@ -13,25 +13,40 @@ export default function ContactUs() {
     phone: '',
     message: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMessage('');
     try {
-      await fetch('http://localhost:5000/api/contact', {
+      const res = await fetch('http://localhost:5000/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          fullName: formData.fullName,
           name: formData.fullName,
           email: formData.email,
-          subject: `Sales inquiry from ${formData.company || formData.fullName}`,
+          company: formData.company,
+          teamSize: formData.teamSize,
+          phone: formData.phone,
+          subject: `Sales & Support Inquiry from ${formData.company ? `${formData.company} (${formData.fullName})` : formData.fullName}`,
           message: formData.message
         })
       });
+      const data = await res.json();
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to submit inquiry.');
+      }
+      setSubmitted(true);
     } catch (err) {
-      console.warn('Contact API note:', err.message);
+      console.error('Contact submission error:', err);
+      setErrorMessage(err.message || 'Network error. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-    setSubmitted(true);
   };
 
   return (
@@ -144,7 +159,17 @@ export default function ContactUs() {
                   Thank you for reaching out. Our enterprise sales manager has received your request and will contact you at <strong>{formData.email || 'your email'}</strong> shortly.
                 </p>
                 <button
-                  onClick={() => setSubmitted(false)}
+                  onClick={() => {
+                    setSubmitted(false);
+                    setFormData({
+                      fullName: '',
+                      email: '',
+                      company: '',
+                      teamSize: '10-50 employees',
+                      phone: '',
+                      message: ''
+                    });
+                  }}
                   style={{
                     padding: '12px 24px',
                     borderRadius: '10px',
@@ -304,8 +329,23 @@ export default function ContactUs() {
                   />
                 </div>
 
+                {errorMessage && (
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    color: '#dc2626',
+                    fontSize: '13px',
+                    fontWeight: '600'
+                  }}>
+                    ⚠️ {errorMessage}
+                  </div>
+                )}
+
                 <button
                   type="submit"
+                  disabled={isSubmitting}
                   style={{
                     marginTop: '10px',
                     padding: '14px 24px',
@@ -315,7 +355,8 @@ export default function ContactUs() {
                     color: '#ffffff',
                     fontWeight: '800',
                     fontSize: '15px',
-                    cursor: 'pointer',
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    opacity: isSubmitting ? 0.75 : 1,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -324,7 +365,16 @@ export default function ContactUs() {
                     transition: 'all 0.2s'
                   }}
                 >
-                  <Send size={18} /> Send Message to Sales
+                  {isSubmitting ? (
+                    <>
+                      <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid #ffffff', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      Sending Inquiry...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={18} /> Send Message to Sales
+                    </>
+                  )}
                 </button>
               </form>
             )}

@@ -1,8 +1,25 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Check, Zap, Shield, Sparkles, Building2, HelpCircle } from 'lucide-react';
 
-export default function Pricing({ onContactSales, siteContent }) {
+export default function Pricing({ onContactSales, onGetStarted, onGoPremium, siteContent }) {
   const [isYearly, setIsYearly] = useState(true);
+  const navigate = useNavigate();
+
+  const handleGetStarted = () => {
+    if (onGetStarted) return onGetStarted();
+    const el = document.getElementById('tools');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      navigate('/#tools');
+    }
+  };
+
+  const handleGoPremium = () => {
+    if (onGoPremium) return onGoPremium();
+    navigate('/dashboard');
+  };
 
   return (
     <section id="pricing" className="pricing-section" style={{
@@ -167,19 +184,22 @@ export default function Pricing({ onContactSales, siteContent }) {
               </ul>
             </div>
 
-            <button style={{
-              marginTop: '36px',
-              padding: '14px',
-              width: '100%',
-              borderRadius: '12px',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'var(--bg-card)',
-              color: 'var(--text-gray)',
-              fontWeight: '700',
-              fontSize: '15px',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}>
+            <button 
+              onClick={handleGetStarted}
+              style={{
+                marginTop: '36px',
+                padding: '14px',
+                width: '100%',
+                borderRadius: '12px',
+                border: '1px solid var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-gray)',
+                fontWeight: '700',
+                fontSize: '15px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
               Get Started Free
             </button>
           </div>
@@ -260,20 +280,23 @@ export default function Pricing({ onContactSales, siteContent }) {
               </ul>
             </div>
 
-            <button style={{
-              marginTop: '36px',
-              padding: '14px',
-              width: '100%',
-              borderRadius: '12px',
-              border: 'none',
-              backgroundColor: 'var(--primary-red)',
-              color: '#ffffff',
-              fontWeight: '800',
-              fontSize: '15px',
-              cursor: 'pointer',
-              boxShadow: '0 8px 20px rgba(229, 36, 36, 0.3)',
-              transition: 'all 0.2s'
-            }}>
+            <button 
+              onClick={handleGoPremium}
+              style={{
+                marginTop: '36px',
+                padding: '14px',
+                width: '100%',
+                borderRadius: '12px',
+                border: 'none',
+                backgroundColor: 'var(--primary-red)',
+                color: '#ffffff',
+                fontWeight: '800',
+                fontSize: '15px',
+                cursor: 'pointer',
+                boxShadow: '0 8px 20px rgba(229, 36, 36, 0.3)',
+                transition: 'all 0.2s'
+              }}
+            >
               Go Premium (7 Days Free)
             </button>
           </div>

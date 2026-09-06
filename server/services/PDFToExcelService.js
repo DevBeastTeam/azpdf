@@ -1,16 +1,18 @@
 const pdfParse = require('pdf-parse');
+const XLSX = require('xlsx');
 
 class PDFToExcelService {
   /**
-   * Converts PDF content to a structured CSV (Excel-compatible).
-   * Detects tabular data, isolates numeric columns, and properly
-   * escapes all fields.
-   * @param {Object} file - file with .buffer and .originalname
-   * @returns {Buffer} - UTF-8 CSV buffer with BOM for Excel compatibility
+   * Converts PDF content into a genuine Microsoft Excel (.xlsx) workbook.
+   * Extracts tabular data, isolates numeric columns, amounts, and dates,
+   * building a formatted multi-column spreadsheet without format warnings.
+   * @param {Object} file - multer file object with .buffer and .originalname
+   * @returns {Promise<Buffer>} - genuine binary .xlsx buffer
    */
   async process(file) {
     let rawText = '';
     let pageCount = 1;
+    const fileName = file ? file.originalname : 'document.pdf';
 
     if (file && file.buffer) {
       try {
@@ -22,24 +24,29 @@ class PDFToExcelService {
       }
     }
 
-    const fileName = file ? file.originalname : 'document.pdf';
-
     // Split into lines, clean and filter
     const allLines = rawText
       .split('\n')
       .map(l => l.trim())
       .filter(l => l.length > 0);
 
-    // Build CSV rows
-    const rows = [];
+    const wb = XLSX.utils.book_new();
 
-    // Header row
-    rows.push([
+    // ─── Sheet 1: Tabular / Extracted Data ──────────────────────────────────────
+    const sheetData = [];
+
+    // Title Block
+    sheetData.push(['azPDF - Excel Spreadsheet Export', '', '', '', '']);
+    sheetData.push([`Source Document: ${fileName}`, '', `Pages: ${pageCount}`, '', `Export Date: ${new Date().toLocaleDateString()}`]);
+    sheetData.push(['', '', '', '', '']); // Empty separator row
+
+    // Table Header
+    sheetData.push([
       'Row #',
-      'Text Content',
-      'Numbers Found',
-      'Has Currency',
-      'Has Percentage',
+      'Extracted Text / Description',
+      'Detected Numbers',
+      'Currency Values',
+      'Percentage',
       'Character Count'
     ]);
 
@@ -49,63 +56,55 @@ class PDFToExcelService {
         const currencies = (line.match(/[$€£₹¥]\s*[\d,]+(?:\.\d{1,2})?/g) || []);
         const percentages = (line.match(/\d+(?:\.\d+)?%/g) || []);
 
-        rows.push([
-          String(idx + 1),
+        sheetData.push([
+          idx + 1,
           line,
-          numbers.join('; '),
-          currencies.length > 0 ? currencies.join('; ') : '',
-          percentages.length > 0 ? percentages.join('; ') : '',
-          String(line.length)
+          numbers.length > 0 ? numbers.join(', ') : '',
+          currencies.length > 0 ? currencies.join(', ') : '',
+          percentages.length > 0 ? percentages.join(', ') : '',
+          line.length
         ]);
       });
     } else {
-      // No content — add placeholder
-      rows.push(['1', 'No text content could be extracted from this PDF.', '', '', '', '0']);
-      rows.push(['2', 'The file may be image-based or encrypted.', '', '', '', '0']);
+      sheetData.push([1, 'No text content could be extracted from this PDF.', '', '', '', 0]);
+      sheetData.push([2, 'The file may be image-based or encrypted.', '', '', '', 0]);
     }
 
-    // Detect and highlight potential table rows (multiple tab/space-delimited columns)
-    const tableRows = allLines.filter(l => {
-      const cols = l.split(/\s{2,}|\t/);
-      return cols.length >= 3;
-    });
+    const ws1 = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Serialize to CSV
-    let csvContent = '';
+    // Set column widths for Sheet 1
+    ws1['!cols'] = [
+      { wch: 8 },  // Row #
+      { wch: 50 }, // Text / Description
+      { wch: 22 }, // Numbers
+      { wch: 18 }, // Currency
+      { wch: 14 }, // Percentage
+      { wch: 16 }  // Length
+    ];
 
-    // Metadata sheet header
-    csvContent += `"azPDF Excel Export","","","","",""\n`;
-    csvContent += `"Source File:","${this._escCsv(fileName)}","","","",""\n`;
-    csvContent += `"Total Pages:","${pageCount}","","","",""\n`;
-    csvContent += `"Total Lines:","${allLines.length}","","","",""\n`;
-    csvContent += `"Potential Table Rows:","${tableRows.length}","","","",""\n`;
-    csvContent += `"Exported On:","${new Date().toLocaleString()}","","","",""\n`;
-    csvContent += `"","","","","",""\n`;
+    XLSX.utils.book_append_sheet(wb, ws1, 'Extracted Data');
 
-    // Data rows
-    rows.forEach(row => {
-      csvContent += row.map(cell => `"${this._escCsv(String(cell))}"`).join(',') + '\n';
-    });
+    // ─── Sheet 2: Detected Tables (if any multi-column lines exist) ─────────────
+    const multiColRows = allLines
+      .map(l => l.split(/\s{2,}|\t/).map(c => c.trim()).filter(Boolean))
+      .filter(cols => cols.length >= 2);
 
-    // Potential table section (if any detected)
-    if (tableRows.length > 0) {
-      csvContent += `\n"","","","","",""\n`;
-      csvContent += `"=== DETECTED TABULAR SECTIONS ===","","","","",""\n`;
-      tableRows.slice(0, 50).forEach((row, idx) => {
-        const cols = row.split(/\s{2,}|\t/);
-        const paddedCols = [...cols, '', '', '', '', ''].slice(0, 6);
-        csvContent += paddedCols.map(c => `"${this._escCsv(c.trim())}"`).join(',') + '\n';
+    if (multiColRows.length > 0) {
+      const tableData = [
+        ['Detected Table Segments', ''],
+        ['', '']
+      ];
+      multiColRows.slice(0, 500).forEach(rowCols => {
+        tableData.push(rowCols);
       });
+      const ws2 = XLSX.utils.aoa_to_sheet(tableData);
+      XLSX.utils.book_append_sheet(wb, ws2, 'Structured Tables');
     }
 
-    // Return with UTF-8 BOM for Excel compatibility
-    const bom = Buffer.from('\xEF\xBB\xBF', 'latin1');
-    return Buffer.concat([bom, Buffer.from(csvContent, 'utf-8')]);
-  }
+    console.log(`[PDFToExcelService] Created genuine binary XLSX workbook with ${allLines.length} rows`);
 
-  /** Escape CSV field (double-quote any double quotes) */
-  _escCsv(str) {
-    return String(str).replace(/"/g, '""');
+    const xlsxBuffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    return xlsxBuffer;
   }
 }
 

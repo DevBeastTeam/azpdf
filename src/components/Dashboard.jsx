@@ -97,15 +97,34 @@ export default function Dashboard({
   };
 
   // Profile state
-  const [profile, setProfile] = useState({
-    firstName: 'Alex',
-    lastName: 'Johnson',
-    email: 'alex.johnson@ilovepdf.com',
-    phone: '+1 (555) 012-3456',
-    bio: 'PDF processing enthusiast. Managing documents and workflows at iLovePDF.',
-    language: 'English',
-    avatarInitials: 'AJ',
-    avatarColor: 'var(--primary-red)',
+  const [profile, setProfile] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('azpdf_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        const nameParts = (u.name || 'User').trim().split(/\s+/);
+        return {
+          firstName: nameParts[0] || 'User',
+          lastName: nameParts.slice(1).join(' ') || '',
+          email: u.email || 'user@example.com',
+          phone: u.phone || '+1 (555) 012-3456',
+          bio: u.bio || 'PDF processing enthusiast. Managing documents and workflows.',
+          language: 'English',
+          avatarInitials: u.avatar || (nameParts[0] ? nameParts[0][0] : 'U').toUpperCase(),
+          avatarColor: 'var(--primary-red)',
+        };
+      }
+    } catch (e) {}
+    return {
+      firstName: 'Alex',
+      lastName: 'Johnson',
+      email: 'alex.johnson@ilovepdf.com',
+      phone: '+1 (555) 012-3456',
+      bio: 'PDF processing enthusiast. Managing documents and workflows at iLovePDF.',
+      language: 'English',
+      avatarInitials: 'AJ',
+      avatarColor: 'var(--primary-red)',
+    };
   });
   const [profileSaved, setProfileSaved] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -135,6 +154,57 @@ export default function Dashboard({
 
   const handleDeleteFile = (id) => {
     setRecentFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleDownloadFile = (file) => {
+    if (file.downloadUrl) {
+      const a = document.createElement('a');
+      a.href = file.downloadUrl;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+    const blob = new Blob([
+      `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>/Contents 4 0 R>>endobj\n4 0 obj<</Length 64>>stream\nBT /F1 14 Tf 50 700 Td (${file.name || 'document.pdf'} - Processed by azPDF) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000056 00000 n \n0000000111 00000 n \n0000000212 00000 n \ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n325\n%%EOF`
+    ], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name || 'document.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClearAllFiles = () => {
+    if (window.confirm('Are you sure you want to clear all your recent files?')) {
+      setRecentFiles([]);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      localStorage.removeItem('azpdf_auth');
+      localStorage.removeItem('azpdf_user');
+      window.location.href = '/';
+    }
+  };
+
+  const handleDownloadInvoice = (inv) => {
+    const invoiceBlob = new Blob([
+      `%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>/Contents 4 0 R>>endobj\n4 0 obj<</Length 110>>stream\nBT /F1 16 Tf 50 720 Td (INVOICE ${inv.id}) Tj /F1 12 Tf 50 690 Td (Plan: ${inv.plan}  Amount: ${inv.amount}  Date: ${inv.date}) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000056 00000 n \n0000000111 00000 n \n0000000212 00000 n \ntrailer<</Size 5/Root 1 0 R>>\nstartxref\n370\n%%EOF`
+    ], { type: 'application/pdf' });
+    const url = URL.createObjectURL(invoiceBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Invoice-${inv.id}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
 
@@ -191,14 +261,14 @@ export default function Dashboard({
               fontWeight: '800',
               fontSize: '16px'
             }}>
-              AJ
+              {profile.avatarInitials}
             </div>
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                Alex Johnson
+                {profile.firstName} {profile.lastName}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Sparkles size={11} color="var(--primary-red)" /> Premium Account
+                <Sparkles size={11} color="var(--primary-red)" /> {billingPlan} Account
               </div>
             </div>
           </div>
@@ -328,7 +398,7 @@ export default function Dashboard({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div>
                 <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                  Welcome back, Alex Johnson 👋
+                  Welcome back, {profile.firstName} {profile.lastName} 👋
                 </h1>
                 <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
                   Here is a quick overview of your PDF document processing metrics and activity.
@@ -552,7 +622,11 @@ export default function Dashboard({
                         <td style={{ padding: '16px', color: 'var(--text-gray)' }}>{file.size}</td>
                         <td style={{ padding: '16px', color: 'var(--text-gray)' }}>{file.date}</td>
                         <td style={{ padding: '16px', textAlign: 'right' }}>
-                          <button style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--primary-red)', cursor: 'pointer', padding: '6px' }} title="Download">
+                          <button 
+                            onClick={() => handleDownloadFile(file)}
+                            style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--primary-red)', cursor: 'pointer', padding: '6px' }} 
+                            title="Download"
+                          >
                             <Download size={16} />
                           </button>
                         </td>
@@ -635,7 +709,11 @@ export default function Dashboard({
                         <td style={{ padding: '16px', color: 'var(--text-gray)' }}>{file.date}</td>
                         <td style={{ padding: '16px', textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                            <button style={{ border: 'none', backgroundColor: 'var(--bg-light)', borderRadius: '6px', padding: '8px', color: 'var(--text-gray)', cursor: 'pointer' }} title="Download File">
+                            <button 
+                              onClick={() => handleDownloadFile(file)}
+                              style={{ border: 'none', backgroundColor: 'var(--bg-light)', borderRadius: '6px', padding: '8px', color: 'var(--text-gray)', cursor: 'pointer' }} 
+                              title="Download File"
+                            >
                               <Download size={16} />
                             </button>
                             <button onClick={() => handleDeleteFile(file.id)} style={{ border: 'none', backgroundColor: '#fee2e2', borderRadius: '6px', padding: '8px', color: '#dc2626', cursor: 'pointer' }} title="Delete">
@@ -941,7 +1019,7 @@ export default function Dashboard({
                         </span>
                       </td>
                       <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                        <button onClick={() => alert(`📄 Downloading invoice PDF for ${inv.id}...`)} style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--primary-red)', fontWeight: '700', cursor: 'pointer', fontSize: '13px' }}>
+                        <button onClick={() => handleDownloadInvoice(inv)} style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--primary-red)', fontWeight: '700', cursor: 'pointer', fontSize: '13px' }}>
                           Download PDF
                         </button>
                       </td>
@@ -1095,8 +1173,8 @@ export default function Dashboard({
               </h2>
               <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '20px' }}>These actions are irreversible. Please be certain before proceeding.</p>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <button style={{ padding: '10px 20px', borderRadius: '9px', border: '1.5px solid #fca5a5', backgroundColor: 'var(--bg-card)', color: '#dc2626', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Clear All My Files</button>
-                <button style={{ padding: '10px 20px', borderRadius: '9px', border: 'none', backgroundColor: '#dc2626', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Delete My Account</button>
+                <button onClick={handleClearAllFiles} style={{ padding: '10px 20px', borderRadius: '9px', border: '1.5px solid #fca5a5', backgroundColor: 'var(--bg-card)', color: '#dc2626', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Clear All My Files</button>
+                <button onClick={handleDeleteAccount} style={{ padding: '10px 20px', borderRadius: '9px', border: 'none', backgroundColor: '#dc2626', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Delete My Account</button>
               </div>
             </div>
 

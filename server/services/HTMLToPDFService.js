@@ -34,8 +34,21 @@ class HTMLToPDFService {
       sourceInfo = file.originalname;
     } else if (urlParam) {
       sourceInfo = urlParam;
-      // Cannot fetch URL server-side without puppeteer/fetch, note it in output
-      htmlString = `<html><body><h1>URL Conversion</h1><p>Source: ${urlParam}</p><p>Note: URL-based conversion requires browser rendering.</p></body></html>`;
+      try {
+        const fullUrl = urlParam.startsWith('http') ? urlParam : `https://${urlParam}`;
+        const resp = await fetch(fullUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) azPDF/2.0' },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (resp.ok) {
+          htmlString = await resp.text();
+        } else {
+          htmlString = `<html><body><h1>Website Content: ${urlParam}</h1><p>Status: HTTP ${resp.status}</p></body></html>`;
+        }
+      } catch (fetchErr) {
+        console.warn('[HTMLToPDFService] Fetch error:', fetchErr.message);
+        htmlString = `<html><body><h1>${urlParam}</h1><p>Could not load external URL: ${fetchErr.message}</p></body></html>`;
+      }
     }
 
     // Parse HTML elements
