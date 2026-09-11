@@ -81,29 +81,29 @@ const defaultSiteContent = {
   footerCopyright: '© iLovePDF 2026 ® - Your PDF Editor',
   footerColumns: [
     {
-      id: 'col-1',
+      id: 'col-product',
       title: 'PRODUCT',
       links: [
         { label: 'Home', url: '/' },
         { label: 'Features', url: '/#features' },
         { label: 'Pricing', url: '/#pricing' },
         { label: 'Tools', url: '/#tools' },
-        { label: 'FAQ', url: '/#faq' }
+        { label: 'FAQ', url: '/help' }
       ]
     },
     {
-      id: 'col-2',
+      id: 'col-resources',
       title: 'RESOURCES',
       links: [
-        { label: 'iLovePDF Desktop', url: '/#desktop' },
-        { label: 'iLovePDF Mobile', url: '/#app-downloads' },
-        { label: 'iLoveSign', url: '/#tools' },
-        { label: 'iLoveAPI', url: '/#developers' },
-        { label: 'iLoveIMG', url: 'https://www.iloveimg.com' }
+        { label: 'iLovePDF Desktop', url: '#app-downloads' },
+        { label: 'iLovePDF Mobile', url: '#app-downloads' },
+        { label: 'iLoveSign', url: '/tool/sign' },
+        { label: 'iLoveAPI', url: '/contact' },
+        { label: 'iLoveIMG', url: '/tool/jpgtopdf' }
       ]
     },
     {
-      id: 'col-3',
+      id: 'col-solutions',
       title: 'SOLUTIONS',
       links: [
         { label: 'Business', url: '/#pricing' },
@@ -111,7 +111,7 @@ const defaultSiteContent = {
       ]
     },
     {
-      id: 'col-4',
+      id: 'col-legal',
       title: 'LEGAL',
       links: [
         { label: 'Security', url: '/privacy' },
@@ -121,13 +121,13 @@ const defaultSiteContent = {
       ]
     },
     {
-      id: 'col-5',
+      id: 'col-company',
       title: 'COMPANY',
       links: [
-        { label: 'About us', url: '/#about' },
+        { label: 'About us', url: '/contact' },
         { label: 'Contact us', url: '/contact' },
-        { label: 'Blog', url: '/#blog' },
-        { label: 'Press', url: '/#press' }
+        { label: 'Blog', url: '/help' },
+        { label: 'Press', url: '/contact' }
       ]
     }
   ],
@@ -170,6 +170,31 @@ const defaultSiteContent = {
 // ─── Home Page (combined hero + tools + pricing) ───────────────────────────────
 function HomePage({ toolsConfig, siteContent, isLoggedIn, onOpenAuth }) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    let targetId = '';
+    if (location.pathname === '/pricing' || location.hash === '#pricing') {
+      targetId = 'pricing';
+    } else if (location.pathname === '/features' || location.hash === '#features') {
+      targetId = 'features';
+    } else if (location.pathname === '/tools' || location.hash === '#tools') {
+      targetId = 'tools';
+    } else if (location.hash) {
+      targetId = location.hash.replace('#', '');
+    }
+
+    if (targetId) {
+      const scrollTimer = setTimeout(() => {
+        const el = document.getElementById(targetId) || document.getElementById('tools');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 150);
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [location.pathname, location.hash]);
+
   return (
     <>
       <Hero siteContent={siteContent} />
@@ -319,7 +344,7 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
 
     if (mode === 'signup') {
       try {
-        const res = await fetch('http://localhost:5000/api/auth/signup', {
+        const res = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, name })
@@ -342,7 +367,7 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
     } else {
       // mode === 'login'
       try {
-        const res = await fetch('http://localhost:5000/api/auth/login', {
+        const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
@@ -478,14 +503,33 @@ function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/admin/data');
+        const res = await fetch('/api/admin/data');
         if (res.ok) {
           const db = await res.json();
           if (db.usersData) setUsersData(db.usersData);
           if (db.recentFiles) setRecentFiles(db.recentFiles);
           if (db.toolsConfig) setToolsConfig(db.toolsConfig);
           if (db.systemSettings) setSystemSettings(db.systemSettings);
-          if (db.siteContent) setSiteContent(prev => ({ ...prev, ...db.siteContent }));
+          if (db.siteContent) {
+            setSiteContent(prev => {
+              const dbContent = db.siteContent;
+              // Only use DB footerColumns if they are valid arrays with actual links
+              const hasValidFooterCols = Array.isArray(dbContent.footerColumns) &&
+                dbContent.footerColumns.length > 0 &&
+                dbContent.footerColumns.some(c => Array.isArray(c.links) && c.links.length > 0 && c.links[0].url && c.links[0].url.length > 1);
+              const hasValidFooterBtns = Array.isArray(dbContent.footerButtons) && dbContent.footerButtons.length > 0;
+              const hasValidSocialLinks = dbContent.socialLinks && typeof dbContent.socialLinks === 'object' && Object.keys(dbContent.socialLinks).length > 0;
+              return {
+                ...prev,
+                ...dbContent,
+                // Keep our working defaults if DB has empty/broken footer data
+                footerColumns: hasValidFooterCols ? dbContent.footerColumns : prev.footerColumns,
+                footerButtons: hasValidFooterBtns ? dbContent.footerButtons : prev.footerButtons,
+                socialLinks: hasValidSocialLinks ? dbContent.socialLinks : prev.socialLinks,
+                appStoreBadges: dbContent.appStoreBadges || prev.appStoreBadges,
+              };
+            });
+          }
         }
       } catch (err) {
         console.error('Failed to load database from backend:', err);
@@ -499,7 +543,7 @@ function App() {
     const resolved = typeof newVal === 'function' ? newVal(usersData) : newVal;
     setUsersData(resolved);
     try {
-      await fetch('http://localhost:5000/api/admin/users', {
+      await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(resolved)
@@ -512,13 +556,23 @@ function App() {
   const updateRecentFiles = async (newVal) => {
     const resolved = typeof newVal === 'function' ? newVal(recentFiles) : newVal;
     setRecentFiles(resolved);
+    try {
+      // Persist to backend: post the full updated files list
+      await fetch('/api/admin/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: resolved })
+      });
+    } catch (e) {
+      console.error('Failed to persist recent files:', e);
+    }
   };
 
   const updateToolsConfig = async (newVal) => {
     const resolved = typeof newVal === 'function' ? newVal(toolsConfig) : newVal;
     setToolsConfig(resolved);
     try {
-      await fetch('http://localhost:5000/api/admin/tools', {
+      await fetch('/api/admin/tools', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(resolved)
@@ -532,7 +586,7 @@ function App() {
     const resolved = typeof newVal === 'function' ? newVal(systemSettings) : newVal;
     setSystemSettings(resolved);
     try {
-      await fetch('http://localhost:5000/api/admin/settings', {
+      await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(resolved)
@@ -546,7 +600,7 @@ function App() {
     const resolved = typeof newVal === 'function' ? newVal(siteContent) : newVal;
     setSiteContent(resolved);
     try {
-      await fetch('http://localhost:5000/api/admin/site-content', {
+      await fetch('/api/admin/site-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(resolved)
@@ -589,6 +643,7 @@ function App() {
         return exists ? prev : [user, ...prev];
       });
     }
+    navigate('/dashboard');
   };
 
   const handleLogout = () => {
@@ -610,7 +665,7 @@ function App() {
     setRecentFiles(prev => [entry, ...prev]);
     setUsersData(prev => {
       const updatedUsers = prev.map(u => u.id === 1 ? { ...u, files: u.files + 1 } : u);
-      fetch('http://localhost:5000/api/admin/files', {
+      fetch('/api/admin/files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file: entry, users: updatedUsers })
@@ -698,6 +753,9 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
+            <Route path="/pricing" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
+            <Route path="/features" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
+            <Route path="/tools" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
             <Route path="/tool/:toolId" element={<ToolPage toolsConfig={toolsConfig} />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/terms"   element={<TermsAndConditions />} />
@@ -708,6 +766,7 @@ function App() {
             <Route path="/dashboard" element={
               isLoggedIn ? (
                 <Dashboard
+                  currentUser={currentUser}
                   usersData={usersData}
                   setUsersData={updateUsersData}
                   recentFiles={recentFiles}

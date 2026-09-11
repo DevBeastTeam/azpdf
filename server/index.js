@@ -389,13 +389,25 @@ app.post('/api/admin/settings', async (req, res, next) => {
 
 app.post('/api/admin/files', async (req, res, next) => {
   try {
-    const { file, users } = req.body;
+    const { file, users, files } = req.body;
     
+    // Single file insert (from tool processing)
     if (file) {
       await dbRun(
         'INSERT OR IGNORE INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [file.id, file.name, file.tool, file.size, file.date, file.pages, file.status]
       );
+    }
+
+    // Full files list replacement (from Dashboard delete)
+    if (files && Array.isArray(files)) {
+      await dbRun('DELETE FROM recent_files');
+      for (const f of files) {
+        await dbRun(
+          'INSERT INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [f.id, f.name, f.tool, f.size, f.date, f.pages, f.status]
+        );
+      }
     }
 
     if (users) {
@@ -411,6 +423,22 @@ app.post('/api/admin/files', async (req, res, next) => {
     next(err);
   }
 });
+
+// User Profile Update
+app.post('/api/user/profile', async (req, res, next) => {
+  try {
+    const { email, name, phone, bio } = req.body || {};
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+    await dbRun(
+      'UPDATE users SET name = ?, avatar = ? WHERE LOWER(email) = ?',
+      [name || email.split('@')[0], (name ? name[0] : email[0]).toUpperCase(), email.trim().toLowerCase()]
+    );
+    res.json({ success: true, message: 'Profile updated successfully!' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 // Contact Us Form Submission (Real Working)
 app.post('/api/contact', async (req, res, next) => {

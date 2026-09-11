@@ -131,10 +131,11 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
         {/* Pricing Cards Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
           gap: '30px',
           textAlign: 'left',
-          alignItems: 'stretch'
+          alignItems: 'stretch',
+          width: '100%'
         }}>
           
           {/* Card 1: Free Plan */}

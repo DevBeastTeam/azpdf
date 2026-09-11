@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft, LayoutDashboard } from 'lucide-react';
 import { 
@@ -27,6 +27,25 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [isAllToolsOpen, setIsAllToolsOpen] = useState(false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
+  const appLauncherRef = useRef(null);
+  const allToolsRef = useRef(null);
+  const convertRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (appLauncherRef.current && !appLauncherRef.current.contains(event.target)) {
+        setIsAppLauncherOpen(false);
+      }
+      if (allToolsRef.current && !allToolsRef.current.contains(event.target)) {
+        setIsAllToolsOpen(false);
+      }
+      if (convertRef.current && !convertRef.current.contains(event.target)) {
+        setIsConvertOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Dropdown background adapts to theme
   const dropdownBg = theme === 'dark' ? '#1f2937' : '#ffffff';
@@ -97,60 +116,37 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
             </a>
           </li>
           <li 
+            ref={convertRef}
             className="nav-item" 
             onMouseEnter={() => setIsConvertOpen(true)}
             onMouseLeave={() => setIsConvertOpen(false)}
-            onClick={() => setIsConvertOpen(!isConvertOpen)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsConvertOpen(prev => !prev);
+            }}
             style={{ 
+              position: 'relative',
               cursor: 'pointer',
               ...getNavItemStyle([
                 'tool-pdftoword', 'tool-pdftopowerpoint', 'tool-pdftoexcel',
                 'tool-wordtopdf', 'tool-powerpointtopdf', 'tool-exceltopdf',
                 'tool-pdftojpg', 'tool-jpgtopdf', 'tool-htmltopdf', 'tool-pdfa'
-              ])
+              ]),
+              ...(isConvertOpen ? { color: 'var(--primary-red)' } : {})
             }}
           >
-            CONVERT PDF {isConvertOpen ? <ChevronUp size={14} style={{ color: 'var(--primary-red)' }} /> : <ChevronDown size={14} />}
-            <div 
-              className="convert-dropdown-container" 
-              style={{
-                position: 'absolute',
-                top: '52px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '600px',
-                backgroundColor: dropdownBg,
-                border: `1px solid ${dropdownBorder}`,
-                borderRadius: '16px',
-                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.18)',
-                padding: '30px 36px 36px 36px',
-                display: isConvertOpen ? 'flex' : 'none',
-                flexDirection: 'row',
-                gap: '40px',
-                zIndex: 1001,
-                textAlign: 'left'
-              }}
-            >
+            CONVERT PDF <ChevronDown size={14} className={`nav-chevron ${isConvertOpen ? 'open' : ''}`} style={{ color: isConvertOpen ? 'var(--primary-red)' : undefined }} />
+            {isConvertOpen && (
+            <div className="convert-dropdown-container">
               {/* Arrow pointer */}
-              <div style={{
-                position: 'absolute',
-                top: '-9px',
-                left: '50%',
-                transform: 'translateX(-50%) rotate(45deg)',
-                width: '16px',
-                height: '16px',
-                backgroundColor: dropdownArrowBg,
-                borderLeft: `1px solid ${dropdownBorder}`,
-                borderTop: `1px solid ${dropdownBorder}`,
-                zIndex: 1002
-              }} />
+              <div className="convert-dropdown-arrow" />
 
               {/* Left Column: CONVERT TO PDF */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+              <div style={{ flex: '1 1 0', minWidth: '220px', display: 'flex', flexDirection: 'column' }}>
+                <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                   CONVERT TO PDF
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <a href="#jpg-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-jpgtopdf')} style={getLinkStyle('tool-jpgtopdf')}>
                     <JpgToPdfIcon /> JPG to PDF
                   </a>
@@ -170,11 +166,11 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
               </div>
 
               {/* Right Column: CONVERT FROM PDF */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+              <div style={{ flex: '1 1 0', minWidth: '220px', display: 'flex', flexDirection: 'column' }}>
+                <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                   CONVERT FROM PDF
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <a href="#pdf-to-jpg" className="dropdown-link-custom" onClick={() => setView('tool-pdftojpg')} style={getLinkStyle('tool-pdftojpg')}>
                     <PdfToJpgIcon /> PDF to JPG
                   </a>
@@ -193,14 +189,19 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                 </div>
               </div>
             </div>
+            )}
           </li>
           <li 
+            ref={allToolsRef}
             className="nav-item" 
             onMouseEnter={() => setIsAllToolsOpen(true)}
             onMouseLeave={() => setIsAllToolsOpen(false)}
-            onClick={() => setIsAllToolsOpen(!isAllToolsOpen)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsAllToolsOpen(prev => !prev);
+            }}
             style={{ 
-              position: 'static', 
+              position: 'relative', 
               cursor: 'pointer',
               ...getNavItemStyle([
                 'tool-edit', 'tool-sign', 'tool-watermark', 'tool-rotate',
@@ -208,52 +209,35 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                 'tool-pagenumber', 'tool-scan', 'tool-ocr', 'tool-compare',
                 'tool-redact', 'tool-crop', 'tool-forms', 'tool-aisummarizer',
                 'tool-translate', 'tool-markdown', 'tool-remove', 'tool-extract'
-              ])
+              ]),
+              ...(isAllToolsOpen ? { color: 'var(--primary-red)' } : {})
             }}
           >
-            ALL PDF TOOLS {isAllToolsOpen ? <ChevronUp size={14} style={{ color: 'var(--primary-red)' }} /> : <ChevronDown size={14} />}
-            <div 
-              className="all-tools-dropdown-container" 
-              style={{
-                position: 'absolute',
-                top: '52px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '1240px',
-                maxWidth: '96vw',
-                backgroundColor: dropdownBg,
-                border: `1px solid ${dropdownBorder}`,
-                borderRadius: '16px',
-                boxShadow: '0 20px 45px rgba(0, 0, 0, 0.18)',
-                padding: '36px 48px 48px 48px',
-                display: isAllToolsOpen ? 'grid' : 'none',
-                gridTemplateColumns: 'repeat(6, 1fr)',
-                gap: '24px',
-                zIndex: 1001,
-                textAlign: 'left'
-              }}
-            >
-              {/* Arrow pointer */}
+            ALL PDF TOOLS <ChevronDown size={14} className={`nav-chevron ${isAllToolsOpen ? 'open' : ''}`} style={{ color: isAllToolsOpen ? 'var(--primary-red)' : undefined }} />
+            {isAllToolsOpen && (
+            <>
+              {/* Arrow pointer positioned directly under ALL PDF TOOLS */}
               <div style={{
                 position: 'absolute',
-                top: '-9px',
-                left: '58%',
+                top: '41px',
+                left: '50%',
                 transform: 'translateX(-50%) rotate(45deg)',
-                width: '16px',
-                height: '16px',
-                backgroundColor: dropdownArrowBg,
+                width: '13px',
+                height: '13px',
+                backgroundColor: dropdownBg,
                 borderLeft: `1px solid ${dropdownBorder}`,
                 borderTop: `1px solid ${dropdownBorder}`,
                 zIndex: 1002
               }} />
+              <div className="all-tools-dropdown-container">
 
               {/* Column 1: ORGANIZE PDF & PDF INTELLIGENCE */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+                  <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                     ORGANIZE PDF
                   </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <a href="#merge" className="dropdown-link-custom" style={getLinkStyle('tool-merge')} onClick={() => setView('tool-merge')}>
                       <MergePdfIcon /> Merge PDF
                     </a>
@@ -276,10 +260,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                 </div>
 
                 <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+                  <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                     PDF INTELLIGENCE
                   </h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <a href="#ai-summarizer" className="dropdown-link-custom" style={getLinkStyle('tool-aisummarizer')} onClick={() => setView('tool-aisummarizer')}>
                       <AiSummarizerIcon /> AI Summarizer
                     </a>
@@ -295,10 +279,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
               {/* Column 2: OPTIMIZE PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                   OPTIMIZE PDF
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <a href="#compress" className="dropdown-link-custom" style={getLinkStyle('tool-compress')} onClick={() => setView('tool-compress')}>
                     <CompressPdfIcon /> Compress PDF
                   </a>
@@ -313,10 +297,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
               {/* Column 3: CONVERT TO PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                   CONVERT TO PDF
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <a href="#jpg-to-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-jpgtopdf')} onClick={() => setView('tool-jpgtopdf')}>
                     <JpgToPdfIcon /> JPG to PDF
                   </a>
@@ -337,10 +321,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
               {/* Column 4: CONVERT FROM PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                   CONVERT FROM PDF
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <a href="#pdf-to-jpg" className="dropdown-link-custom" style={getLinkStyle('tool-pdftojpg')} onClick={() => setView('tool-pdftojpg')}>
                     <PdfToJpgIcon /> PDF to JPG
                   </a>
@@ -361,10 +345,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
               {/* Column 5: EDIT PDF */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                   EDIT PDF
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <a href="#rotate-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-rotate')} onClick={() => setView('tool-rotate')}>
                     <RotatePdfIcon /> Rotate PDF
                   </a>
@@ -388,10 +372,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
               {/* Column 6: PDF SECURITY */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <h4 style={{ fontSize: '13px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.5px' }}>
+                <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, marginBottom: '14px', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
                   PDF SECURITY
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <a href="#unlock-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-unlock')} onClick={() => setView('tool-unlock')}>
                     <UnlockPdfIcon /> Unlock PDF
                   </a>
@@ -410,6 +394,8 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                 </div>
               </div>
             </div>
+            </>
+            )}
           </li>
 
         </ul>
@@ -530,50 +516,71 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </>
         )}
 
-        {/* 3x3 App launcher dots with Hover Popup Menu */}
+        {/* 3x3 App launcher dots with Hover/Click Popup Menu */}
         <div 
+          ref={appLauncherRef}
           className="app-launcher hide-mobile" 
           onMouseEnter={() => setIsAppLauncherOpen(true)}
           onMouseLeave={() => setIsAppLauncherOpen(false)}
           onClick={() => setIsAppLauncherOpen(!isAppLauncherOpen)}
-          style={{ position: 'relative', padding: '8px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} 
+          style={{ 
+            position: 'relative', 
+            padding: '8px', 
+            borderRadius: '8px', 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center',
+            backgroundColor: isAppLauncherOpen ? 'var(--bg-light)' : 'transparent',
+            transition: 'background-color 0.2s ease'
+          }} 
           title="iLovePDF Products & Applications"
         >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 5px)', gap: '3px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 4px)', gap: '3px' }}>
             {[...Array(9)].map((_, i) => (
-              <div key={i} style={{ width: '5px', height: '5px', backgroundColor: 'var(--text-dark)', borderRadius: '50%', opacity: 0.7 }} />
+              <div 
+                key={i} 
+                style={{ 
+                  width: '4px', 
+                  height: '4px', 
+                  backgroundColor: isAppLauncherOpen ? 'var(--primary-red)' : 'var(--text-dark)', 
+                  borderRadius: '50%',
+                  transition: 'background-color 0.2s ease'
+                }} 
+              />
             ))}
           </div>
 
           {/* Apps Popup Card matching exact iLovePDF design */}
           {isAppLauncherOpen && (
             <div 
+              className="app-launcher-popup"
               style={{
                 position: 'absolute',
-                top: '52px',
-                right: '-10px',
-                width: '860px',
+                top: '48px',
+                right: '-6px',
+                width: '790px',
+                maxWidth: '92vw',
+                boxSizing: 'border-box',
                 backgroundColor: dropdownBg,
                 border: `1px solid ${dropdownBorder}`,
-                borderRadius: '20px',
-                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.16)',
-                padding: '32px 36px',
+                borderRadius: '16px',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.14)',
+                padding: '28px 32px',
                 zIndex: 2000,
                 textAlign: 'left',
                 display: 'flex',
                 flexDirection: 'row',
-                gap: '32px',
-                animation: 'fadeIn 0.2s ease-in-out'
+                gap: '30px'
               }}
             >
               {/* Arrow pointer pointing to 9-dots icon */}
               <div style={{
                 position: 'absolute',
-                top: '-9px',
-                right: '22px',
+                top: '-7px',
+                right: '16px',
                 transform: 'rotate(45deg)',
-                width: '16px',
-                height: '16px',
+                width: '13px',
+                height: '13px',
                 backgroundColor: dropdownBg,
                 borderLeft: `1px solid ${dropdownBorder}`,
                 borderTop: `1px solid ${dropdownBorder}`,
@@ -581,111 +588,115 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
               }} />
 
               {/* COLUMN 1: OTHER PRODUCTS */}
-              <div style={{ flex: '1.2', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', margin: 0 }}>
+              <div style={{ flex: '1 1 0', minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', margin: 0 }}>
                   OTHER PRODUCTS
                 </h4>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {/* iLoveIMG */}
-                  <a href="#iloveimg" onClick={(e) => e.preventDefault()} style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '20px', color: '#3b82f6' }}>💙</span>
+                  <a href="#iloveimg" onClick={(e) => e.preventDefault()} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#eef4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#3b82f6">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                      </svg>
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>iLoveIMG</div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveIMG</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>Effortless image editing</div>
                     </div>
                   </a>
 
                   {/* iLoveSign */}
-                  <a href="#ilovesign" onClick={(e) => e.preventDefault()} style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '20px', color: '#1d4ed8' }}>💙</span>
+                  <a href="#ilovesign" onClick={(e) => e.preventDefault()} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#eef4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#1d4ed8">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                      </svg>
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>iLoveSign</div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveSign</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>e-Signing made simple</div>
                     </div>
                   </a>
 
                   {/* iLoveAPI */}
-                  <a href="#iloveapi" onClick={(e) => e.preventDefault()} style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none' }}>
-                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', backgroundColor: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '20px', color: '#0d9488' }}>🩵</span>
+                  <a href="#iloveapi" onClick={(e) => e.preventDefault()} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#e6f9f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#0d9488">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                      </svg>
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>iLoveAPI</div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveAPI</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>Document automation for developers</div>
                     </div>
                   </a>
 
                   {/* Integrations Card */}
-                  <div style={{ border: `1px solid ${dropdownBorder}`, borderRadius: '16px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: 'var(--bg-light)', marginTop: '6px' }}>
-                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <LinkIcon size={16} color="var(--text-gray)" />
+                  <div style={{ border: `1px solid ${dropdownBorder}`, borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#fcfcfd' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: `1px solid ${dropdownBorder}`, backgroundColor: dropdownBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <LinkIcon size={15} color="var(--text-gray)" />
                     </div>
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)' }}>Integrations</div>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>Integrations</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-gray)', marginTop: '2px' }}>Zapier, Make, Wordpress...</div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* COLUMN 2: SOLUTIONS & APPLICATIONS */}
-              <div style={{ flex: '1.25', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* COLUMN 2: SOLUTIONS */}
+              <div style={{ flex: '1.2 1 0', minWidth: '240px', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '28px', display: 'flex', flexDirection: 'column', gap: '22px' }}>
                 {/* SOLUTIONS */}
                 <div>
-                  <h4 style={{ fontSize: '12px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '16px' }}>
+                  <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '14px' }}>
                     SOLUTIONS
                   </h4>
 
-                  <a href="#business" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} style={{ display: 'flex', alignItems: 'center', gap: '16px', textDecoration: 'none', backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '14px', border: '1px solid #f1f5f9' }}>
-                    <div style={{ width: '64px', height: '64px', borderRadius: '12px', background: 'linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {/* Gradient Bar Chart Icon */}
-                      <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-                        <rect x="3" y="10" width="4" height="11" rx="1.5" fill="#b91c1c" />
-                        <rect x="10" y="6" width="4" height="15" rx="1.5" fill="#ef4444" />
-                        <rect x="17" y="3" width="4" height="18" rx="1.5" fill="#fca5a5" />
+                  <a href="#business" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
+                    <div style={{ width: '54px', height: '54px', borderRadius: '10px', backgroundColor: theme === 'dark' ? '#374151' : '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+                        <rect x="5" y="14" width="6" height="15" rx="2" fill="#7f1d1d" />
+                        <rect x="14" y="9" width="6" height="20" rx="2" fill="#e5322d" />
+                        <rect x="23" y="5" width="6" height="24" rx="2" fill="#fca5a5" />
                       </svg>
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>Business</div>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>Business</div>
                       <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '3px', lineHeight: '1.35' }}>Streamlined PDF editing and workflows for business teams</div>
                     </div>
                   </a>
                 </div>
-
               </div>
 
               {/* COLUMN 3: LINKS & UTILITIES */}
-              <div style={{ width: '170px', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '28px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div style={{ width: '150px', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <a href="#pricing" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#pricing" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <CreditCard size={17} color="var(--text-gray)" /> Pricing
                   </a>
 
-                  <a href="#security" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#security" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <Shield size={17} color="var(--text-gray)" /> Security
                   </a>
 
-                  <a href="#features" onClick={(e) => { e.preventDefault(); navigate('/'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    <Sparkles size={17} color="var(--text-gray)" /> Features
+                  <a href="#features" onClick={(e) => { e.preventDefault(); navigate('/'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    <LayoutDashboard size={17} color="var(--text-gray)" /> Features
                   </a>
 
-                  <a href="#about" onClick={(e) => { e.preventDefault(); navigate('/contact'); }} style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#about" onClick={(e) => { e.preventDefault(); navigate('/contact'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <Heart size={17} color="var(--text-gray)" /> About us
                   </a>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: `1px solid ${dropdownBorder}`, paddingTop: '20px' }}>
-                  <a href="#help" onClick={(e) => { e.preventDefault(); navigate('/help'); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    &lt; Help
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: `1px solid ${dropdownBorder}`, paddingTop: '18px' }}>
+                  <a href="#help" onClick={(e) => { e.preventDefault(); navigate('/help'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '800' }}>‹</span> Help
                   </a>
 
-                  <a href="#language" onClick={(e) => { e.preventDefault(); alert('🌐 Language selection: English (US)'); }} style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    &lt; Language
+                  <a href="#language" onClick={(e) => { e.preventDefault(); alert('🌐 Language selection: English (US)'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '800' }}>‹</span> Language
                   </a>
                 </div>
               </div>

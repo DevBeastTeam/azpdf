@@ -2,6 +2,59 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StoreBadges from './StoreBadges';
 
+export const IMAGE_FOOTER_COLUMNS = [
+  {
+    id: 'col-product',
+    title: 'PRODUCT',
+    links: [
+      { label: 'Home', url: '/' },
+      { label: 'Features', url: '/#features' },
+      { label: 'Pricing', url: '/#pricing' },
+      { label: 'Tools', url: '/#tools' },
+      { label: 'FAQ', url: '/help' }
+    ]
+  },
+  {
+    id: 'col-resources',
+    title: 'RESOURCES',
+    links: [
+      { label: 'iLovePDF Desktop', url: '#app-downloads' },
+      { label: 'iLovePDF Mobile', url: '#app-downloads' },
+      { label: 'iLoveSign', url: '/tool/sign' },
+      { label: 'iLoveAPI', url: '/contact' },
+      { label: 'iLoveIMG', url: '/tool/jpgtopdf' }
+    ]
+  },
+  {
+    id: 'col-solutions',
+    title: 'SOLUTIONS',
+    links: [
+      { label: 'Business', url: '/#pricing' },
+      { label: 'Education', url: '/#pricing' }
+    ]
+  },
+  {
+    id: 'col-legal',
+    title: 'LEGAL',
+    links: [
+      { label: 'Security', url: '/privacy' },
+      { label: 'Privacy policy', url: '/privacy' },
+      { label: 'Terms & conditions', url: '/terms' },
+      { label: 'Cookies', url: '/privacy' }
+    ]
+  },
+  {
+    id: 'col-company',
+    title: 'COMPANY',
+    links: [
+      { label: 'About us', url: '/contact' },
+      { label: 'Contact us', url: '/contact' },
+      { label: 'Blog', url: '/help' },
+      { label: 'Press', url: '/contact' }
+    ]
+  }
+];
+
 export default function Footer({ siteContent }) {
   const navigate = useNavigate();
   const [showLangDropdown, setShowLangDropdown] = useState(false);
@@ -26,37 +79,108 @@ export default function Footer({ siteContent }) {
     }
     e.preventDefault();
 
+    // 1. Home link
     if (url === '/' || url === '/#home') {
-      navigate('/');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (url.startsWith('/tool/')) {
+      if (window.location.pathname === '/') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        navigate('/');
+        setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 80);
+      }
+      return;
+    }
+
+    // 2. Pricing link
+    if (url === '/pricing' || url === '/#pricing' || url === '#pricing') {
+      if (window.location.pathname === '/') {
+        const elem = document.getElementById('pricing');
+        if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        navigate('/#pricing');
+        setTimeout(() => {
+          const elem = document.getElementById('pricing');
+          if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+      return;
+    }
+
+    // 3. Features link
+    if (url === '/features' || url === '/#features' || url === '#features') {
+      if (window.location.pathname === '/') {
+        const elem = document.getElementById('features') || document.getElementById('tools');
+        if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        navigate('/#features');
+        setTimeout(() => {
+          const elem = document.getElementById('features') || document.getElementById('tools');
+          if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+      return;
+    }
+
+    // 4. Tools link
+    if (url === '/tools' || url === '/#tools' || url === '#tools') {
+      if (window.location.pathname === '/') {
+        const elem = document.getElementById('tools');
+        if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        navigate('/#tools');
+        setTimeout(() => {
+          const elem = document.getElementById('tools');
+          if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+      return;
+    }
+
+    // 5. App Downloads / Mobile / Desktop link
+    if (url === '#app-downloads' || url === '/#app-downloads') {
+      const elem = document.getElementById('app-downloads');
+      if (elem) {
+        elem.scrollIntoView({ behavior: 'smooth' });
+        elem.style.transition = 'all 0.3s ease';
+        elem.style.transform = 'scale(1.05)';
+        setTimeout(() => {
+          elem.style.transform = 'scale(1)';
+        }, 600);
+      }
+      return;
+    }
+
+    // 6. Direct Tool links e.g. /tool/sign, /tool/jpgtopdf
+    if (url.startsWith('/tool/')) {
       navigate(url);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (url.startsWith('/#') || url.startsWith('#')) {
+      return;
+    }
+
+    // 7. Any other anchor links
+    if (url.startsWith('/#') || url.startsWith('#')) {
       const id = url.replace(/^\/?#/, '');
       if (window.location.pathname !== '/') {
-        navigate('/');
+        navigate(`/#${id}`);
         setTimeout(() => {
           const elem = document.getElementById(id);
-          if (elem) {
-            elem.scrollIntoView({ behavior: 'smooth' });
-          } else {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }
+          if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+          else window.scrollTo({ top: 0, behavior: 'smooth' });
         }, 150);
       } else {
         const elem = document.getElementById(id);
-        if (elem) {
-          elem.scrollIntoView({ behavior: 'smooth' });
-        }
+        if (elem) elem.scrollIntoView({ behavior: 'smooth' });
       }
-    } else {
-      navigate(url);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
+
+    // 8. Default page navigation e.g. /contact, /terms, /privacy, /help
+    navigate(url);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const columns = siteContent?.footerColumns || [];
+  const columns = (siteContent?.footerColumns && siteContent.footerColumns.length > 0 && siteContent.footerColumns[0].title === 'PRODUCT')
+    ? siteContent.footerColumns
+    : IMAGE_FOOTER_COLUMNS;
   const socialLinks = siteContent?.socialLinks || {};
   const appStoreBadges = siteContent?.appStoreBadges;
   const copyright = siteContent?.footerCopyright || '© iLovePDF 2026 ® - Your PDF Editor';

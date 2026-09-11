@@ -70,7 +70,7 @@ export default function AdminPanel({
     setReplyResult(null);
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/contact-messages/${replyModalMsg.id}/reply`, {
+      const res = await fetch(`/api/admin/contact-messages/${replyModalMsg.id}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -117,7 +117,7 @@ export default function AdminPanel({
   const fetchContactMessages = async () => {
     setIsLoadingMessages(true);
     try {
-      const res = await fetch('http://localhost:5000/api/admin/contact-messages');
+      const res = await fetch('/api/admin/contact-messages');
       if (res.ok) {
         const data = await res.json();
         if (data.messages) {
@@ -139,7 +139,7 @@ export default function AdminPanel({
 
   const handleUpdateMessageStatus = async (id, newStatus) => {
     try {
-      await fetch(`http://localhost:5000/api/admin/contact-messages/${id}`, {
+      await fetch(`/api/admin/contact-messages/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -156,7 +156,7 @@ export default function AdminPanel({
   const handleDeleteMessage = async (id) => {
     if (!window.confirm('Delete this contact inquiry permanently?')) return;
     try {
-      await fetch(`http://localhost:5000/api/admin/contact-messages/${id}`, {
+      await fetch(`/api/admin/contact-messages/${id}`, {
         method: 'DELETE'
       });
       setContactMessages(prev => prev.filter(m => m.id !== id));
@@ -640,7 +640,7 @@ export default function AdminPanel({
   });
 
   return (
-    <div style={{
+    <div className="admin-panel-container" style={{
       width: '100%',
       minHeight: 'calc(100vh - 64px)',
       backgroundColor: 'var(--bg-light)',
@@ -650,7 +650,7 @@ export default function AdminPanel({
     }}>
 
       {/* Sidebar Navigation */}
-      <aside style={{
+      <aside className="admin-sidebar" style={{
         width: '260px',
         backgroundColor: 'var(--bg-card)',
         color: 'var(--text-dark)',
@@ -662,11 +662,12 @@ export default function AdminPanel({
         borderRight: '1px solid var(--border-light)',
         zIndex: 10
       }}>
-        <div>
+        <div className="admin-sidebar-top">
           {/* Admin Identity */}
-          <div style={{
+          <div className="admin-identity-row" style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'space-between',
             gap: '12px',
             padding: '12px 14px',
             backgroundColor: 'var(--bg-light)',
@@ -674,31 +675,54 @@ export default function AdminPanel({
             marginBottom: '28px',
             border: '1px solid var(--border-light)'
           }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--primary-red)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: '800',
-              fontSize: '16px'
-            }}>
-              AD
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>Admin Panel</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                Super Admin Active
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--primary-red)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '800',
+                fontSize: '16px'
+              }}>
+                AD
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>Admin Panel</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                  Super Admin Active
+                </div>
               </div>
             </div>
+
+            {/* Mobile-only inline Exit button */}
+            <button
+              onClick={onBack}
+              className="admin-mobile-exit-btn"
+              style={{
+                display: 'none',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-dark)',
+                border: '1px solid var(--border-light)',
+                fontSize: '12px',
+                fontWeight: '700',
+                cursor: 'pointer'
+              }}
+            >
+              <ArrowLeft size={14} /> Exit
+            </button>
           </div>
 
           {/* Navigation Links */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div className="admin-nav-links" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {[
               { id: 'overview', label: 'Dashboard Overview', icon: <Activity size={18} /> },
               { id: 'messages', label: 'Contact Messages', icon: <Mail size={18} />, badge: unreadMessagesCount },
@@ -712,6 +736,7 @@ export default function AdminPanel({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
+                className={`admin-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -749,9 +774,10 @@ export default function AdminPanel({
           </div>
         </div>
 
-        {/* Back Link to Home */}
+        {/* Back Link to Home (Desktop) */}
         <button
           onClick={onBack}
+          className="admin-exit-btn"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -775,7 +801,7 @@ export default function AdminPanel({
       </aside>
 
       {/* Main Content Area */}
-      <main style={{ flex: 1, padding: '36px 40px', overflowY: 'auto', boxSizing: 'border-box' }}>
+      <main className="admin-main-content" style={{ flex: 1, padding: '36px 40px', overflowY: 'auto', boxSizing: 'border-box' }}>
 
         {/* === TAB 1: DASHBOARD OVERVIEW === */}
         {activeTab === 'overview' && (

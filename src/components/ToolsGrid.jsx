@@ -331,7 +331,7 @@ export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
   }, [activeCategory, searchQuery]);
 
   return (
-    <div id="tools">
+    <div id="tools" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
       <span id="features" style={{ display: 'block', position: 'relative', top: '-70px', visibility: 'hidden' }} />
       {/* Dynamic Tools Section Header */}
       {siteContent?.toolsTitle && (
@@ -360,16 +360,18 @@ export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
       </div>
 
       {/* Filter Category Tabs */}
-      <div className="filter-bar">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            className={`filter-tag ${activeCategory === cat.id ? 'active' : ''}`}
-            onClick={() => setActiveCategory(cat.id)}
-          >
-            {cat.label}
-          </button>
-        ))}
+      <div className="filter-bar-wrapper">
+        <div className="filter-bar">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              className={`filter-tag ${activeCategory === cat.id ? 'active' : ''}`}
+              onClick={() => setActiveCategory(cat.id)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tools Grid */}

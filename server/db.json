@@ -211,6 +211,58 @@
     "autoCleanupEnabled": true
   },
   "siteContent": {
-    "heroTitle": "Every tool you need to work with PDFs in one place"
+    "heroTitle": "Every tool you need to work with PDFs in one place",
+    "footerColumns": [
+      {
+        "id": "col-product",
+        "title": "PRODUCT",
+        "links": [
+          { "label": "Home", "url": "/" },
+          { "label": "Features", "url": "/#features" },
+          { "label": "Pricing", "url": "/#pricing" },
+          { "label": "Tools", "url": "/#tools" },
+          { "label": "FAQ", "url": "/help" }
+        ]
+      },
+      {
+        "id": "col-resources",
+        "title": "RESOURCES",
+        "links": [
+          { "label": "iLovePDF Desktop", "url": "#app-downloads" },
+          { "label": "iLovePDF Mobile", "url": "#app-downloads" },
+          { "label": "iLoveSign", "url": "/tool/sign" },
+          { "label": "iLoveAPI", "url": "/contact" },
+          { "label": "iLoveIMG", "url": "/tool/jpgtopdf" }
+        ]
+      },
+      {
+        "id": "col-solutions",
+        "title": "SOLUTIONS",
+        "links": [
+          { "label": "Business", "url": "/#pricing" },
+          { "label": "Education", "url": "/#pricing" }
+        ]
+      },
+      {
+        "id": "col-legal",
+        "title": "LEGAL",
+        "links": [
+          { "label": "Security", "url": "/privacy" },
+          { "label": "Privacy policy", "url": "/privacy" },
+          { "label": "Terms & conditions", "url": "/terms" },
+          { "label": "Cookies", "url": "/privacy" }
+        ]
+      },
+      {
+        "id": "col-company",
+        "title": "COMPANY",
+        "links": [
+          { "label": "About us", "url": "/contact" },
+          { "label": "Contact us", "url": "/contact" },
+          { "label": "Blog", "url": "/help" },
+          { "label": "Press", "url": "/contact" }
+        ]
+      }
+    ]
   }
 }

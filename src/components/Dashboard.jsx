@@ -9,6 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard({ 
+  currentUser,
   usersData,
   setUsersData,
   recentFiles,
@@ -44,7 +45,7 @@ export default function Dashboard({
   });
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/user/invoices')
+    fetch('/api/user/invoices')
       .then(res => res.json())
       .then(data => {
         if (data.invoices) setInvoices(data.invoices);
@@ -54,7 +55,7 @@ export default function Dashboard({
 
   const handleUpgradePlan = async (newPlan) => {
     try {
-      const res = await fetch('http://localhost:5000/api/user/billing', {
+      const res = await fetch('/api/user/billing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -78,7 +79,7 @@ export default function Dashboard({
   const handleSaveCard = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:5000/api/user/payment-method', {
+      const res = await fetch('/api/user/payment-method', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cardForm)
@@ -98,23 +99,28 @@ export default function Dashboard({
 
   // Profile state
   const [profile, setProfile] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('azpdf_user');
-      if (savedUser) {
-        const u = JSON.parse(savedUser);
-        const nameParts = (u.name || 'User').trim().split(/\s+/);
-        return {
-          firstName: nameParts[0] || 'User',
-          lastName: nameParts.slice(1).join(' ') || '',
-          email: u.email || 'user@example.com',
-          phone: u.phone || '+1 (555) 012-3456',
-          bio: u.bio || 'PDF processing enthusiast. Managing documents and workflows.',
-          language: 'English',
-          avatarInitials: u.avatar || (nameParts[0] ? nameParts[0][0] : 'U').toUpperCase(),
-          avatarColor: 'var(--primary-red)',
-        };
-      }
-    } catch (e) {}
+    // Priority 1: Use live currentUser prop from App.jsx (set on login)
+    const u = currentUser || (() => {
+      try {
+        const savedUser = localStorage.getItem('azpdf_active_user') || localStorage.getItem('azpdf_user');
+        return savedUser ? JSON.parse(savedUser) : null;
+      } catch (e) { return null; }
+    })();
+
+    if (u && (u.email || u.name)) {
+      const nameParts = (u.name || 'User').trim().split(/\s+/);
+      return {
+        firstName: nameParts[0] || 'User',
+        lastName: nameParts.slice(1).join(' ') || '',
+        email: u.email || 'user@example.com',
+        phone: u.phone || '+1 (555) 012-3456',
+        bio: u.bio || 'PDF processing enthusiast. Managing documents and workflows.',
+        language: 'English',
+        avatarInitials: u.avatar || (nameParts[0] ? nameParts[0][0] : 'U').toUpperCase(),
+        avatarColor: 'var(--primary-red)',
+        plan: u.plan || 'FREE',
+      };
+    }
     return {
       firstName: 'Alex',
       lastName: 'Johnson',
@@ -124,6 +130,7 @@ export default function Dashboard({
       language: 'English',
       avatarInitials: 'AJ',
       avatarColor: 'var(--primary-red)',
+      plan: 'FREE',
     };
   });
   const [profileSaved, setProfileSaved] = useState(false);
@@ -138,7 +145,31 @@ export default function Dashboard({
     newsletter: false,
   });
 
-  const handleProfileSave = () => {
+  const handleProfileSave = async () => {
+    try {
+      // Persist updated profile back to localStorage so it survives page refresh
+      const stored = JSON.parse(localStorage.getItem('azpdf_active_user') || '{}');
+      const updated = {
+        ...stored,
+        name: `${profile.firstName} ${profile.lastName}`.trim(),
+        email: profile.email,
+        phone: profile.phone,
+        bio: profile.bio,
+        avatar: profile.avatarInitials,
+      };
+      localStorage.setItem('azpdf_active_user', JSON.stringify(updated));
+      // Also persist to backend DB
+      await fetch('/api/user/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: profile.email,
+          name: `${profile.firstName} ${profile.lastName}`.trim(),
+          phone: profile.phone,
+          bio: profile.bio,
+        })
+      });
+    } catch (e) { console.error('Profile save error:', e); }
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 2500);
   };
@@ -189,6 +220,7 @@ export default function Dashboard({
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
       localStorage.removeItem('azpdf_auth');
       localStorage.removeItem('azpdf_user');
+      localStorage.removeItem('azpdf_active_user');
       window.location.href = '/';
     }
   };
@@ -217,7 +249,7 @@ export default function Dashboard({
 
 
   return (
-    <div style={{
+    <div className="dashboard-container" style={{
       width: '100%',
       minHeight: 'calc(100vh - 64px)',
       backgroundColor: 'var(--bg-light)',
@@ -227,7 +259,7 @@ export default function Dashboard({
     }}>
       
       {/* Sidebar Navigation */}
-      <aside style={{
+      <aside className="dashboard-sidebar" style={{
         width: '260px',
         backgroundColor: 'var(--bg-card)',
         borderRight: '1px solid var(--border-light)',
@@ -237,9 +269,9 @@ export default function Dashboard({
         justifyContent: 'space-between',
         flexShrink: 0
       }}>
-        <div>
+        <div className="dashboard-sidebar-top">
           {/* User Account Info */}
-          <div style={{
+          <div className="dashboard-user-info" style={{
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
@@ -274,9 +306,10 @@ export default function Dashboard({
           </div>
 
           {/* Navigation Links */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div className="dashboard-nav-links" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <button
               onClick={() => setActiveTab('overview')}
+              className={`dashboard-nav-btn ${activeTab === 'overview' ? 'active' : ''}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -298,6 +331,7 @@ export default function Dashboard({
 
             <button
               onClick={() => setActiveTab('files')}
+              className={`dashboard-nav-btn ${activeTab === 'files' ? 'active' : ''}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -319,6 +353,7 @@ export default function Dashboard({
 
             <button
               onClick={() => setActiveTab('billing')}
+              className={`dashboard-nav-btn ${activeTab === 'billing' ? 'active' : ''}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -338,13 +373,9 @@ export default function Dashboard({
               <CreditCard size={18} /> Billing & Subscription
             </button>
 
-
-
-
-
-
             <button
               onClick={() => setActiveTab('settings')}
+              className={`dashboard-nav-btn ${activeTab === 'settings' ? 'active' : ''}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -367,7 +398,7 @@ export default function Dashboard({
         </div>
 
         {/* Cloud Storage Usage */}
-        <div style={{
+        <div className="dashboard-storage-card" style={{
           backgroundColor: 'var(--bg-light)',
           borderRadius: '14px',
           padding: '16px',
@@ -389,7 +420,7 @@ export default function Dashboard({
       </aside>
 
       {/* Main Dashboard Content */}
-      <main style={{ flex: 1, padding: '36px 40px', overflowY: 'auto' }}>
+      <main className="dashboard-main-content" style={{ flex: 1, padding: '36px 40px', overflowY: 'auto' }}>
         
         {/* Overview Tab */}
         {activeTab === 'overview' && (

@@ -186,7 +186,7 @@ export default function HelpAndSupport() {
             <div 
               onClick={async () => {
                 try {
-                  const res = await fetch('http://localhost:5000/api/support/ticket', {
+                  const res = await fetch('/api/support/ticket', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ category: 'Live Support', issueDetails: 'User initiated Live Chat session', userEmail: 'user@ilovepdf.com' })
