@@ -92,25 +92,6 @@ const defaultSiteContent = {
       ]
     },
     {
-      id: 'col-resources',
-      title: 'RESOURCES',
-      links: [
-        { label: 'iLovePDF Desktop', url: '#app-downloads' },
-        { label: 'iLovePDF Mobile', url: '#app-downloads' },
-        { label: 'iLoveSign', url: '/tool/sign' },
-        { label: 'iLoveAPI', url: '/contact' },
-        { label: 'iLoveIMG', url: '/tool/jpgtopdf' }
-      ]
-    },
-    {
-      id: 'col-solutions',
-      title: 'SOLUTIONS',
-      links: [
-        { label: 'Business', url: '/#pricing' },
-        { label: 'Education', url: '/#pricing' }
-      ]
-    },
-    {
       id: 'col-legal',
       title: 'LEGAL',
       links: [
@@ -305,8 +286,8 @@ function MaintenanceScreen({ onAdminAccess }) {
 // ─── Logout Confirmation Modal ─────────────────────────────────────────────────
 function LogoutModal({ onCancel, onConfirm }) {
   return (
-    <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }}>
-      <div style={{ backgroundColor:'var(--bg-card)', border:'1px solid var(--border-light)', borderRadius:'20px', padding:'40px 36px', width:'380px', textAlign:'center', boxShadow:'0 25px 60px rgba(0,0,0,0.25)', animation:'slideUp 0.25s ease' }}>
+    <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease', padding:'16px', boxSizing:'border-box' }}>
+      <div style={{ backgroundColor:'var(--bg-card)', border:'1px solid var(--border-light)', borderRadius:'20px', padding:'clamp(24px, 5vw, 40px) clamp(18px, 4vw, 36px)', width:'calc(100vw - 32px)', maxWidth:'380px', textAlign:'center', boxShadow:'0 25px 60px rgba(0,0,0,0.25)', animation:'slideUp 0.25s ease', boxSizing:'border-box' }}>
         <div style={{ width:'64px', height:'64px', borderRadius:'50%', backgroundColor:'rgba(239,68,68,0.1)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px auto' }}>
           <span style={{ fontSize:'28px' }}>👋</span>
         </div>
@@ -388,8 +369,8 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
   };
 
   return (
-    <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease' }}>
-      <div style={{ backgroundColor:'var(--bg-card)', border:'1px solid var(--border-light)', borderRadius:'24px', padding:'40px', width:'420px', textAlign:'left', boxShadow:'0 25px 60px rgba(0,0,0,0.3)' }}>
+    <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.65)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, backdropFilter:'blur(6px)', animation:'fadeIn 0.2s ease', padding:'16px', boxSizing:'border-box' }}>
+      <div style={{ backgroundColor:'var(--bg-card)', border:'1px solid var(--border-light)', borderRadius:'24px', padding:'clamp(24px, 5vw, 40px) clamp(18px, 4vw, 36px)', width:'calc(100vw - 32px)', maxWidth:'420px', textAlign:'left', boxShadow:'0 25px 60px rgba(0,0,0,0.3)', boxSizing:'border-box' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'24px' }}>
           <h2 style={{ fontSize:'24px', fontWeight:'800', color:'var(--text-dark)' }}>
             {mode === 'login' ? 'Welcome Back 👋' : 'Create Account 🚀'}

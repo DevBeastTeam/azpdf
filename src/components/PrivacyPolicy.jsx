@@ -6,14 +6,14 @@ export default function PrivacyPolicy() {
   const navigate = useNavigate();
   const onBack = () => navigate(-1);
   return (
-    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: 'clamp(24px, 5vw, 48px) clamp(16px, 4vw, 24px) 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ maxWidth: '820px', width: '100%' }}>
 
         <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
           <ArrowLeft size={16} /> Back to Home
         </button>
 
-        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '48px', boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: 'clamp(20px, 4vw, 48px)', boxShadow: 'var(--shadow-sm)' }}>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '8px' }}>
             <div style={{ padding: '10px', backgroundColor: 'var(--border-light)', borderRadius: '12px' }}>
@@ -26,7 +26,7 @@ export default function PrivacyPolicy() {
           <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', marginBottom: '36px' }} />
 
           {/* Highlights row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '40px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '16px', marginBottom: '40px' }}>
             {[
               { icon: <Lock size={20} />, label: '256-Bit Encryption', desc: 'All uploads are SSL encrypted in transit' },
               { icon: <Database size={20} />, label: 'Auto File Delete', desc: 'Files deleted within 2 hours of processing' },

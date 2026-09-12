@@ -24,7 +24,13 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
   // ── page state ──────────────────────────────────────────────────────────────
   const [numPages,    setNumPages]    = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [zoom,        setZoom]        = useState(1.3);
+  const [zoom,        setZoom]        = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth <= 480) return 0.55;
+      if (window.innerWidth <= 768) return 0.8;
+    }
+    return 1.3;
+  });
 
   // ── tool state ──────────────────────────────────────────────────────────────
   const [activeTool, setActiveTool] = useState('text');  // 'text' | 'draw' | 'whiteout' | 'stamp'
@@ -204,10 +210,12 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
         : updater
     }));
 
-  // ── Draw events ─────────────────────────────────────────────────────────────
+  // ── Draw events (Mouse & Touch Support) ────────────────────────────────────
   const getCanvasXY = (e) => {
     const r = drawCanvasRef.current.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - r.left, y: clientY - r.top };
   };
   const onMouseDown = (e) => {
     if (activeTool !== 'draw') return;
@@ -227,6 +235,19 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
         points: currentPath, color: textColor, width: strokeWidth
       }]);
     setCurrentPath([]);
+  };
+
+  const onTouchStart = (e) => {
+    if (activeTool !== 'draw') return;
+    setIsDrawing(true);
+    setCurrentPath([getCanvasXY(e)]);
+  };
+  const onTouchMove = (e) => {
+    if (!isDrawing || activeTool !== 'draw') return;
+    setCurrentPath(p => [...p, getCanvasXY(e)]);
+  };
+  const onTouchEnd = () => {
+    onMouseUp();
   };
 
   // ── Click on page background → add new annotation ──────────────────────────
@@ -560,7 +581,11 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
             style={{ position:'absolute', top:0, left:0, zIndex:10,
+              touchAction: 'none',
               pointerEvents: activeTool==='draw' ? 'auto':'none' }}
           />
 

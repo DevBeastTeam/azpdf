@@ -6,8 +6,10 @@ import {
 } from 'lucide-react';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import PdfInteractiveEditor from './PdfInteractiveEditor';
+import { getToolInfo } from '../data/toolInformation';
 
 export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcessed }) {
+  const toolInfo = getToolInfo(tool);
   const [files, setFiles] = useState([]);
   const [mergeOrder, setMergeOrder] = useState([]); // tracks explicit merge order
   const [dragActive, setDragActive] = useState(false);
@@ -1010,65 +1012,100 @@ startxref
         {/* State 1: Upload */}
         {status === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '800px' }}>
-            <h1 style={{ fontSize: '46px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '8px', fontFamily: 'inherit' }}>
+            <h1 className="workspace-title-responsive" style={{ fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px', fontFamily: 'inherit' }}>
               {tool.title}
             </h1>
-            <p style={{ fontSize: '18px', color: 'var(--text-gray)', marginBottom: '32px', maxWidth: '650px', lineHeight: '1.4' }}>
+            <p className="workspace-desc-responsive" style={{ color: 'var(--text-gray)', marginBottom: '32px', maxWidth: '650px', lineHeight: '1.5' }}>
               {tool.desc}
             </p>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <button 
-                className="btn btn-primary" 
-                onClick={selectFilesClick}
-                style={{ 
-                  padding: '20px 48px', 
-                  fontSize: '22px', 
-                  fontWeight: '700', 
-                  borderRadius: '12px',
-                  backgroundColor: 'var(--primary-red)',
-                  boxShadow: '0 4px 15px rgba(229, 36, 36, 0.25)',
-                  minWidth: '280px'
-                }}
-              >
-                Select {tool.id.includes('jpg') ? 'Image' : tool.id.includes('excel') ? 'Excel' : tool.id.includes('powerpoint') ? 'PowerPoint' : tool.id.includes('word') ? 'Word' : 'PDF'} files
-              </button>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <button 
-                  onClick={loadMockFiles} 
-                  title="Load from Google Drive (Simulation)"
-                  style={{ 
-                    width: '34px', height: '34px', borderRadius: '50%', 
-                    backgroundColor: '#e52424', color: '#fff', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.15)', cursor: 'pointer'
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M15.3 12L9.3 1.6h5.4L20.7 12z M8.7 12.8L1.6 20.4h5.4L14.1 12.8z M4.7 19.6h14.6l-2.7-4.8H7.4z"/>
-                  </svg>
-                </button>
-                <button 
-                  onClick={loadMockFiles} 
-                  title="Load from Dropbox (Simulation)"
-                  style={{ 
-                    width: '34px', height: '34px', borderRadius: '50%', 
-                    backgroundColor: '#e52424', color: '#fff', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 2px 5px rgba(0,0,0,0.15)', cursor: 'pointer'
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M6 2L1 5.3l5 3.3 5-3.3zm12 0l-5 3.3 5-3.3 5-3.3zm-12 10l-5-3.3 5-3.3 5 3.3zm12 0l-5-3.3 5-3.3 5 3.3zM12 13.8l-5-3.3v1.3l5 3.3 5-3.3v-1.3zM12 16.5l-5-3.3v1l5 3.3 5-3.3v-1z"/>
-                  </svg>
-                </button>
+            {/* Dashed Dropzone Card matching image */}
+            <div 
+              style={{
+                width: '100%',
+                maxWidth: '780px',
+                border: '2px dashed var(--border-light)',
+                borderRadius: '16px',
+                padding: 'clamp(28px, 5vw, 48px) 24px',
+                backgroundColor: dragActive ? 'rgba(229, 36, 36, 0.04)' : 'var(--bg-card)',
+                borderColor: dragActive ? 'var(--primary-red)' : 'var(--border-light)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: 'var(--shadow-sm)',
+                transition: 'all 0.2s ease',
+                marginBottom: '24px'
+              }}
+            >
+              {/* Document Icon */}
+              <div style={{ color: 'var(--text-light-gray)', marginBottom: '18px', opacity: 0.85 }}>
+                <FileText size={48} strokeWidth={1.4} />
               </div>
-            </div>
 
-            <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '40px' }}>
-              or drop files here
-            </p>
+              <div className="workspace-upload-wrap">
+                <button 
+                  type="button"
+                  className="btn btn-primary workspace-upload-btn" 
+                  onClick={selectFilesClick}
+                  style={{
+                    backgroundColor: '#1d8cf8',
+                    color: '#ffffff',
+                    boxShadow: '0 4px 14px rgba(29, 140, 248, 0.3)',
+                    padding: '13px 26px',
+                    borderRadius: '10px',
+                    fontSize: '15px',
+                    fontWeight: '700',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px'
+                  }}
+                >
+                  <Upload size={17} />
+                  Upload from PC or Mobile
+                </button>
+
+                <div className="workspace-cloud-btns">
+                  <button 
+                    type="button"
+                    onClick={loadMockFiles} 
+                    title="Load from Google Drive (Simulation)"
+                    style={{ 
+                      width: '38px', height: '38px', borderRadius: '50%', 
+                      backgroundColor: '#e52424', color: '#fff', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.15)', cursor: 'pointer',
+                      border: 'none', flexShrink: 0
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                      <path d="M15.3 12L9.3 1.6h5.4L20.7 12z M8.7 12.8L1.6 20.4h5.4L14.1 12.8z M4.7 19.6h14.6l-2.7-4.8H7.4z"/>
+                    </svg>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={loadMockFiles} 
+                    title="Load from Dropbox (Simulation)"
+                    style={{ 
+                      width: '38px', height: '38px', borderRadius: '50%', 
+                      backgroundColor: '#e52424', color: '#fff', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.15)', cursor: 'pointer',
+                      border: 'none', flexShrink: 0
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                      <path d="M6 2L1 5.3l5 3.3 5-3.3zm12 0l-5 3.3 5-3.3 5-3.3zm-12 10l-5-3.3 5-3.3 5 3.3zm12 0l-5-3.3 5-3.3 5 3.3zM12 13.8l-5-3.3v1.3l5 3.3 5-3.3v-1.3zM12 16.5l-5-3.3v1l5 3.3 5-3.3v-1z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginTop: '16px', marginBottom: 0 }}>
+                or Drag files here
+              </p>
+            </div>
 
             <input 
               type="file" 
@@ -1079,29 +1116,94 @@ startxref
               accept={getFileExtension(tool.id)}
             />
 
-            {/* Banner info */}
-            <div style={{
-              width: '100%', maxWidth: '728px', height: '80px',
-              backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)',
-              borderRadius: '8px', boxShadow: 'var(--shadow-sm)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '0 20px'
+
+
+            {/* File Deletion Notice matching image */}
+            <p style={{
+              color: '#0284c7',
+              fontStyle: 'italic',
+              fontSize: '14px',
+              margin: '20px 0 16px 0',
+              fontWeight: '500'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <ShieldCheck size={32} style={{ color: '#10b981' }} />
-                <div style={{ textAlign: 'left' }}>
-                  <h4 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Secure 256-Bit SSL Encryption</h4>
-                  <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: 0 }}>All uploaded files are processed securely & automatically deleted after conversion</p>
+              Uploaded and generated files are deleted 1 hour after upload
+            </p>
+
+            {/* Rating / Help Us Improve Card matching image */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '14px',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              padding: '10px 22px',
+              borderRadius: '30px',
+              boxShadow: 'var(--shadow-sm)',
+              marginBottom: '50px',
+              flexWrap: 'wrap',
+              justifyContent: 'center'
+            }}>
+              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                Help Us Improve
+              </span>
+              <div style={{ display: 'flex', gap: '2px', color: '#f59e0b', fontSize: '15px' }}>
+                ★★★★☆
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#0284c7' }}>
+                4.5 <span style={{ color: 'var(--text-gray)', fontWeight: '500' }}>(5409)</span>
+              </span>
+            </div>
+
+            {/* Explanatory Content: "What is a..." & "How to Use..." matching image */}
+            {toolInfo && (
+              <div style={{
+                width: '100%',
+                maxWidth: '850px',
+                textAlign: 'left',
+                marginTop: '10px',
+                padding: '0 8px'
+              }}>
+                <div style={{ marginBottom: '44px' }}>
+                  <h2 style={{
+                    fontSize: 'clamp(22px, 4vw, 28px)',
+                    fontWeight: '800',
+                    color: 'var(--text-dark)',
+                    marginBottom: '14px',
+                    letterSpacing: '-0.4px'
+                  }}>
+                    {toolInfo.whatIsHeading}
+                  </h2>
+                  <p style={{
+                    fontSize: '15px',
+                    lineHeight: '1.75',
+                    color: 'var(--text-gray)',
+                    margin: 0
+                  }}>
+                    {toolInfo.whatIsParagraph}
+                  </p>
+                </div>
+
+                <div>
+                  <h2 style={{
+                    fontSize: 'clamp(22px, 4vw, 28px)',
+                    fontWeight: '800',
+                    color: 'var(--text-dark)',
+                    marginBottom: '14px',
+                    letterSpacing: '-0.4px'
+                  }}>
+                    {toolInfo.howToHeading}
+                  </h2>
+                  <div style={{
+                    fontSize: '15px',
+                    lineHeight: '1.75',
+                    color: 'var(--text-gray)',
+                    whiteSpace: 'pre-line'
+                  }}>
+                    {toolInfo.howToParagraph}
+                  </div>
                 </div>
               </div>
-              <button 
-                className="btn btn-secondary"
-                onClick={loadMockFiles}
-                style={{ padding: '6px 16px', fontSize: '13px', border: '1px solid var(--border-light)', borderRadius: '6px' }}
-              >
-                Sample Files
-              </button>
-            </div>
+            )}
           </div>
         )}
 
@@ -1230,15 +1332,7 @@ startxref
             </div>
 
             {/* Tool Specific Configuration Options */}
-            <div style={{ 
-              backgroundColor: 'var(--bg-card)', 
-              border: '1px solid var(--border-light)', 
-              borderRadius: '12px', 
-              padding: '20px 24px', 
-              marginBottom: '24px', 
-              textAlign: 'left',
-              boxShadow: 'var(--shadow-sm)' 
-            }}>
+            <div className="tool-options-box">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <Settings size={20} style={{ color: 'var(--primary-red)' }} />
                 <h4 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
@@ -1265,7 +1359,7 @@ startxref
                         backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
                       }}
                     />
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div className="tool-preset-btns" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       {['1', '1-2', '1-3', 'All'].map((preset) => (
                         <button 
                           key={preset}
@@ -1293,7 +1387,7 @@ startxref
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '12px' }}>
                     Choose the rotation angle for all pages:
                   </p>
-                  <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     {[90, 180, 270].map((deg) => (
                       <button 
                         key={deg}
@@ -1342,7 +1436,7 @@ startxref
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
                     Set password encryption for your PDF document:
                   </p>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <input 
                       type="password" 
                       value={protectPassword} 
@@ -1387,11 +1481,11 @@ startxref
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
                     Select compression level:
                   </p>
-                  <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     {[
-                      { id: 'recommended', label: 'Recommended (Good quality, optimal size)' },
-                      { id: 'extreme', label: 'Extreme Compression (Smaller size)' },
-                      { id: 'less', label: 'Low Compression (High quality)' }
+                      { id: 'recommended', label: 'Recommended (Optimal quality/size)' },
+                      { id: 'extreme', label: 'Extreme (Smaller size)' },
+                      { id: 'less', label: 'Low (High quality)' }
                     ].map((mode) => (
                       <button 
                         key={mode.id}
@@ -1418,7 +1512,7 @@ startxref
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
                     Page number position on document:
                   </p>
-                  <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     {[
                       { id: 'bottom-center', label: 'Bottom Center' },
                       { id: 'bottom-right', label: 'Bottom Right' },
@@ -1583,7 +1677,7 @@ startxref
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '8px' }}>
                     Crop Margins (points cut from edges):
                   </p>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
                     {['20', '40', '60', '80'].map((m) => (
                       <button
                         key={m}
@@ -1612,8 +1706,9 @@ startxref
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+            <div className="workspace-action-btns">
               <button 
+                type="button"
                 className="btn btn-secondary" 
                 onClick={selectFilesClick} 
                 style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)', padding: '12px 24px', borderRadius: '8px' }}
@@ -1621,6 +1716,7 @@ startxref
                 Add More Files
               </button>
               <button 
+                type="button"
                 className="btn btn-primary" 
                 onClick={startProcessing}
                 style={{ minWidth: '220px', backgroundColor: 'var(--primary-red)', padding: '12px 32px', borderRadius: '8px', fontSize: '16px', fontWeight: '700' }}
@@ -1656,7 +1752,7 @@ startxref
 
         {/* State 4: Success */}
         {status === 'success' && (
-          <div className="success-container" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: '40px', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '500px' }}>
+          <div className="success-container" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: 'clamp(20px, 5vw, 40px)', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '500px', boxSizing: 'border-box' }}>
             <div className="success-icon-container" style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
               <CheckCircle2 size={40} />
             </div>
@@ -1665,7 +1761,7 @@ startxref
               Your document has been processed with 256-bit SSL encryption. Download your file below.
             </p>
 
-            <button className="btn-download" onClick={downloadMockFile} style={{ width: '100%', padding: '14px 20px', borderRadius: '10px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(229, 36, 36, 0.25)', marginBottom: '20px' }}>
+            <button type="button" className="btn-download" onClick={downloadMockFile} style={{ width: '100%', padding: '14px 20px', borderRadius: '10px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(229, 36, 36, 0.25)', marginBottom: '20px' }}>
               <Download size={22} /> Download {downloadFilename}
             </button>
 

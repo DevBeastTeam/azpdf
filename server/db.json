@@ -225,25 +225,6 @@
         ]
       },
       {
-        "id": "col-resources",
-        "title": "RESOURCES",
-        "links": [
-          { "label": "iLovePDF Desktop", "url": "#app-downloads" },
-          { "label": "iLovePDF Mobile", "url": "#app-downloads" },
-          { "label": "iLoveSign", "url": "/tool/sign" },
-          { "label": "iLoveAPI", "url": "/contact" },
-          { "label": "iLoveIMG", "url": "/tool/jpgtopdf" }
-        ]
-      },
-      {
-        "id": "col-solutions",
-        "title": "SOLUTIONS",
-        "links": [
-          { "label": "Business", "url": "/#pricing" },
-          { "label": "Education", "url": "/#pricing" }
-        ]
-      },
-      {
         "id": "col-legal",
         "title": "LEGAL",
         "links": [

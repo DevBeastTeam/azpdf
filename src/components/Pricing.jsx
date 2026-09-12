@@ -23,7 +23,7 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
 
   return (
     <section id="pricing" className="pricing-section" style={{
-      padding: '80px 24px',
+      padding: 'clamp(40px, 6vw, 80px) clamp(16px, 4vw, 24px)',
       backgroundColor: 'var(--bg-light)',
       display: 'flex',
       flexDirection: 'column',
@@ -50,7 +50,7 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
 
         {/* Section Heading */}
         <h2 style={{
-          fontSize: '36px',
+          fontSize: 'clamp(26px, 5vw, 36px)',
           fontWeight: '800',
           color: 'var(--text-dark)',
           marginBottom: '12px',
@@ -73,10 +73,14 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          gap: '6px',
           backgroundColor: 'var(--border-light)',
           padding: '4px',
           borderRadius: '30px',
-          marginBottom: '50px'
+          marginBottom: '50px',
+          maxWidth: '100%'
         }}>
           <button
             onClick={() => setIsYearly(false)}

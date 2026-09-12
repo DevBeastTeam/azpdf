@@ -54,7 +54,7 @@ export default function ContactUs() {
       width: '100%',
       minHeight: 'calc(100vh - 64px)',
       backgroundColor: 'var(--bg-light)',
-      padding: '50px 24px 80px 24px',
+      padding: 'clamp(24px, 5vw, 50px) clamp(16px, 4vw, 24px) 80px',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center'
@@ -125,8 +125,8 @@ export default function ContactUs() {
         {/* Main Grid: Form + Contact Info */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '40px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+          gap: 'clamp(24px, 4vw, 40px)',
           alignItems: 'start'
         }}>
           
@@ -135,7 +135,7 @@ export default function ContactUs() {
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border-light)',
             borderRadius: '20px',
-            padding: '40px',
+            padding: 'clamp(20px, 4vw, 40px)',
             boxShadow: 'var(--shadow-sm)'
           }}>
             {submitted ? (
@@ -209,7 +209,7 @@ export default function ContactUs() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                       Work Email *
@@ -256,7 +256,7 @@ export default function ContactUs() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>
                       Company Name
@@ -387,7 +387,7 @@ export default function ContactUs() {
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-light)',
               borderRadius: '20px',
-              padding: '30px',
+              padding: 'clamp(18px, 4vw, 30px)',
               boxShadow: 'var(--shadow-sm)'
             }}>
               <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '20px' }}>
@@ -432,7 +432,7 @@ export default function ContactUs() {
               backgroundColor: 'var(--bg-card)',
               border: '1px solid var(--border-light)',
               borderRadius: '20px',
-              padding: '30px',
+              padding: 'clamp(18px, 4vw, 30px)',
               boxShadow: 'var(--shadow-sm)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>

@@ -72,7 +72,7 @@ export default function HelpAndSupport() {
   })).filter(cat => cat.items.length > 0);
 
   return (
-    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: '48px 24px 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', minHeight: 'calc(100vh - 64px)', backgroundColor: 'var(--bg-light)', padding: 'clamp(24px, 5vw, 48px) clamp(16px, 4vw, 24px) 80px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ maxWidth: '860px', width: '100%' }}>
 
         <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', fontWeight: '600', fontSize: '14px', cursor: 'pointer', marginBottom: '32px' }}>
@@ -168,7 +168,7 @@ export default function HelpAndSupport() {
         </div>
 
         {/* Still Need Help - Contact Cards */}
-        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '40px', color: 'var(--text-dark)', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
+        <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: 'clamp(20px, 4vw, 40px)', color: 'var(--text-dark)', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
           <h2 style={{ fontSize: '24px', fontWeight: '800', marginBottom: '10px', color: 'var(--text-dark)' }}>
             Still need help?
           </h2>

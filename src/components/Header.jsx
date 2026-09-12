@@ -27,6 +27,8 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [isAllToolsOpen, setIsAllToolsOpen] = useState(false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
+  const [mobileConvertOpen, setMobileConvertOpen] = useState(false);
+  const [mobileAllToolsOpen, setMobileAllToolsOpen] = useState(false);
   const appLauncherRef = useRef(null);
   const allToolsRef = useRef(null);
   const convertRef = useRef(null);
@@ -44,7 +46,11 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   // Dropdown background adapts to theme
@@ -85,6 +91,49 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
         {/* Desktop Navigation */}
         <ul className="nav-menu">
+          <li>
+            <a 
+              href="#home" 
+              className="nav-item" 
+              onClick={(e) => {
+                e.preventDefault();
+                setView('home');
+                if (location.pathname !== '/') {
+                  navigate('/');
+                } else {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+              style={{
+                ...getNavItemStyle(['home']),
+                ...(currentView === 'home' && location.pathname === '/' ? { color: 'var(--primary-red)' } : {})
+              }}
+            >
+              HOME
+            </a>
+          </li>
+          <li>
+            <a 
+              href="/#pricing" 
+              className="nav-item" 
+              onClick={(e) => {
+                e.preventDefault();
+                if (location.pathname !== '/') {
+                  navigate('/');
+                  setTimeout(() => {
+                    const el = document.getElementById('pricing');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                } else {
+                  const el = document.getElementById('pricing');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              style={getNavItemStyle(['pricing'])}
+            >
+              PRICING
+            </a>
+          </li>
           <li>
             <a 
               href="#merge" 
@@ -406,34 +455,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        <button
-          onClick={() => setView('home')}
-          className="btn btn-secondary hide-mobile"
-          style={{ border: 'none', fontWeight: '700', color: currentView === 'home' ? 'var(--primary-red)' : 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          Home
-        </button>
 
-        <a
-          href="/#pricing"
-          onClick={(e) => {
-            e.preventDefault();
-            if (location.pathname !== '/') {
-              navigate('/');
-              setTimeout(() => {
-                const el = document.getElementById('pricing');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }, 100);
-            } else {
-              const el = document.getElementById('pricing');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }
-          }}
-          className="btn btn-secondary hide-mobile"
-          style={{ border: 'none', fontWeight: '700', color: 'var(--text-dark)', background: 'transparent', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', textDecoration: 'none' }}
-        >
-          Pricing
-        </a>
 
         {isLoggedIn ? (
           <>
@@ -521,8 +543,11 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           ref={appLauncherRef}
           className="app-launcher hide-mobile" 
           onMouseEnter={() => setIsAppLauncherOpen(true)}
-          onMouseLeave={() => setIsAppLauncherOpen(false)}
-          onClick={() => setIsAppLauncherOpen(!isAppLauncherOpen)}
+          onClick={(e) => {
+            if (!e.target.closest('.app-launcher-popup')) {
+              setIsAppLauncherOpen(prev => !prev);
+            }
+          }}
           style={{ 
             position: 'relative', 
             padding: '8px', 
@@ -554,6 +579,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           {isAppLauncherOpen && (
             <div 
               className="app-launcher-popup"
+              onClick={(e) => e.stopPropagation()}
               style={{
                 position: 'absolute',
                 top: '48px',
@@ -654,7 +680,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                     SOLUTIONS
                   </h4>
 
-                  <a href="#business" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
+                  <a href="#business" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/pricing'); }} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
                     <div style={{ width: '54px', height: '54px', borderRadius: '10px', backgroundColor: theme === 'dark' ? '#374151' : '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
                         <rect x="5" y="14" width="6" height="15" rx="2" fill="#7f1d1d" />
@@ -673,25 +699,25 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
               {/* COLUMN 3: LINKS & UTILITIES */}
               <div style={{ width: '150px', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <a href="#pricing" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#pricing" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/pricing'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <CreditCard size={17} color="var(--text-gray)" /> Pricing
                   </a>
 
-                  <a href="#security" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#security" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/privacy'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <Shield size={17} color="var(--text-gray)" /> Security
                   </a>
 
-                  <a href="#features" onClick={(e) => { e.preventDefault(); navigate('/'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#features" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <LayoutDashboard size={17} color="var(--text-gray)" /> Features
                   </a>
 
-                  <a href="#about" onClick={(e) => { e.preventDefault(); navigate('/contact'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#about" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/contact'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <Heart size={17} color="var(--text-gray)" /> About us
                   </a>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: `1px solid ${dropdownBorder}`, paddingTop: '18px' }}>
-                  <a href="#help" onClick={(e) => { e.preventDefault(); navigate('/help'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#help" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/help'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <span style={{ fontSize: '15px', fontWeight: '800' }}>‹</span> Help
                   </a>
 
@@ -710,42 +736,218 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
         </button>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Comprehensive Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="mobile-nav">
-          <a href="#merge" className="mobile-nav-item" onClick={() => { setView('tool-merge'); setMobileMenuOpen(false); }}>
-            MERGE PDF <ArrowRight size={16} />
-          </a>
-          <a href="#split" className="mobile-nav-item" onClick={() => { setView('tool-split'); setMobileMenuOpen(false); }}>
-            SPLIT PDF <ArrowRight size={16} />
-          </a>
-          <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
-            COMPRESS PDF <ArrowRight size={16} />
-          </a>
-          <a href="#pricing" className="mobile-nav-item" onClick={() => { navigate('/#pricing'); setMobileMenuOpen(false); }}>
-            PRICING <ArrowRight size={16} />
-          </a>
+          <div className="mobile-nav-inner">
 
-          {isLoggedIn && (
-            <>
-              <a href="#dashboard" className="mobile-nav-item" onClick={() => { navigate('/dashboard'); setMobileMenuOpen(false); }}>
-                DASHBOARD <ArrowRight size={16} />
-              </a>
-              <button className="mobile-nav-item" onClick={() => { onLogoutClick(); setMobileMenuOpen(false); }} style={{ color: '#ef4444', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', padding: '14px 20px', fontWeight: '700', fontSize: '15px' }}>
-                <LogOut size={16} /> Logout
+            {/* Quick Popular Tools */}
+            <div className="mobile-nav-section-title">POPULAR TOOLS</div>
+            <a href="#merge" className="mobile-nav-item" onClick={() => { setView('tool-merge'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><MergePdfIcon /> Merge PDF</span> <ArrowRight size={16} />
+            </a>
+            <a href="#split" className="mobile-nav-item" onClick={() => { setView('tool-split'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><SplitPdfIcon /> Split PDF</span> <ArrowRight size={16} />
+            </a>
+            <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><CompressPdfIcon /> Compress PDF</span> <ArrowRight size={16} />
+            </a>
+
+            {/* Convert PDF Accordion */}
+            <button 
+              type="button"
+              className="mobile-nav-accordion-btn"
+              onClick={() => setMobileConvertOpen(!mobileConvertOpen)}
+            >
+              <span style={{ fontWeight: '800' }}>CONVERT PDF</span>
+              <ChevronDown size={18} style={{ transform: mobileConvertOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+            {mobileConvertOpen && (
+              <div className="mobile-nav-sublist">
+                <div className="mobile-nav-subheading">CONVERT TO PDF</div>
+                <a href="#jpg-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-jpgtopdf'); setMobileMenuOpen(false); }}>
+                  <JpgToPdfIcon /> JPG to PDF
+                </a>
+                <a href="#word-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-wordtopdf'); setMobileMenuOpen(false); }}>
+                  <WordToPdfIcon /> Word to PDF
+                </a>
+                <a href="#powerpoint-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-powerpointtopdf'); setMobileMenuOpen(false); }}>
+                  <PowerpointToPdfIcon /> PowerPoint to PDF
+                </a>
+                <a href="#excel-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-exceltopdf'); setMobileMenuOpen(false); }}>
+                  <ExcelToPdfIcon /> Excel to PDF
+                </a>
+                <a href="#html-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-htmltopdf'); setMobileMenuOpen(false); }}>
+                  <HtmlToPdfIcon /> HTML to PDF
+                </a>
+
+                <div className="mobile-nav-subheading" style={{ marginTop: '10px' }}>CONVERT FROM PDF</div>
+                <a href="#pdf-to-jpg" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftojpg'); setMobileMenuOpen(false); }}>
+                  <PdfToJpgIcon /> PDF to JPG
+                </a>
+                <a href="#pdf-to-word" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftoword'); setMobileMenuOpen(false); }}>
+                  <PdfToWordIcon /> PDF to Word
+                </a>
+                <a href="#pdf-to-powerpoint" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftopowerpoint'); setMobileMenuOpen(false); }}>
+                  <PdfToPowerpointIcon /> PDF to PowerPoint
+                </a>
+                <a href="#pdf-to-excel" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftoexcel'); setMobileMenuOpen(false); }}>
+                  <PdfToExcelIcon /> PDF to Excel
+                </a>
+                <a href="#pdf-to-pdfa" className="mobile-nav-sublink" onClick={() => { setView('tool-pdfa'); setMobileMenuOpen(false); }}>
+                  <PdfToPdfaIcon /> PDF to PDF/A
+                </a>
+              </div>
+            )}
+
+            {/* All PDF Tools Accordion */}
+            <button 
+              type="button"
+              className="mobile-nav-accordion-btn"
+              onClick={() => setMobileAllToolsOpen(!mobileAllToolsOpen)}
+            >
+              <span style={{ fontWeight: '800' }}>ALL PDF TOOLS ({32})</span>
+              <ChevronDown size={18} style={{ transform: mobileAllToolsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </button>
+            {mobileAllToolsOpen && (
+              <div className="mobile-nav-sublist">
+                <div className="mobile-nav-subheading">EDIT & SIGN</div>
+                <a href="#edit" className="mobile-nav-sublink" onClick={() => { setView('tool-edit'); setMobileMenuOpen(false); }}>
+                  <EditPdfIcon /> Edit PDF
+                </a>
+                <a href="#sign" className="mobile-nav-sublink" onClick={() => { setView('tool-sign'); setMobileMenuOpen(false); }}>
+                  <SignPdfIcon /> Sign PDF
+                </a>
+                <a href="#watermark" className="mobile-nav-sublink" onClick={() => { setView('tool-watermark'); setMobileMenuOpen(false); }}>
+                  <WatermarkIcon /> Watermark
+                </a>
+                <a href="#rotate" className="mobile-nav-sublink" onClick={() => { setView('tool-rotate'); setMobileMenuOpen(false); }}>
+                  <RotatePdfIcon /> Rotate PDF
+                </a>
+                <a href="#crop" className="mobile-nav-sublink" onClick={() => { setView('tool-crop'); setMobileMenuOpen(false); }}>
+                  <CropPdfIcon /> Crop PDF
+                </a>
+                <a href="#pagenumber" className="mobile-nav-sublink" onClick={() => { setView('tool-pagenumber'); setMobileMenuOpen(false); }}>
+                  <PageNumbersIcon /> Page Numbers
+                </a>
+
+                <div className="mobile-nav-subheading" style={{ marginTop: '10px' }}>SECURITY & REPAIR</div>
+                <a href="#protect" className="mobile-nav-sublink" onClick={() => { setView('tool-protect'); setMobileMenuOpen(false); }}>
+                  <ProtectPdfIcon /> Protect PDF
+                </a>
+                <a href="#unlock" className="mobile-nav-sublink" onClick={() => { setView('tool-unlock'); setMobileMenuOpen(false); }}>
+                  <UnlockPdfIcon /> Unlock PDF
+                </a>
+                <a href="#redact" className="mobile-nav-sublink" onClick={() => { setView('tool-redact'); setMobileMenuOpen(false); }}>
+                  <RedactPdfIcon /> Redact PDF
+                </a>
+                <a href="#repair" className="mobile-nav-sublink" onClick={() => { setView('tool-repair'); setMobileMenuOpen(false); }}>
+                  <RepairPdfIcon /> Repair PDF
+                </a>
+
+                <div className="mobile-nav-subheading" style={{ marginTop: '10px' }}>AI & ADVANCED</div>
+                <a href="#ocr" className="mobile-nav-sublink" onClick={() => { setView('tool-ocr'); setMobileMenuOpen(false); }}>
+                  <OcrPdfIcon /> OCR PDF
+                </a>
+                <a href="#compare" className="mobile-nav-sublink" onClick={() => { setView('tool-compare'); setMobileMenuOpen(false); }}>
+                  <ComparePdfIcon /> Compare PDF
+                </a>
+                <a href="#aisummarizer" className="mobile-nav-sublink" onClick={() => { setView('tool-aisummarizer'); setMobileMenuOpen(false); }}>
+                  <AiSummarizerIcon /> AI Summarizer
+                </a>
+                <a href="#translate" className="mobile-nav-sublink" onClick={() => { setView('tool-translate'); setMobileMenuOpen(false); }}>
+                  <TranslatePdfIcon /> Translate PDF
+                </a>
+                <a href="#markdown" className="mobile-nav-sublink" onClick={() => { setView('tool-markdown'); setMobileMenuOpen(false); }}>
+                  <PdfToMarkdownIcon /> PDF to Markdown
+                </a>
+                <a href="#forms" className="mobile-nav-sublink" onClick={() => { setView('tool-forms'); setMobileMenuOpen(false); }}>
+                  <PdfFormsIcon /> PDF Forms
+                </a>
+                <a href="#organize" className="mobile-nav-sublink" onClick={() => { setView('tool-organize'); setMobileMenuOpen(false); }}>
+                  <OrganizePdfIcon /> Organize PDF
+                </a>
+                <a href="#scan" className="mobile-nav-sublink" onClick={() => { setView('tool-scan'); setMobileMenuOpen(false); }}>
+                  <ScanPdfIcon /> Scan to PDF
+                </a>
+              </div>
+            )}
+
+            {/* General Navigation Links */}
+            <div className="mobile-nav-section-title" style={{ marginTop: '14px' }}>NAVIGATION</div>
+            <a href="#pricing" className="mobile-nav-item" onClick={() => { navigate('/#pricing'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><CreditCard size={18} /> Pricing</span> <ArrowRight size={16} />
+            </a>
+            <a href="#features" className="mobile-nav-item" onClick={() => { navigate('/#features'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><LayoutDashboard size={18} /> Features</span> <ArrowRight size={16} />
+            </a>
+            <a href="#help" className="mobile-nav-item" onClick={() => { navigate('/help'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><HelpCircle size={18} /> Help & Support</span> <ArrowRight size={16} />
+            </a>
+            <a href="#contact" className="mobile-nav-item" onClick={() => { navigate('/contact'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><Building2 size={18} /> Contact Sales</span> <ArrowRight size={16} />
+            </a>
+            <a href="#privacy" className="mobile-nav-item" onClick={() => { navigate('/privacy'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><Shield size={18} /> Privacy Policy</span> <ArrowRight size={16} />
+            </a>
+
+            {/* Dark / Light Mode Toggle */}
+            <div className="mobile-nav-theme-row">
+              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>Appearance</span>
+              <button 
+                type="button"
+                className="mobile-theme-btn" 
+                onClick={toggleTheme}
+                aria-label="Toggle Theme"
+              >
+                {theme === 'light' ? <><Moon size={16} /> Dark Mode</> : <><Sun size={16} /> Light Mode</>}
               </button>
-            </>
-          )}
-          {!isLoggedIn && (
-            <>
-              <a href="#login" className="mobile-nav-item" onClick={() => { onLoginClick(); setMobileMenuOpen(false); }}>
-                Login <ArrowRight size={16} />
-              </a>
-              <a href="#register" className="mobile-nav-item" onClick={() => { onSignupClick(); setMobileMenuOpen(false); }} style={{ color: 'var(--primary-red)' }}>
-                Sign up <ArrowRight size={16} />
-              </a>
-            </>
-          )}
+            </div>
+
+            {/* User Authentication Actions */}
+            <div className="mobile-nav-auth-box">
+              {isLoggedIn ? (
+                <>
+                  <button 
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => { navigate('/dashboard'); setMobileMenuOpen(false); }}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '15px', fontWeight: '800' }}
+                  >
+                    <LayoutDashboard size={16} /> Open Dashboard
+                  </button>
+                  <button 
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => { onLogoutClick(); setMobileMenuOpen(false); }}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: '700', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                  >
+                    <LogOut size={16} /> Sign Out
+                  </button>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                  <button 
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => { onLoginClick(); setMobileMenuOpen(false); }}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '15px', fontWeight: '700' }}
+                  >
+                    <LogIn size={16} /> Login
+                  </button>
+                  <button 
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => { onSignupClick(); setMobileMenuOpen(false); }}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '15px', fontWeight: '800' }}
+                  >
+                    Sign up Free
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
       )}
     </header>
