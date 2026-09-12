@@ -11,7 +11,7 @@ import {
   AiSummarizerIcon, TranslatePdfIcon, PdfToMarkdownIcon
 } from './Icons';
 
-const toolsData = [
+export const toolsData = [
   {
     id: 'tool-merge',
     title: 'Merge PDF',
@@ -310,25 +310,30 @@ export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
 
   const filteredTools = useMemo(() => {
     return toolsData.filter(tool => {
+      const custom = siteContent?.toolsInformation?.[tool.id];
+      const title = custom?.title || tool.title;
+      const desc = custom?.desc || tool.desc || '';
+      const category = custom?.category || tool.category;
+
       // Category filter
       let matchesCategory = true;
       if (activeCategory === 'workflows') {
         matchesCategory = tool.isWorkflow;
       } else if (activeCategory !== 'all') {
         if (activeCategory === 'convert') {
-          matchesCategory = tool.category === 'convert';
+          matchesCategory = category === 'convert';
         } else {
-          matchesCategory = tool.category === activeCategory;
+          matchesCategory = category === activeCategory;
         }
       }
 
       // Search filter
-      const matchesSearch = tool.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        tool.desc.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        desc.toLowerCase().includes(searchQuery.toLowerCase());
 
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory, searchQuery, siteContent]);
 
   return (
     <div id="tools" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
@@ -378,7 +383,10 @@ export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
       <div className="tools-grid">
         {filteredTools.map((tool) => {
           const IconComponent = tool.icon;
-          const isEnabled = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].enabled : true;
+          const custom = siteContent?.toolsInformation?.[tool.id];
+          const displayedTitle = custom?.title || tool.title;
+          const displayedDesc = custom?.desc || tool.desc;
+          const isEnabled = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].enabled : (custom?.toolActive !== undefined ? custom.toolActive : true);
 
           return (
             <div
@@ -386,7 +394,7 @@ export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
               className={`tool-card ${tool.colorClass}`}
               onClick={() => {
                 if (!isEnabled) {
-                  alert(`🛠️ "${tool.title}" is temporarily offline for maintenance updates. Please check back later!`);
+                  alert(`🛠️ "${displayedTitle}" is temporarily offline for maintenance updates. Please check back later!`);
                   return;
                 }
                 onSelectTool(tool);
@@ -419,8 +427,8 @@ export default function ToolsGrid({ onSelectTool, toolsConfig, siteContent }) {
               <div className="tool-card-icon">
                 <IconComponent style={{ width: '100%', height: '100%' }} />
               </div>
-              <h3 className="tool-card-title">{tool.title}</h3>
-              <p className="tool-card-desc">{tool.desc}</p>
+              <h3 className="tool-card-title">{displayedTitle}</h3>
+              <p className="tool-card-desc">{displayedDesc}</p>
             </div>
           );
         })}

@@ -211,39 +211,306 @@
     "autoCleanupEnabled": true
   },
   "siteContent": {
+    "brandPrefix": "I",
+    "brandIcon": "❤️",
+    "brandName": "PDF",
     "heroTitle": "Every tool you need to work with PDFs in one place",
+    "heroSubtitle": "Every tool you need to use PDFs, at your fingertips. All are 100% FREE and easy to use! Merge, split, compress, convert, rotate, unlock and watermark PDFs with just a few clicks.",
+    "toolsTitle": "Most Popular PDF Tools",
+    "toolsSubtitle": "Fast, online and free tools for all your PDF requirements.",
+    "pricingBadge": "Simple & Transparent Pricing",
+    "pricingTitle": "Choose the Right Plan for Your PDF Needs",
+    "pricingSubtitle": "Work seamlessly with all PDF tools. Get unlimited processing, high-speed OCR, digital e-signatures, and batch file support.",
+    "freePlanTitle": "Free",
+    "freePlanDesc": "Essential PDF tools for everyone with basic requirements.",
+    "premiumPlanTitle": "Premium",
+    "premiumPlanDesc": "Full access to all PDF tools with priority processing and no limits.",
+    "businessPlanTitle": "Business / Team",
+    "businessPlanDesc": "Custom team management, dedicated support, and enterprise API access.",
+    "footerBrand": "I ❤️ PDF",
+    "footerDesc": "The all-in-one PDF solution to make working with documents fast, simple, and completely secure.",
+    "footerCopyright": "© 2026 iLovePDF. All Rights Reserved.",
     "footerColumns": [
       {
         "id": "col-product",
         "title": "PRODUCT",
         "links": [
-          { "label": "Home", "url": "/" },
-          { "label": "Features", "url": "/#features" },
-          { "label": "Pricing", "url": "/#pricing" },
-          { "label": "Tools", "url": "/#tools" },
-          { "label": "FAQ", "url": "/help" }
+          {
+            "label": "Home",
+            "url": "/"
+          },
+          {
+            "label": "Features",
+            "url": "/#features"
+          },
+          {
+            "label": "Pricing",
+            "url": "/#pricing"
+          },
+          {
+            "label": "Tools",
+            "url": "/#tools"
+          },
+          {
+            "label": "FAQ",
+            "url": "/help"
+          }
         ]
       },
       {
         "id": "col-legal",
         "title": "LEGAL",
         "links": [
-          { "label": "Security", "url": "/privacy" },
-          { "label": "Privacy policy", "url": "/privacy" },
-          { "label": "Terms & conditions", "url": "/terms" },
-          { "label": "Cookies", "url": "/privacy" }
+          {
+            "label": "Security",
+            "url": "/privacy"
+          },
+          {
+            "label": "Privacy policy",
+            "url": "/privacy"
+          },
+          {
+            "label": "Terms & conditions",
+            "url": "/terms"
+          },
+          {
+            "label": "Cookies",
+            "url": "/privacy"
+          }
         ]
       },
       {
         "id": "col-company",
         "title": "COMPANY",
         "links": [
-          { "label": "About us", "url": "/contact" },
-          { "label": "Contact us", "url": "/contact" },
-          { "label": "Blog", "url": "/help" },
-          { "label": "Press", "url": "/contact" }
+          {
+            "label": "About us",
+            "url": "/contact"
+          },
+          {
+            "label": "Contact us",
+            "url": "/contact"
+          },
+          {
+            "label": "Blog",
+            "url": "/help"
+          },
+          {
+            "label": "Press",
+            "url": "/contact"
+          }
         ]
       }
-    ]
+    ],
+    "footerButtons": [
+      {
+        "label": "Terms",
+        "url": "/terms"
+      },
+      {
+        "label": "Privacy",
+        "url": "/privacy"
+      },
+      {
+        "label": "Help",
+        "url": "/help"
+      }
+    ],
+    "socialLinks": {
+      "twitter": "https://twitter.com",
+      "facebook": "https://facebook.com",
+      "linkedin": "https://linkedin.com",
+      "instagram": "https://instagram.com"
+    },
+    "appStoreBadges": {
+      "enabled": true,
+      "title": "Download azPDF Desktop & Mobile App",
+      "subtitle": "Work with PDFs directly on Windows, Mac, Android and iOS devices.",
+      "googlePlay": {
+        "enabled": true,
+        "url": "https://play.google.com/store/apps"
+      },
+      "appStore": {
+        "enabled": true,
+        "url": "https://apps.apple.com"
+      },
+      "macAppStore": {
+        "enabled": true,
+        "url": "https://apps.apple.com/macos"
+      },
+      "microsoftStore": {
+        "enabled": true,
+        "url": "https://apps.microsoft.com"
+      }
+    },
+    "toolsInformation": {
+      "tool-pdftoword": {
+        "whatIsHeading": "What is a PDF to Word Converter?",
+        "whatIsParagraph": "Convert your PDF documents into fully editable DOCX format with maximum text accuracy and layout preservation.",
+        "howToHeading": "How to Use PDF to Word Converter",
+        "howToParagraph": "Convert any PDF into an editable Word document with ease:\n\n1. Upload your PDF file by clicking the select button or dragging it into the workspace.\n2. Click \"Convert to Word\" to start extraction.\n3. Download your fully editable Word document.",
+        "enabled": true
+      },
+      "tool-merge": {
+        "title": "Merge PDF Pro Ultra",
+        "desc": "Combine and arrange multiple PDF files into one clean document with instant speed.",
+        "category": "organize",
+        "toolActive": true,
+        "enabled": true,
+        "whatIsHeading": "What is Merge PDF Pro?",
+        "whatIsParagraph": "Merge PDF Pro is an advanced web-based document compiler designed for business speed.",
+        "howToHeading": "How to Use Merge PDF Pro",
+        "howToParagraph": "1. Select documents.\n2. Arrange order.\n3. Click Merge PDF to finish."
+      },
+      "tool-split": {
+        "whatIsHeading": "What is a PDF Splitter?",
+        "whatIsParagraph": "A PDF Splitter is an online tool designed to extract specific pages, page ranges, or break large multi-page PDF documents into individual, self-contained files. Whether you need to separate a single confidential contract page, divide a multi-chapter eBook, or reduce file sizes by extracting only relevant content, our PDF Splitter delivers instant, clean page separation with original quality preserved.",
+        "howToHeading": "How to Use PDF Splitter",
+        "howToParagraph": "Splitting your PDF pages is straightforward and flexible:\n\n1. Select or drag and drop the PDF document you want to divide.\n2. Specify the page numbers or page ranges you wish to extract (e.g., 1-3, 5, 8).\n3. Click \"Split PDF\" to initiate rapid server-side page extraction.\n4. Save your extracted PDF file directly to your device.sedrfghj",
+        "enabled": true
+      },
+      "tool-htmltopdf": {
+        "whatIsHeading": "What is an HTML to PDF Converter?",
+        "whatIsParagraph": "An HTML to PDF converter turns live web pages, online articles, receipts, and HTML code into accurate, printable PDF documents. Simply by entering a website URL or uploading HTML markup, the converter captures styling, text, and graphics into an archival document.",
+        "howToHeading": "How to Use HTML to PDF Converter",
+        "howToParagraph": "wdfgbnConvert any web page or HTML file into a PDF:\n\n1. Enter the full web address (e.g. https://example.com) or select an HTML file.\n2. Click \"Convert to PDF\" to let our cloud browser render the page.\n3. The layout, text, and imagery are captured into a clean PDF document.\n4. Download your webpage capture directly to your device.",
+        "enabled": true
+      },
+      "tool-pdftopowerpoint": {
+        "whatIsHeading": "What is a PDF to PowerPoint Converter?wsedrftgv",
+        "whatIsParagraph": "A PDF to PowerPoint converter transforms multi-page PDF documents into presentation-ready Microsoft PowerPoint slides (.PPTX). Each PDF page is converted into a distinct slide, enabling you to present slideshows, edit slide content, reposition visual assets, and customize lecture materials without re-creating pitch decks from scratch.",
+        "howToHeading": "How to Use PDF to PowerPoint Converter",
+        "howToParagraph": "Convert slides from PDF to PowerPoint in seconds:\n\n1. Upload your presentation PDF by clicking the upload button or dropping your file.\n2. Review your selected document and click \"Convert to PowerPoint\".\n3. Our conversion engine creates native PPTX presentation slides maintaining page layouts.\n4. Download your PowerPoint presentation and start presenting or customizing.",
+        "enabled": true
+      },
+      "tool-compress": {
+        "title": "Compress PDF ",
+        "desc": "Reduce file size while optimizing for maximal PDF quality.",
+        "category": "optimize",
+        "toolActive": true,
+        "enabled": true,
+        "whatIsHeading": "What is a PDF Compressor?",
+        "whatIsParagraph": "A PDF Compressor is a smart utility that reduces the file size of heavy PDF documents while maintaining optimal visual clarity, sharp typography, and image fidelity. Heavy PDFs often exceed email attachment limits or fail portal upload thresholds; our PDF Compressor solves this by stripping redundant metadata, optimizing embedded graphics, and applying lossless vector compression algorithms.",
+        "howToHeading": "How to Use PDF Compressor",
+        "howToParagraph": "Optimizing your PDF file size requires just three simple steps:\n\n1. Upload your PDF file by clicking the select button or dragging it into the workspace.\n2. Choose your preferred compression level (Recommended, Extreme, or Low Compression).\n3. Click \"Compress PDF\" to reduce document weight in seconds and download the lightweight result."
+      },
+      "tool-markdown": {
+        "title": "PDF to Markdown",
+        "desc": "Convert rich PDFs to structural Markdown formatting for clean editing.",
+        "category": "intelligence",
+        "toolActive": true,
+        "enabled": true,
+        "whatIsHeading": "What is a PDF to Markdown Converter?",
+        "whatIsParagraph": "A PDF to Markdown converter converts complex PDF documents into clean, lightweight Markdown (.MD) syntax. It translates headings, bold/italic text, code blocks, bullet points, and tables into standard Markdown ideal for documentation wikis, GitHub, and developer workflows.",
+        "howToHeading": "How to Use PDF to Markdown Converter",
+        "howToParagraph": "Convert PDFs to structured Markdown code:\n\n1. Upload the PDF manual, specification, or article you want to convert.\n2. Click \"Convert to Markdown\" to initiate structural syntax parsing.\n3. All sections, lists, and tables are converted into clean markdown tags.\n4. Download your .md file or copy the markdown text directly."
+      }
+    },
+    "privacyPolicy": {
+      "title": "Privacy Policy - Updated by Admin ",
+      "lastUpdated": "Last updated: July 20, 2026 · We value your privacy and are committed to protecting your personal data.",
+      "contactEmail": "privacy@ilovepdf.com",
+      "highlights": [
+        {
+          "id": 1,
+          "label": "256-Bit Encryption",
+          "desc": "All uploads are SSL encrypted in transit"
+        },
+        {
+          "id": 2,
+          "label": "Auto File Delete",
+          "desc": "Files deleted within 2 hours of processing"
+        },
+        {
+          "id": 3,
+          "label": "No Selling Data",
+          "desc": "We never sell your personal data to third parties"
+        },
+        {
+          "id": 4,
+          "label": "Full Transparency",
+          "desc": "Clear information about what data we collect"
+        }
+      ],
+      "sections": [
+        {
+          "id": 1,
+          "title": "1. Information We Collect",
+          "body": "We collect the following types of information when you use iLovePDF:\n\n• Account Information: Name, email address, and password when you register for an account.\n• Usage Data: Pages processed, tools used, file sizes, and timestamps — used to improve our service.\n• Uploaded Files: Temporarily stored only during processing. Files are permanently deleted within 2 hours.\n• Device & Browser Data: IP address, browser type, operating system — used for security and analytics.\n• Payment Information: Processed securely by our payment provider (Stripe). We do not store card details."
+        },
+        {
+          "id": 2,
+          "title": "2. How We Use Your Information",
+          "body": "Your information is used exclusively for:\n\n• Providing and improving our PDF processing services.\n• Processing transactions and managing your subscription.\n• Sending account-related communications (receipts, security alerts).\n• Analyzing aggregate usage data to enhance performance (never individual file content).\n• Complying with legal obligations and preventing fraud."
+        },
+        {
+          "id": 3,
+          "title": "3. Information Sharing",
+          "body": "We do not sell, trade, or share your personal data with third parties except:\n\n• Service Providers: Trusted partners (e.g. payment processors, cloud infrastructure) who assist in our operations under strict confidentiality agreements.\n• Legal Requirements: When required by law, court order, or governmental authority.\n• Business Transfers: In the event of a merger or acquisition, with equivalent privacy protections."
+        },
+        {
+          "id": 4,
+          "title": "4. Data Security",
+          "body": "We implement industry-standard security measures including:\n\n• 256-bit SSL/TLS encryption for all data transmissions.\n• Automatic deletion of uploaded files within 2 hours of processing.\n• Access controls limiting staff access to personal data.\n• Regular security audits and vulnerability assessments.\n\nNo method of transmission or storage is 100% secure. In the event of a data breach affecting your rights, we will notify you within 72 hours as required by GDPR."
+        },
+        {
+          "id": 5,
+          "title": "5. Cookies & Tracking",
+          "body": "We use cookies to:\n\n• Keep you logged in to your account (session cookies).\n• Remember your language and display preferences.\n• Analyze usage patterns through anonymized analytics (Google Analytics with IP anonymization enabled).\n\nYou can disable cookies through your browser settings, but some features may not function correctly. We do not use cookies for advertising or cross-site tracking."
+        },
+        {
+          "id": 6,
+          "title": "6. Your Rights & Contact",
+          "body": "Under applicable data protection laws (including GDPR and CCPA), you have the right to:\n\n• Access, correct, or delete your personal data.\n• Restrict or object to our processing of your personal data.\n• Request data portability.\n• Withdraw consent at any time where processing was based on consent."
+        }
+      ]
+    },
+    "termsAndConditions": {
+      "title": "Terms & Conditions - Managed by Admin",
+      "lastUpdated": "Last updated: July 20, 2026 · Effective immediately",
+      "contactEmail": "legal@ilovepdf.com",
+      "sections": [
+        {
+          "id": 1,
+          "title": "1. Acceptance of Terms",
+          "body": "By accessing or using iLovePDF (\"the Service\"), you agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use the Service. These terms apply to all users including visitors, free users, and premium subscribers."
+        },
+        {
+          "id": 2,
+          "title": "2. Description of Service",
+          "body": "iLovePDF provides online PDF processing tools including but not limited to: merging, splitting, compressing, converting, rotating, watermarking, protecting, and extracting text from PDF documents. The Service is provided \"as is\" and may be updated or modified at any time without prior notice."
+        },
+        {
+          "id": 3,
+          "title": "3. User Responsibilities",
+          "body": "You are solely responsible for the files you upload and process through the Service. You agree not to upload files that contain illegal content, malware, copyrighted materials you do not own, or any content that violates applicable laws. You are responsible for maintaining the confidentiality of your account credentials."
+        },
+        {
+          "id": 4,
+          "title": "4. Intellectual Property",
+          "body": "All content, design, code, logos, and trademarks on iLovePDF are the exclusive property of iLovePDF. You may not copy, reproduce, distribute, or create derivative works from our Service without express written permission. Your uploaded files remain your intellectual property — we do not claim ownership."
+        },
+        {
+          "id": 5,
+          "title": "5. Data Retention & File Deletion",
+          "body": "Uploaded files are automatically and permanently deleted from our servers within 2 hours of processing. We do not store, share, or sell your file content. Premium accounts with cloud storage retain files as per their plan settings, which can be managed in the account dashboard."
+        },
+        {
+          "id": 6,
+          "title": "6. Disclaimer of Warranties",
+          "body": "The Service is provided without any warranty of any kind, express or implied. iLovePDF does not guarantee uninterrupted service availability, accuracy of processing results, or fitness for a particular purpose. Use of the Service is at your own risk."
+        },
+        {
+          "id": 7,
+          "title": "7. Limitation of Liability",
+          "body": "iLovePDF shall not be liable for any indirect, incidental, special, consequential, or punitive damages resulting from your access to or use of the Service. In no event shall our total liability exceed the amount paid by you to iLovePDF in the 12 months prior to the claim."
+        },
+        {
+          "id": 8,
+          "title": "8. Governing Law & Changes",
+          "body": "These Terms shall be governed by the laws of Spain. We reserve the right to update these Terms at any time. Continued use of the Service after changes are posted constitutes acceptance of the revised Terms. We will notify registered users of significant changes via email."
+        }
+      ]
+    }
   }
 }

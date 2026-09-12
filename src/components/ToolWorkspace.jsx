@@ -7,9 +7,20 @@ import {
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import PdfInteractiveEditor from './PdfInteractiveEditor';
 import { getToolInfo } from '../data/toolInformation';
+import { useAppContext } from '../App';
 
 export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcessed }) {
-  const toolInfo = getToolInfo(tool);
+  const context = useAppContext();
+  const siteContent = context?.siteContent;
+  const customInfo = siteContent?.toolsInformation?.[tool.id];
+  const isContentEnabled = customInfo ? customInfo.enabled !== false : true;
+  const defaultInfo = getToolInfo(tool);
+  const toolInfo = {
+    whatIsHeading: customInfo?.whatIsHeading !== undefined ? customInfo.whatIsHeading : defaultInfo?.whatIsHeading,
+    whatIsParagraph: customInfo?.whatIsParagraph !== undefined ? customInfo.whatIsParagraph : defaultInfo?.whatIsParagraph,
+    howToHeading: customInfo?.howToHeading !== undefined ? customInfo.howToHeading : defaultInfo?.howToHeading,
+    howToParagraph: customInfo?.howToParagraph !== undefined ? customInfo.howToParagraph : defaultInfo?.howToParagraph,
+  };
   const [files, setFiles] = useState([]);
   const [mergeOrder, setMergeOrder] = useState([]); // tracks explicit merge order
   const [dragActive, setDragActive] = useState(false);
@@ -1013,10 +1024,10 @@ startxref
         {status === 'upload' && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '800px' }}>
             <h1 className="workspace-title-responsive" style={{ fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px', fontFamily: 'inherit' }}>
-              {tool.title}
+              {customInfo?.title || tool.title}
             </h1>
             <p className="workspace-desc-responsive" style={{ color: 'var(--text-gray)', marginBottom: '32px', maxWidth: '650px', lineHeight: '1.5' }}>
-              {tool.desc}
+              {customInfo?.desc || tool.desc}
             </p>
 
             {/* Dashed Dropzone Card matching image */}
@@ -1155,7 +1166,7 @@ startxref
             </div>
 
             {/* Explanatory Content: "What is a..." & "How to Use..." matching image */}
-            {toolInfo && (
+            {isContentEnabled && toolInfo && (
               <div style={{
                 width: '100%',
                 maxWidth: '850px',

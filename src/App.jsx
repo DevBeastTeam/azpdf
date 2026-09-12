@@ -12,6 +12,7 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import HelpAndSupport from './components/HelpAndSupport';
 import ToolWorkspace from './components/ToolWorkspace';
 import Footer from './components/Footer';
+import { defaultPrivacyPolicy, defaultTermsAndConditions } from './data/legalPagesData';
 import { Eye, EyeOff } from 'lucide-react';
 import './App.css';
 
@@ -145,7 +146,10 @@ const defaultSiteContent = {
       enabled: true,
       url: 'https://apps.microsoft.com'
     }
-  }
+  },
+  toolsInformation: {},
+  privacyPolicy: defaultPrivacyPolicy,
+  termsAndConditions: defaultTermsAndConditions
 };
 
 // ─── Home Page (combined hero + tools + pricing) ───────────────────────────────
@@ -688,6 +692,8 @@ function App() {
       setSystemSettings={updateSystemSettings}
       siteContent={siteContent}
       setSiteContent={updateSiteContent}
+      theme={theme}
+      toggleTheme={toggleTheme}
     />
   );
 
@@ -695,18 +701,20 @@ function App() {
     <AppContext.Provider value={contextValue}>
       <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh' }}>
 
-        <Header
-          theme={theme}
-          toggleTheme={toggleTheme}
-          isLoggedIn={isLoggedIn}
-          siteContent={siteContent}
-          onLoginClick={handleLoginClick}
-          onSignupClick={handleSignupClick}
-          onLogoutClick={() => setShowLogoutModal(true)}
-        />
+        {!isAdminPage && (
+          <Header
+            theme={theme}
+            toggleTheme={toggleTheme}
+            isLoggedIn={isLoggedIn}
+            siteContent={siteContent}
+            onLoginClick={handleLoginClick}
+            onSignupClick={handleSignupClick}
+            onLogoutClick={() => setShowLogoutModal(true)}
+          />
+        )}
 
         {/* Admin Bypass Banner */}
-        {systemSettings.maintenanceMode && bypassMaintenance && (
+        {systemSettings.maintenanceMode && bypassMaintenance && !isAdminPage && (
           <div style={{ backgroundColor:'var(--primary-red)', color:'#fff', padding:'8px 16px', textAlign:'center', fontSize:'13px', fontWeight:'700', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', position:'sticky', top:'64px', zIndex:999 }}>
             <span>🛠️ Maintenance Mode is Active — You are viewing the site with Admin Bypass.</span>
             <button onClick={() => setBypassMaintenance(false)} style={{ backgroundColor:'rgba(255,255,255,0.2)', color:'#fff', padding:'2px 8px', borderRadius:'4px', fontSize:'11px', fontWeight:'800', border:'none', cursor:'pointer' }}>Exit Bypass Mode</button>
@@ -730,7 +738,7 @@ function App() {
           />
         )}
 
-        <main className="main-content" style={{ marginTop:'64px', flex: 1 }}>
+        <main className={isAdminPage ? "main-content admin-mode" : "main-content"} style={{ marginTop: isAdminPage ? '0px' : '64px', flex: 1 }}>
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />

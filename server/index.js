@@ -367,6 +367,111 @@ app.post('/api/admin/tools', async (req, res, next) => {
   }
 });
 
+// Dedicated Node.js endpoint to update Menu Set / Tool details & content
+app.post('/api/admin/menu-tool', async (req, res, next) => {
+  try {
+    const { toolId, updates } = req.body || {};
+    if (!toolId) {
+      return res.status(400).json({ error: 'toolId is required' });
+    }
+
+    // 1. Fetch current toolsInformation from SQLite site_content
+    const contentRows = await dbQuery('SELECT val FROM site_content WHERE key = ?', ['toolsInformation']);
+    let toolsInformation = {};
+    if (contentRows[0] && contentRows[0].val) {
+      try {
+        toolsInformation = JSON.parse(contentRows[0].val);
+      } catch (e) {}
+    }
+
+    // 2. Merge updates
+    toolsInformation[toolId] = {
+      ...(toolsInformation[toolId] || {}),
+      ...updates
+    };
+
+    // 3. Save back to SQLite site_content
+    await dbRun(
+      'INSERT INTO site_content (key, val) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET val = excluded.val',
+      ['toolsInformation', JSON.stringify(toolsInformation)]
+    );
+
+    // 4. If toolActive is passed, update tools_config in SQLite
+    if (updates.toolActive !== undefined) {
+      const isEnabled = updates.toolActive ? 1 : 0;
+      await dbRun(
+        'INSERT INTO tools_config (tool_id, enabled, maxFileSizeMb) VALUES (?, ?, 50) ON CONFLICT(tool_id) DO UPDATE SET enabled = excluded.enabled',
+        [toolId, isEnabled]
+      );
+    }
+
+    // 5. Persist to server/db.json
+    const jsonDbPath = path.join(__dirname, 'db.json');
+    if (fs.existsSync(jsonDbPath)) {
+      try {
+        const fullDb = JSON.parse(fs.readFileSync(jsonDbPath, 'utf8'));
+        if (!fullDb.siteContent) fullDb.siteContent = {};
+        fullDb.siteContent.toolsInformation = toolsInformation;
+        if (!fullDb.toolsConfig) fullDb.toolsConfig = {};
+        if (updates.toolActive !== undefined) {
+          fullDb.toolsConfig[toolId] = {
+            ...(fullDb.toolsConfig[toolId] || {}),
+            enabled: !!updates.toolActive,
+            maxFileSizeMb: fullDb.toolsConfig[toolId]?.maxFileSizeMb || 50
+          };
+        }
+        fs.writeFileSync(jsonDbPath, JSON.stringify(fullDb, null, 2), 'utf8');
+      } catch (e) {
+        console.error('Failed to update db.json in /api/admin/menu-tool:', e);
+      }
+    }
+
+    res.json({
+      success: true,
+      toolId,
+      updatedInfo: toolsInformation[toolId],
+      toolsInformation
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Dedicated Node.js endpoint to update Legal Content (Privacy Policy or Terms & Conditions)
+app.post('/api/admin/legal-content', async (req, res, next) => {
+  try {
+    const { type, content } = req.body || {};
+    if (!type || !['privacyPolicy', 'termsAndConditions'].includes(type)) {
+      return res.status(400).json({ error: 'Valid type (privacyPolicy or termsAndConditions) is required' });
+    }
+
+    const valStr = JSON.stringify(content || {});
+
+    // 1. Update SQLite site_content table
+    await dbRun(
+      'INSERT INTO site_content (key, val) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET val = excluded.val',
+      [type, valStr]
+    );
+
+    // 2. Persist to server/db.json
+    const jsonDbPath = path.join(__dirname, 'db.json');
+    if (fs.existsSync(jsonDbPath)) {
+      try {
+        const fullDb = JSON.parse(fs.readFileSync(jsonDbPath, 'utf8'));
+        if (!fullDb.siteContent) fullDb.siteContent = {};
+        fullDb.siteContent[type] = content;
+        fs.writeFileSync(jsonDbPath, JSON.stringify(fullDb, null, 2), 'utf8');
+      } catch (e) {
+        console.error('Failed to update db.json in legal-content:', e);
+      }
+    }
+
+    res.json({ success: true, type, content });
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.post('/api/admin/settings', async (req, res, next) => {
   try {
     const s = req.body || {};
