@@ -18,7 +18,7 @@ export const IMAGE_FOOTER_COLUMNS = [
     id: 'col-legal',
     title: 'LEGAL',
     links: [
-      { label: 'Security', url: '/privacy' },
+      { label: 'Security', url: '/security' },
       { label: 'Privacy policy', url: '/privacy' },
       { label: 'Terms & conditions', url: '/terms' },
       { label: 'Cookies', url: '/privacy' }
@@ -28,10 +28,10 @@ export const IMAGE_FOOTER_COLUMNS = [
     id: 'col-company',
     title: 'COMPANY',
     links: [
-      { label: 'About us', url: '/contact' },
+      { label: 'About us', url: '/about' },
       { label: 'Contact us', url: '/contact' },
-      { label: 'Blog', url: '/help' },
-      { label: 'Press', url: '/contact' }
+      { label: 'Blog', url: '/blog' },
+      { label: 'Press', url: '/press' }
     ]
   }
 ];

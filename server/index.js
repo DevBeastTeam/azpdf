@@ -327,11 +327,12 @@ app.post('/api/admin/site-content', async (req, res, next) => {
         console.error('Failed to update db.json file:', e);
       }
     }
-    res.json({ success: true, siteContent: newContent });
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }
 });
+
 
 app.post('/api/admin/users', async (req, res, next) => {
   try {
@@ -441,8 +442,9 @@ app.post('/api/admin/menu-tool', async (req, res, next) => {
 app.post('/api/admin/legal-content', async (req, res, next) => {
   try {
     const { type, content } = req.body || {};
-    if (!type || !['privacyPolicy', 'termsAndConditions'].includes(type)) {
-      return res.status(400).json({ error: 'Valid type (privacyPolicy or termsAndConditions) is required' });
+    const validTypes = ['privacyPolicy', 'termsAndConditions', 'securityPage', 'aboutUs', 'blogPage', 'pressPage'];
+    if (!type || !validTypes.includes(type)) {
+      return res.status(400).json({ error: `Valid type (${validTypes.join(', ')}) is required` });
     }
 
     const valStr = JSON.stringify(content || {});

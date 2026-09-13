@@ -5,12 +5,19 @@ import {
   Database, Clock, ArrowLeft, RefreshCw, Download, Save, CheckCircle, AlertTriangle, Smartphone, Eye, EyeOff,
   Layout, Globe, ExternalLink, Link as LinkIcon, Mail, MessageSquare, Phone, Building, Calendar, Check, Reply, Send,
   Sun, Moon, Sliders, ChevronRight, RotateCcw, CheckCircle2, ToggleLeft, ToggleRight, BookOpen, List,
-  Bell, Shield, Scale
+  Bell, Shield, Scale, Newspaper, Target, Sparkles, Heart, Lock
 } from 'lucide-react';
 import StoreBadges from './StoreBadges';
 import { toolsData } from './ToolsGrid';
 import { TOOL_INFORMATION } from '../data/toolInformation';
-import { defaultPrivacyPolicy, defaultTermsAndConditions } from '../data/legalPagesData';
+import { 
+  defaultPrivacyPolicy, 
+  defaultTermsAndConditions,
+  defaultSecurityPage,
+  defaultAboutUs,
+  defaultBlogPage,
+  defaultPressPage
+} from '../data/legalPagesData';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -269,31 +276,53 @@ export default function AdminPanel({
     });
   }, [menuSetSearch, menuSetFilter, siteContent, toolsConfig]);
 
-  // ─── Legal Pages Manager (Privacy Policy & Terms) State ──────
-  const [legalSubTab, setLegalSubTab] = useState('privacy'); // 'privacy' | 'terms'
+  // ─── Pages & Legal Content Manager State ──────
+  const [legalSubTab, setLegalSubTab] = useState('security'); // 'security' | 'privacy' | 'terms' | 'about' | 'blog' | 'press'
+  const [securityForm, setSecurityForm] = useState(siteContent?.securityPage || defaultSecurityPage);
   const [privacyForm, setPrivacyForm] = useState(siteContent?.privacyPolicy || defaultPrivacyPolicy);
   const [termsForm, setTermsForm] = useState(siteContent?.termsAndConditions || defaultTermsAndConditions);
+  const [aboutForm, setAboutForm] = useState(siteContent?.aboutUs || defaultAboutUs);
+  const [blogForm, setBlogForm] = useState(siteContent?.blogPage || defaultBlogPage);
+  const [pressForm, setPressForm] = useState(siteContent?.pressPage || defaultPressPage);
   const [isSavingLegal, setIsSavingLegal] = useState(false);
   const [legalSuccessMsg, setLegalSuccessMsg] = useState('');
 
   // Sync with siteContent when it updates
   useEffect(() => {
-    if (siteContent?.privacyPolicy) {
-      setPrivacyForm(siteContent.privacyPolicy);
-    }
-  }, [siteContent?.privacyPolicy]);
-
+    if (siteContent?.securityPage) setSecurityForm(siteContent.securityPage);
+  }, [siteContent?.securityPage]);
   useEffect(() => {
-    if (siteContent?.termsAndConditions) {
-      setTermsForm(siteContent.termsAndConditions);
-    }
+    if (siteContent?.privacyPolicy) setPrivacyForm(siteContent.privacyPolicy);
+  }, [siteContent?.privacyPolicy]);
+  useEffect(() => {
+    if (siteContent?.termsAndConditions) setTermsForm(siteContent.termsAndConditions);
   }, [siteContent?.termsAndConditions]);
+  useEffect(() => {
+    if (siteContent?.aboutUs) setAboutForm(siteContent.aboutUs);
+  }, [siteContent?.aboutUs]);
+  useEffect(() => {
+    if (siteContent?.blogPage) setBlogForm(siteContent.blogPage);
+  }, [siteContent?.blogPage]);
+  useEffect(() => {
+    if (siteContent?.pressPage) setPressForm(siteContent.pressPage);
+  }, [siteContent?.pressPage]);
 
   const handleSaveLegal = async (type) => {
     setIsSavingLegal(true);
-    const content = type === 'privacy' ? privacyForm : termsForm;
-    const typeKey = type === 'privacy' ? 'privacyPolicy' : 'termsAndConditions';
-    const label = type === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions';
+    let content, typeKey, label;
+    if (type === 'security') {
+      content = securityForm; typeKey = 'securityPage'; label = 'Security Page';
+    } else if (type === 'privacy') {
+      content = privacyForm; typeKey = 'privacyPolicy'; label = 'Privacy Policy';
+    } else if (type === 'terms') {
+      content = termsForm; typeKey = 'termsAndConditions'; label = 'Terms & Conditions';
+    } else if (type === 'about') {
+      content = aboutForm; typeKey = 'aboutUs'; label = 'About Us';
+    } else if (type === 'blog') {
+      content = blogForm; typeKey = 'blogPage'; label = 'Blog Page';
+    } else if (type === 'press') {
+      content = pressForm; typeKey = 'pressPage'; label = 'Press Center';
+    }
 
     try {
       const res = await fetch('/api/admin/legal-content', {
@@ -316,7 +345,7 @@ export default function AdminPanel({
         }));
       }
 
-      setLegalSuccessMsg(`${label} published successfully to Node.js backend! Live page updated.`);
+      setLegalSuccessMsg(`${label} published successfully! Live page updated.`);
       setTimeout(() => setLegalSuccessMsg(''), 4500);
     } catch (e) {
       console.error(e);
@@ -327,13 +356,14 @@ export default function AdminPanel({
   };
 
   const handleResetLegal = (type) => {
-    const label = type === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions';
-    if (type === 'privacy') {
-      setPrivacyForm(defaultPrivacyPolicy);
-    } else {
-      setTermsForm(defaultTermsAndConditions);
-    }
-    setLegalSuccessMsg(`Reset ${label} to original default template. Click "Save & Publish" to apply.`);
+    if (type === 'security') setSecurityForm(defaultSecurityPage);
+    else if (type === 'privacy') setPrivacyForm(defaultPrivacyPolicy);
+    else if (type === 'terms') setTermsForm(defaultTermsAndConditions);
+    else if (type === 'about') setAboutForm(defaultAboutUs);
+    else if (type === 'blog') setBlogForm(defaultBlogPage);
+    else if (type === 'press') setPressForm(defaultPressPage);
+
+    setLegalSuccessMsg(`Reset to original default template. Click "Save & Publish" to apply.`);
     setTimeout(() => setLegalSuccessMsg(''), 4500);
   };
 
@@ -397,6 +427,80 @@ export default function AdminPanel({
       ...prev,
       sections: (prev.sections || []).map(s => s.id === secId ? { ...s, [field]: val } : s)
     }));
+  };
+
+  // Security Helpers
+  const handleAddSecuritySection = () => {
+    const nextNum = (securityForm.sections?.length || 0) + 1;
+    const newSec = { id: Date.now(), title: `${nextNum}. New Security Clause`, body: 'Security protocol details here...' };
+    setSecurityForm(prev => ({ ...prev, sections: [...(prev.sections || []), newSec] }));
+  };
+  const handleRemoveSecuritySection = (id) => {
+    setSecurityForm(prev => ({ ...prev, sections: (prev.sections || []).filter(s => s.id !== id) }));
+  };
+  const handleUpdateSecuritySection = (id, field, val) => {
+    setSecurityForm(prev => ({ ...prev, sections: (prev.sections || []).map(s => s.id === id ? { ...s, [field]: val } : s) }));
+  };
+  const handleUpdateSecurityBadge = (id, field, val) => {
+    setSecurityForm(prev => ({ ...prev, badges: (prev.badges || []).map(b => b.id === id ? { ...b, [field]: val } : b) }));
+  };
+
+  // About Us Helpers
+  const handleUpdateAboutStat = (id, field, val) => {
+    setAboutForm(prev => ({ ...prev, stats: (prev.stats || []).map(s => s.id === id ? { ...s, [field]: val } : s) }));
+  };
+  const handleAddAboutValue = () => {
+    const newVal = { id: Date.now(), title: 'Core Principle', desc: 'Description of our values...' };
+    setAboutForm(prev => ({ ...prev, values: [...(prev.values || []), newVal] }));
+  };
+  const handleRemoveAboutValue = (id) => {
+    setAboutForm(prev => ({ ...prev, values: (prev.values || []).filter(v => v.id !== id) }));
+  };
+  const handleUpdateAboutValue = (id, field, val) => {
+    setAboutForm(prev => ({ ...prev, values: (prev.values || []).map(v => v.id === id ? { ...v, [field]: val } : v) }));
+  };
+
+  // Blog Helpers
+  const handleAddBlogPost = () => {
+    const newPost = {
+      id: Date.now(),
+      title: 'New PDF Productivity Article',
+      category: 'Tutorials',
+      date: 'Just now',
+      readTime: '3 min read',
+      author: 'azPDF Team',
+      summary: 'Summary of the new post...',
+      body: 'Detailed body text of the article goes here...'
+    };
+    setBlogForm(prev => ({ ...prev, posts: [newPost, ...(prev.posts || [])] }));
+  };
+  const handleRemoveBlogPost = (id) => {
+    setBlogForm(prev => ({ ...prev, posts: (prev.posts || []).filter(p => p.id !== id) }));
+  };
+  const handleUpdateBlogPost = (id, field, val) => {
+    setBlogForm(prev => ({ ...prev, posts: (prev.posts || []).map(p => p.id === id ? { ...p, [field]: val } : p) }));
+  };
+
+  // Press Helpers
+  const handleAddPressRelease = () => {
+    const newPR = { id: Date.now(), date: 'Just now', title: 'New Official Press Release', excerpt: 'Brief media excerpt...' };
+    setPressForm(prev => ({ ...prev, pressReleases: [newPR, ...(prev.pressReleases || [])] }));
+  };
+  const handleRemovePressRelease = (id) => {
+    setPressForm(prev => ({ ...prev, pressReleases: (prev.pressReleases || []).filter(pr => pr.id !== id) }));
+  };
+  const handleUpdatePressRelease = (id, field, val) => {
+    setPressForm(prev => ({ ...prev, pressReleases: (prev.pressReleases || []).map(pr => pr.id === id ? { ...pr, [field]: val } : pr) }));
+  };
+  const handleAddBrandAsset = () => {
+    const newAsset = { id: Date.now(), name: 'Brand Asset Kit (Vector)', format: 'ZIP Archive', size: '2.5 MB' };
+    setPressForm(prev => ({ ...prev, brandAssets: [...(prev.brandAssets || []), newAsset] }));
+  };
+  const handleRemoveBrandAsset = (id) => {
+    setPressForm(prev => ({ ...prev, brandAssets: (prev.brandAssets || []).filter(a => a.id !== id) }));
+  };
+  const handleUpdateBrandAsset = (id, field, val) => {
+    setPressForm(prev => ({ ...prev, brandAssets: (prev.brandAssets || []).map(a => a.id === id ? { ...a, [field]: val } : a) }));
   };
 
   // Email Reply Modal State & Handlers
@@ -1345,13 +1449,15 @@ export default function AdminPanel({
 
           {/* Navigation Links */}
           <div className="admin-nav-links" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '6px 12px 2px' }}>
+              Platform
+            </div>
             {[
               { id: 'overview', label: 'Dashboard Overview', icon: <Activity size={18} /> },
               { id: 'menuset', label: 'Menu Set', icon: <Sliders size={18} /> },
               { id: 'messages', label: 'Contact Messages', icon: <Mail size={18} />, badge: unreadMessagesCount },
               { id: 'footer', label: 'Footer Manager', icon: <Layout size={18} /> },
               { id: 'content', label: 'Home Page Content', icon: <Edit size={18} /> },
-              { id: 'legal', label: 'Privacy & Terms', icon: <Scale size={18} /> },
               { id: 'users', label: 'User Accounts', icon: <Users size={18} /> },
               { id: 'tools', label: 'PDF Tools Config', icon: <Settings size={18} /> },
               { id: 'files', label: 'Platform Files', icon: <FileText size={18} /> },
@@ -1368,13 +1474,13 @@ export default function AdminPanel({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '12px 14px',
+                  padding: '9px 14px',
                   borderRadius: '10px',
                   border: 'none',
                   backgroundColor: activeTab === tab.id ? 'var(--primary-red)' : 'transparent',
                   color: activeTab === tab.id ? '#ffffff' : 'var(--text-gray)',
                   fontWeight: activeTab === tab.id ? '700' : '500',
-                  fontSize: '14px',
+                  fontSize: '13.5px',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.2s',
@@ -1398,6 +1504,62 @@ export default function AdminPanel({
                 )}
               </button>
             ))}
+
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '14px 12px 2px' }}>
+              Pages Management
+            </div>
+            {[
+              { id: 'security', label: 'Security', icon: <Shield size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('security'); } },
+              { id: 'privacy', label: 'Privacy Policy', icon: <Scale size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('privacy'); } },
+              { id: 'terms', label: 'Terms & Conditions', icon: <FileText size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('terms'); } },
+              { id: 'about', label: 'About Us', icon: <Heart size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('about'); } },
+              { id: 'contact', label: 'Contact Us', icon: <Mail size={18} />, badge: unreadMessagesCount, action: () => setActiveTab('messages') },
+              { id: 'blog', label: 'Blog', icon: <BookOpen size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('blog'); } },
+              { id: 'press', label: 'Press', icon: <Newspaper size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('press'); } },
+            ].map(tab => {
+              const isCurrent = tab.id === 'contact' 
+                ? activeTab === 'messages' 
+                : (activeTab === 'legal' && legalSubTab === tab.id);
+              return (
+                <button
+                  key={tab.id}
+                  onClick={tab.action}
+                  className={`admin-nav-btn ${isCurrent ? 'active' : ''}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: isCurrent ? 'var(--primary-red)' : 'transparent',
+                    color: isCurrent ? '#ffffff' : 'var(--text-gray)',
+                    fontWeight: isCurrent ? '700' : '500',
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                    width: '100%'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {tab.icon} {tab.label}
+                  </span>
+                  {tab.badge > 0 && (
+                    <span style={{
+                      backgroundColor: isCurrent ? '#ffffff' : 'var(--primary-red)',
+                      color: isCurrent ? 'var(--primary-red)' : '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '2px 7px',
+                      borderRadius: '10px'
+                    }}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -5261,7 +5423,13 @@ export default function AdminPanel({
               </div>
 
               <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>
-                Viewing: <strong style={{ color: 'var(--text-dark)' }}>{legalSubTab === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions'}</strong>
+                Managing: <strong style={{ color: 'var(--text-dark)' }}>
+                  {legalSubTab === 'security' ? 'Security & Data Protection' :
+                   legalSubTab === 'privacy' ? 'Privacy Policy' :
+                   legalSubTab === 'terms' ? 'Terms & Conditions' :
+                   legalSubTab === 'about' ? 'About Us' :
+                   legalSubTab === 'blog' ? 'Blog & Articles' : 'Press & Media'}
+                </strong>
               </div>
             </div>
 
@@ -5276,63 +5444,55 @@ export default function AdminPanel({
             }}>
               <div>
                 <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                  Privacy Policy & Terms Content Manager
+                  Pages & Legal Content Manager
                 </h1>
                 <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
-                  Customize, update clauses, add or remove sections, and manage live legal pages with full Node.js & SQLite database persistence.
+                  Customize, update clauses, add or remove sections, and manage live pages with full Node.js & SQLite database persistence.
                 </p>
               </div>
 
-              {/* Sub-tabs: Privacy Policy vs Terms & Conditions */}
+              {/* Sub-tabs: 6 Dedicated Pages */}
               <div style={{
-                display: 'inline-flex',
+                display: 'flex',
+                flexWrap: 'wrap',
                 alignItems: 'center',
+                gap: '6px',
                 backgroundColor: 'var(--bg-card)',
                 border: '1px solid var(--border-light)',
                 borderRadius: '12px',
                 padding: '4px',
                 boxShadow: 'var(--shadow-sm)'
               }}>
-                <button
-                  type="button"
-                  onClick={() => setLegalSubTab('privacy')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 18px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: legalSubTab === 'privacy' ? 'var(--primary-red)' : 'transparent',
-                    color: legalSubTab === 'privacy' ? '#ffffff' : 'var(--text-gray)',
-                    fontWeight: '700',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <Shield size={16} /> Privacy Policy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLegalSubTab('terms')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 18px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: legalSubTab === 'terms' ? 'var(--primary-red)' : 'transparent',
-                    color: legalSubTab === 'terms' ? '#ffffff' : 'var(--text-gray)',
-                    fontWeight: '700',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <Scale size={16} /> Terms & Conditions
-                </button>
+                {[
+                  { id: 'security', label: 'Security', icon: <Shield size={15} /> },
+                  { id: 'privacy', label: 'Privacy Policy', icon: <Lock size={15} /> },
+                  { id: 'terms', label: 'Terms', icon: <Scale size={15} /> },
+                  { id: 'about', label: 'About Us', icon: <Heart size={15} /> },
+                  { id: 'blog', label: 'Blog Posts', icon: <BookOpen size={15} /> },
+                  { id: 'press', label: 'Press Media', icon: <Newspaper size={15} /> },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setLegalSubTab(tab.id)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: legalSubTab === tab.id ? 'var(--primary-red)' : 'transparent',
+                      color: legalSubTab === tab.id ? '#ffffff' : 'var(--text-gray)',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {tab.icon} {tab.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -5367,392 +5527,338 @@ export default function AdminPanel({
               {/* ─── LEFT COLUMN: EDITING FORM ─── */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-                {/* Card 1: Page Meta Details */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  boxShadow: 'var(--shadow-sm)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        backgroundColor: 'var(--border-light)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--primary-red)'
-                      }}>
-                        {legalSubTab === 'privacy' ? <Shield size={20} /> : <Scale size={20} />}
-                      </div>
-                      <div>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                          {legalSubTab === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions'} Page Meta
-                        </h3>
-                        <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>
-                          Header titles, legal update timestamps, and support email
-                        </div>
-                      </div>
-                    </div>
-
-                    <a
-                      href={legalSubTab === 'privacy' ? '/privacy' : '/terms'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-light)',
-                        color: 'var(--text-dark)',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        textDecoration: 'none'
-                      }}
-                    >
-                      <ExternalLink size={14} /> Open Live Page
-                    </a>
-                  </div>
-
-                  {/* Page Title */}
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                      Page Title
-                    </label>
-                    <input
-                      type="text"
-                      value={legalSubTab === 'privacy' ? (privacyForm.title || '') : (termsForm.title || '')}
-                      onChange={e => {
-                        const val = e.target.value;
-                        if (legalSubTab === 'privacy') {
-                          setPrivacyForm(prev => ({ ...prev, title: val }));
-                        } else {
-                          setTermsForm(prev => ({ ...prev, title: val }));
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-light)',
-                        color: 'var(--text-dark)',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-
-                  {/* Last Updated / Subtitle */}
-                  <div style={{ marginBottom: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                      Last Updated / Policy Subtitle
-                    </label>
-                    <input
-                      type="text"
-                      value={legalSubTab === 'privacy' ? (privacyForm.lastUpdated || '') : (termsForm.lastUpdated || '')}
-                      onChange={e => {
-                        const val = e.target.value;
-                        if (legalSubTab === 'privacy') {
-                          setPrivacyForm(prev => ({ ...prev, lastUpdated: val }));
-                        } else {
-                          setTermsForm(prev => ({ ...prev, lastUpdated: val }));
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-light)',
-                        color: 'var(--text-dark)',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-
-                  {/* Contact Legal Email */}
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                      Legal / Privacy Contact Email
-                    </label>
-                    <input
-                      type="email"
-                      value={legalSubTab === 'privacy' ? (privacyForm.contactEmail || '') : (termsForm.contactEmail || '')}
-                      onChange={e => {
-                        const val = e.target.value;
-                        if (legalSubTab === 'privacy') {
-                          setPrivacyForm(prev => ({ ...prev, contactEmail: val }));
-                        } else {
-                          setTermsForm(prev => ({ ...prev, contactEmail: val }));
-                        }
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-light)',
-                        color: 'var(--text-dark)',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Card 2: Privacy Policy Security Highlights (Only for Privacy Policy) */}
-                {legalSubTab === 'privacy' && (
-                  <div style={{
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: '16px',
-                    padding: '24px',
-                    boxShadow: 'var(--shadow-sm)'
-                  }}>
-                    <div style={{ marginBottom: '16px' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                        Security & Trust Highlights
+                {/* 1. SECURITY SUB-TAB */}
+                {legalSubTab === 'security' && (
+                  <>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>
+                        Security Page Header & Contact
                       </h3>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>
-                        Featured badges displayed in a 4-column grid above privacy sections
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
+                          <input type="text" value={securityForm.title || ''} onChange={e => setSecurityForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated / Subtitle</label>
+                          <input type="text" value={securityForm.lastUpdated || ''} onChange={e => setSecurityForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Security Contact Email</label>
+                          <input type="email" value={securityForm.contactEmail || ''} onChange={e => setSecurityForm(p => ({ ...p, contactEmail: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-                      {(privacyForm.highlights || []).map((h, idx) => (
-                        <div key={h.id || idx} style={{
-                          backgroundColor: 'var(--bg-light)',
-                          border: '1px solid var(--border-light)',
-                          borderRadius: '12px',
-                          padding: '14px'
-                        }}>
-                          <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary-red)', marginBottom: '6px' }}>
-                            Badge #{idx + 1}
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>
+                        Security Badges & Compliance Standards
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        {(securityForm.badges || []).map((b) => (
+                          <div key={b.id} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                            <input type="text" value={b.title || ''} onChange={e => handleUpdateSecurityBadge(b.id, 'title', e.target.value)} placeholder="Badge Title" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '12px', fontWeight: '700', boxSizing: 'border-box' }} />
+                            <input type="text" value={b.desc || ''} onChange={e => handleUpdateSecurityBadge(b.id, 'desc', e.target.value)} placeholder="Badge Description" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '11px', boxSizing: 'border-box' }} />
                           </div>
-                          <div style={{ marginBottom: '8px' }}>
-                            <input
-                              type="text"
-                              value={h.label || ''}
-                              onChange={e => handleUpdatePrivacyHighlight(h.id, 'label', e.target.value)}
-                              placeholder="Badge Title"
-                              style={{
-                                width: '100%',
-                                padding: '6px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-card)',
-                                color: 'var(--text-dark)',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                boxSizing: 'border-box'
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <input
-                              type="text"
-                              value={h.desc || ''}
-                              onChange={e => handleUpdatePrivacyHighlight(h.id, 'desc', e.target.value)}
-                              placeholder="Brief description"
-                              style={{
-                                width: '100%',
-                                padding: '6px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-card)',
-                                color: 'var(--text-gray)',
-                                fontSize: '11px',
-                                fontWeight: '500',
-                                boxSizing: 'border-box'
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Security Protocol Sections</h3>
+                        <button type="button" onClick={handleAddSecuritySection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          <Plus size={14} /> Add Section
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {(securityForm.sections || []).map((sec, idx) => (
+                          <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Section #{idx + 1}</span>
+                              <button type="button" onClick={() => handleRemoveSecuritySection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                            <input type="text" value={sec.title || ''} onChange={e => handleUpdateSecuritySection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                            <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdateSecuritySection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
 
-                {/* Card 3: Sections & Clauses Editor */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '16px',
-                  padding: '24px',
-                  boxShadow: 'var(--shadow-sm)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                        {legalSubTab === 'privacy' ? 'Privacy Policy Sections' : 'Terms & Conditions Clauses'}
-                      </h3>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>
-                        Manage headings, bullet lists, and paragraphs.
+                {/* 2. PRIVACY SUB-TAB */}
+                {legalSubTab === 'privacy' && (
+                  <>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Privacy Policy Meta</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
+                          <input type="text" value={privacyForm.title || ''} onChange={e => setPrivacyForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated Note</label>
+                          <input type="text" value={privacyForm.lastUpdated || ''} onChange={e => setPrivacyForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Privacy Officer Email</label>
+                          <input type="email" value={privacyForm.contactEmail || ''} onChange={e => setPrivacyForm(p => ({ ...p, contactEmail: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={legalSubTab === 'privacy' ? handleAddPrivacySection : handleAddTermsSection}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 14px',
-                        borderRadius: '8px',
-                        backgroundColor: 'var(--bg-light)',
-                        color: 'var(--primary-red)',
-                        border: '1px solid var(--border-light)',
-                        fontWeight: '700',
-                        fontSize: '12px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Plus size={16} /> Add New Clause
-                    </button>
-                  </div>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Privacy Clauses</h3>
+                        <button type="button" onClick={handleAddPrivacySection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          <Plus size={14} /> Add Clause
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {(privacyForm.sections || []).map((sec, idx) => (
+                          <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Clause #{idx + 1}</span>
+                              <button type="button" onClick={() => handleRemovePrivacySection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                            <input type="text" value={sec.title || ''} onChange={e => handleUpdatePrivacySection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                            <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdatePrivacySection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
-                  {/* List of Sections */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                    {(legalSubTab === 'privacy' ? (privacyForm.sections || []) : (termsForm.sections || [])).map((sec, idx) => (
-                      <div
-                        key={sec.id || idx}
-                        style={{
-                          backgroundColor: 'var(--bg-light)',
-                          border: '1px solid var(--border-light)',
-                          borderRadius: '14px',
-                          padding: '16px',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-light-gray)' }}>
-                            Section #{idx + 1}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (legalSubTab === 'privacy') {
-                                handleRemovePrivacySection(sec.id);
-                              } else {
-                                handleRemoveTermsSection(sec.id);
-                              }
-                            }}
-                            title="Delete this section"
-                            style={{
-                              border: 'none',
-                              background: 'transparent',
-                              color: '#ef4444',
-                              cursor: 'pointer',
-                              padding: '4px 8px',
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              fontSize: '11px',
-                              fontWeight: '700'
-                            }}
-                          >
-                            <Trash2 size={14} /> Remove
-                          </button>
-                        </div>
-
-                        {/* Section Title */}
-                        <div style={{ marginBottom: '10px' }}>
-                          <input
-                            type="text"
-                            value={sec.title || ''}
-                            onChange={e => {
-                              if (legalSubTab === 'privacy') {
-                                handleUpdatePrivacySection(sec.id, 'title', e.target.value);
-                              } else {
-                                handleUpdateTermsSection(sec.id, 'title', e.target.value);
-                              }
-                            }}
-                            placeholder="Section Title (e.g. 1. Information We Collect)"
-                            style={{
-                              width: '100%',
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-card)',
-                              color: 'var(--text-dark)',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              boxSizing: 'border-box'
-                            }}
-                          />
-                        </div>
-
-                        {/* Section Body */}
+                {/* 3. TERMS SUB-TAB */}
+                {legalSubTab === 'terms' && (
+                  <>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Terms & Conditions Meta</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                         <div>
-                          <textarea
-                            rows={6}
-                            value={sec.body || ''}
-                            onChange={e => {
-                              if (legalSubTab === 'privacy') {
-                                handleUpdatePrivacySection(sec.id, 'body', e.target.value);
-                              } else {
-                                handleUpdateTermsSection(sec.id, 'body', e.target.value);
-                              }
-                            }}
-                            placeholder="Enter section content, bullet points, conditions, or instructions..."
-                            style={{
-                              width: '100%',
-                              padding: '10px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-card)',
-                              color: 'var(--text-dark)',
-                              fontSize: '12px',
-                              lineHeight: '1.6',
-                              fontFamily: 'inherit',
-                              resize: 'vertical',
-                              boxSizing: 'border-box'
-                            }}
-                          />
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Terms Title</label>
+                          <input type="text" value={termsForm.title || ''} onChange={e => setTermsForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated Note</label>
+                          <input type="text" value={termsForm.lastUpdated || ''} onChange={e => setTermsForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
 
-                  {/* Add Button at bottom of sections */}
-                  <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={legalSubTab === 'privacy' ? handleAddPrivacySection : handleAddTermsSection}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '10px 20px',
-                        borderRadius: '10px',
-                        backgroundColor: 'var(--bg-light)',
-                        color: 'var(--primary-red)',
-                        border: '1.5px dashed var(--border-light)',
-                        fontWeight: '700',
-                        fontSize: '13px',
-                        cursor: 'pointer',
-                        width: '100%',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Plus size={16} /> Add Another Section
-                    </button>
-                  </div>
-                </div>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Terms Sections</h3>
+                        <button type="button" onClick={handleAddTermsSection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          <Plus size={14} /> Add Section
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {(termsForm.sections || []).map((sec, idx) => (
+                          <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Clause #{idx + 1}</span>
+                              <button type="button" onClick={() => handleRemoveTermsSection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                            <input type="text" value={sec.title || ''} onChange={e => handleUpdateTermsSection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                            <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdateTermsSection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* 4. ABOUT US SUB-TAB */}
+                {legalSubTab === 'about' && (
+                  <>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>About Us Story & Mission</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
+                          <input type="text" value={aboutForm.title || ''} onChange={e => setAboutForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tagline</label>
+                          <input type="text" value={aboutForm.tagline || ''} onChange={e => setAboutForm(p => ({ ...p, tagline: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Mission Statement</label>
+                          <textarea rows={3} value={aboutForm.mission || ''} onChange={e => setAboutForm(p => ({ ...p, mission: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Our Story</label>
+                          <textarea rows={4} value={aboutForm.story || ''} onChange={e => setAboutForm(p => ({ ...p, story: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Platform Statistics</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        {(aboutForm.stats || []).map((s) => (
+                          <div key={s.id} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                            <input type="text" value={s.value || ''} onChange={e => handleUpdateAboutStat(s.id, 'value', e.target.value)} placeholder="Stat Value (e.g. 100M+)" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '13px', fontWeight: '800', color: 'var(--primary-red)', boxSizing: 'border-box' }} />
+                            <input type="text" value={s.label || ''} onChange={e => handleUpdateAboutStat(s.id, 'label', e.target.value)} placeholder="Label" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Core Principles & Values</h3>
+                        <button type="button" onClick={handleAddAboutValue} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          <Plus size={14} /> Add Principle
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {(aboutForm.values || []).map((v, idx) => (
+                          <div key={v.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Principle #{idx + 1}</span>
+                              <button type="button" onClick={() => handleRemoveAboutValue(v.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                            <input type="text" value={v.title || ''} onChange={e => handleUpdateAboutValue(v.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                            <textarea rows={2} value={v.desc || ''} onChange={e => handleUpdateAboutValue(v.id, 'desc', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* 5. BLOG MANAGER SUB-TAB */}
+                {legalSubTab === 'blog' && (
+                  <>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Blog Header</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Blog Title</label>
+                          <input type="text" value={blogForm.title || ''} onChange={e => setBlogForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Blog Subtitle</label>
+                          <input type="text" value={blogForm.subtitle || ''} onChange={e => setBlogForm(p => ({ ...p, subtitle: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Published Articles ({blogForm.posts?.length || 0})</h3>
+                        <button type="button" onClick={handleAddBlogPost} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', backgroundColor: 'var(--primary-red)', color: '#ffffff', border: 'none', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          <Plus size={14} /> Add New Article
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {(blogForm.posts || []).map((post, idx) => (
+                          <div key={post.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary-red)', textTransform: 'uppercase' }}>{post.category || 'Tutorials'}</span>
+                              <button type="button" onClick={() => handleRemoveBlogPost(post.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                            <input type="text" value={post.title || ''} onChange={e => handleUpdateBlogPost(post.id, 'title', e.target.value)} placeholder="Article Title" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                              <input type="text" value={post.category || ''} onChange={e => handleUpdateBlogPost(post.id, 'category', e.target.value)} placeholder="Category" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                              <input type="text" value={post.author || ''} onChange={e => handleUpdateBlogPost(post.id, 'author', e.target.value)} placeholder="Author" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                              <input type="text" value={post.readTime || ''} onChange={e => handleUpdateBlogPost(post.id, 'readTime', e.target.value)} placeholder="Read Time" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                            </div>
+                            <textarea rows={2} value={post.summary || ''} onChange={e => handleUpdateBlogPost(post.id, 'summary', e.target.value)} placeholder="Summary preview" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '12px', boxSizing: 'border-box' }} />
+                            <textarea rows={4} value={post.body || ''} onChange={e => handleUpdateBlogPost(post.id, 'body', e.target.value)} placeholder="Full Article Body" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* 6. PRESS & MEDIA SUB-TAB */}
+                {legalSubTab === 'press' && (
+                  <>
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Press Center Meta</h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Press Title</label>
+                          <input type="text" value={pressForm.title || ''} onChange={e => setPressForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Press Subtitle</label>
+                          <input type="text" value={pressForm.subtitle || ''} onChange={e => setPressForm(p => ({ ...p, subtitle: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Media Email</label>
+                            <input type="email" value={pressForm.mediaContact?.email || ''} onChange={e => setPressForm(p => ({ ...p, mediaContact: { ...(p.mediaContact || {}), email: e.target.value } }))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Office Hours</label>
+                            <input type="text" value={pressForm.mediaContact?.officeHours || ''} onChange={e => setPressForm(p => ({ ...p, mediaContact: { ...(p.mediaContact || {}), officeHours: e.target.value } }))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-light)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Official Press Releases</h3>
+                        <button type="button" onClick={handleAddPressRelease} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          <Plus size={14} /> Add Release
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {(pressForm.pressReleases || []).map((pr, idx) => (
+                          <div key={pr.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                              <input type="text" value={pr.date || ''} onChange={e => handleUpdatePressRelease(pr.id, 'date', e.target.value)} placeholder="Date" style={{ width: '160px', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '11px', fontWeight: '700', color: 'var(--primary-red)' }} />
+                              <button type="button" onClick={() => handleRemovePressRelease(pr.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                            <input type="text" value={pr.title || ''} onChange={e => handleUpdatePressRelease(pr.id, 'title', e.target.value)} placeholder="Release Title" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                            <textarea rows={2} value={pr.excerpt || ''} onChange={e => handleUpdatePressRelease(pr.id, 'excerpt', e.target.value)} placeholder="Excerpt..." style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Brand Asset Downloads</h3>
+                        <button type="button" onClick={handleAddBrandAsset} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                          <Plus size={14} /> Add Asset
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {(pressForm.brandAssets || []).map((asset, idx) => (
+                          <div key={asset.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                            <input type="text" value={asset.name || ''} onChange={e => handleUpdateBrandAsset(asset.id, 'name', e.target.value)} placeholder="Asset Name" style={{ flex: 2, padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px' }} />
+                            <input type="text" value={asset.format || ''} onChange={e => handleUpdateBrandAsset(asset.id, 'format', e.target.value)} placeholder="Format" style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px' }} />
+                            <input type="text" value={asset.size || ''} onChange={e => handleUpdateBrandAsset(asset.id, 'size', e.target.value)} placeholder="Size" style={{ width: '80px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px' }} />
+                            <button type="button" onClick={() => handleRemoveBrandAsset(asset.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Save & Reset Action Card */}
                 <div style={{
@@ -5787,7 +5893,7 @@ export default function AdminPanel({
                       cursor: 'pointer'
                     }}
                   >
-                    <RotateCcw size={15} /> Reset to Defaults
+                    <RotateCcw size={15} /> Reset {legalSubTab.toUpperCase()} to Defaults
                   </button>
 
                   <button
@@ -5818,7 +5924,7 @@ export default function AdminPanel({
                     ) : (
                       <>
                         <Save size={16} />
-                        Save & Publish to Node.js
+                        Save & Publish Changes
                       </>
                     )}
                   </button>
@@ -5858,8 +5964,8 @@ export default function AdminPanel({
                       Live User-Facing Preview
                     </span>
                   </div>
-                  <span style={{ fontSize: '11px', color: 'var(--text-light-gray)', fontWeight: '600' }}>
-                    {legalSubTab === 'privacy' ? '/privacy' : '/terms'}
+                  <span style={{ fontSize: '11px', color: 'var(--text-light-gray)', fontWeight: '700' }}>
+                    /{legalSubTab}
                   </span>
                 </div>
 
@@ -5882,77 +5988,103 @@ export default function AdminPanel({
                   </div>
                 </div>
 
-                {/* Simulated Page Header */}
-                <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-                  <div style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '12px',
-                    backgroundColor: 'var(--border-light)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--primary-red)',
-                    marginBottom: '12px'
-                  }}>
-                    {legalSubTab === 'privacy' ? <Shield size={24} /> : <Scale size={24} />}
-                  </div>
-                  <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', margin: '0 0 6px 0' }}>
-                    {legalSubTab === 'privacy' ? (privacyForm.title || 'Privacy Policy') : (termsForm.title || 'Terms and Conditions')}
-                  </h2>
-                  <p style={{ fontSize: '11px', color: 'var(--text-light-gray)', margin: 0 }}>
-                    {legalSubTab === 'privacy' ? (privacyForm.lastUpdated || '') : (termsForm.lastUpdated || '')}
-                  </p>
-                </div>
-
-                {/* Simulated Privacy Highlights Badges */}
-                {legalSubTab === 'privacy' && privacyForm.highlights && privacyForm.highlights.length > 0 && (
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
-                    gap: '10px',
-                    marginBottom: '24px'
-                  }}>
-                    {privacyForm.highlights.map((h, i) => (
-                      <div key={h.id || i} style={{
-                        backgroundColor: 'var(--bg-light)',
-                        borderRadius: '8px',
-                        padding: '10px',
-                        border: '1px solid var(--border-light)',
-                        textAlign: 'left'
-                      }}>
-                        <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '2px' }}>
-                          {h.label || 'Highlight'}
+                {/* Simulated Preview Rendering based on active subtab */}
+                {legalSubTab === 'security' && (
+                  <div>
+                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{securityForm.title}</h3>
+                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{securityForm.lastUpdated}</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '18px' }}>
+                      {(securityForm.badges || []).map(b => (
+                        <div key={b.id} style={{ backgroundColor: 'var(--bg-light)', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '700' }}>{b.title}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-gray)' }}>{b.desc}</div>
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-gray)' }}>
-                          {h.desc || ''}
-                        </div>
+                      ))}
+                    </div>
+                    {(securityForm.sections || []).map(s => (
+                      <div key={s.id} style={{ borderLeft: '2px solid var(--primary-red)', paddingLeft: '10px', marginBottom: '12px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Simulated Clauses / Sections */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', textAlign: 'left' }}>
-                  {(legalSubTab === 'privacy' ? (privacyForm.sections || []) : (termsForm.sections || [])).map((s, i) => (
-                    <div key={s.id || i} style={{
-                      paddingBottom: '14px',
-                      borderBottom: '1px solid var(--border-light)'
-                    }}>
-                      <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                        {s.title || `Section ${i + 1}`}
+                {legalSubTab === 'privacy' && (
+                  <div>
+                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{privacyForm.title}</h3>
+                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{privacyForm.lastUpdated}</p>
+                    {(privacyForm.sections || []).map(s => (
+                      <div key={s.id} style={{ marginBottom: '14px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
                       </div>
-                      <div style={{
-                        fontSize: '11px',
-                        lineHeight: '1.6',
-                        color: 'var(--text-gray)',
-                        whiteSpace: 'pre-line'
-                      }}>
-                        {s.body || ''}
+                    ))}
+                  </div>
+                )}
+
+                {legalSubTab === 'terms' && (
+                  <div>
+                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{termsForm.title}</h3>
+                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{termsForm.lastUpdated}</p>
+                    {(termsForm.sections || []).map(s => (
+                      <div key={s.id} style={{ marginBottom: '14px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
                       </div>
+                    ))}
+                  </div>
+                )}
+
+                {legalSubTab === 'about' && (
+                  <div>
+                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{aboutForm.title}</h3>
+                    <p style={{ fontSize: '12px', color: 'var(--primary-red)', fontWeight: '700', marginBottom: '14px' }}>{aboutForm.tagline}</p>
+                    <div style={{ backgroundColor: 'rgba(229,36,36,0.05)', padding: '12px', borderRadius: '10px', fontSize: '12px', lineHeight: '1.5', marginBottom: '14px' }}>
+                      <strong>Mission:</strong> {aboutForm.mission}
                     </div>
-                  ))}
-                </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+                      {(aboutForm.stats || []).map(s => (
+                        <div key={s.id} style={{ backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '16px', fontWeight: '900', color: 'var(--primary-red)' }}>{s.value}</div>
+                          <div style={{ fontSize: '10px', fontWeight: '700' }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {legalSubTab === 'blog' && (
+                  <div>
+                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{blogForm.title}</h3>
+                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '14px' }}>{blogForm.subtitle}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {(blogForm.posts || []).slice(0, 3).map(p => (
+                        <div key={p.id} style={{ backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                          <span style={{ fontSize: '9px', fontWeight: '800', color: 'var(--primary-red)' }}>{p.category}</span>
+                          <div style={{ fontSize: '12px', fontWeight: '700', marginTop: '2px' }}>{p.title}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-gray)', marginTop: '4px' }}>{p.summary}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {legalSubTab === 'press' && (
+                  <div>
+                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{pressForm.title}</h3>
+                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '14px' }}>{pressForm.subtitle}</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {(pressForm.pressReleases || []).slice(0, 3).map(pr => (
+                        <div key={pr.id} style={{ backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--primary-red)' }}>{pr.date}</div>
+                          <div style={{ fontSize: '12px', fontWeight: '700', marginTop: '2px' }}>{pr.title}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-gray)', marginTop: '2px' }}>{pr.excerpt}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Simulated Contact Notice */}
                 <div style={{

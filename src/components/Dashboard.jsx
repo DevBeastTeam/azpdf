@@ -102,7 +102,7 @@ export default function Dashboard({
     // Priority 1: Use live currentUser prop from App.jsx (set on login)
     const u = currentUser || (() => {
       try {
-        const savedUser = localStorage.getItem('azpdf_active_user') || localStorage.getItem('azpdf_user');
+        const savedUser = sessionStorage.getItem('azpdf_user_session') || sessionStorage.getItem('azpdf_active_user');
         return savedUser ? JSON.parse(savedUser) : null;
       } catch (e) { return null; }
     })();
@@ -147,8 +147,8 @@ export default function Dashboard({
 
   const handleProfileSave = async () => {
     try {
-      // Persist updated profile back to localStorage so it survives page refresh
-      const stored = JSON.parse(localStorage.getItem('azpdf_active_user') || '{}');
+      // Persist updated profile back to storage so it survives page refresh
+      const stored = JSON.parse(sessionStorage.getItem('azpdf_user_session') || '{}');
       const updated = {
         ...stored,
         name: `${profile.firstName} ${profile.lastName}`.trim(),
@@ -157,7 +157,7 @@ export default function Dashboard({
         bio: profile.bio,
         avatar: profile.avatarInitials,
       };
-      localStorage.setItem('azpdf_active_user', JSON.stringify(updated));
+      sessionStorage.setItem('azpdf_user_session', JSON.stringify(updated));
       // Also persist to backend DB
       await fetch('/api/user/profile', {
         method: 'POST',
@@ -218,6 +218,8 @@ export default function Dashboard({
 
   const handleDeleteAccount = () => {
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      sessionStorage.removeItem('azpdf_user_session');
+      sessionStorage.removeItem('azpdf_active_user');
       localStorage.removeItem('azpdf_auth');
       localStorage.removeItem('azpdf_user');
       localStorage.removeItem('azpdf_active_user');

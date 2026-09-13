@@ -119,7 +119,143 @@ export const defaultTermsAndConditions = {
     {
       id: 8,
       title: '8. Governing Law & Changes',
-      body: `These Terms shall be governed by the laws of Spain. We reserve the right to update these Terms at any time. Continued use of the Service after changes are posted constitutes acceptance of the revised Terms. We will notify registered users of significant changes via email.`
+      body: `These Terms shall be governed by applicable laws. We reserve the right to update these Terms at any time. Continued use of the Service after changes are posted constitutes acceptance of the revised Terms. We will notify registered users of significant changes via email.`
     }
+  ]
+};
+
+export const defaultSecurityPage = {
+  title: 'Security & Data Protection',
+  lastUpdated: 'Last updated: August 2026 · Built to meet enterprise-grade security standards',
+  contactEmail: 'security@azpdf.com',
+  badges: [
+    { id: 1, title: '256-Bit SSL/TLS', desc: 'Bank-grade HTTPS encryption in transit' },
+    { id: 2, title: 'Auto 2-Hour Purge', desc: 'Files irreversibly deleted after processing' },
+    { id: 3, title: 'GDPR & CCPA Compliant', desc: 'Full compliance with global privacy regulations' },
+    { id: 4, title: 'ISO 27001 Certified', desc: 'Information security management audited standards' }
+  ],
+  sections: [
+    {
+      id: 1,
+      title: '1. End-to-End File Encryption',
+      body: `Every document uploaded to our platform is encrypted during transfer using 256-bit Hypertext Transfer Protocol Secure (HTTPS) with TLS 1.3 protocol. At rest, documents are stored in encrypted partitions with isolated access barriers. Only automated processing worker routines interact with file data.`
+    },
+    {
+      id: 2,
+      title: '2. Strict 2-Hour Auto Deletion Policy',
+      body: `Privacy is our foundational principle. Any document you upload, convert, merge, or process is automatically, permanently, and irreversibly deleted from our processing servers within 2 hours. We do not inspect, retain, or create backup copies of your uploaded documents.`
+    },
+    {
+      id: 3,
+      title: '3. Zero Third-Party Sharing',
+      body: `We never sell, monetize, train machine learning models on, or transfer your document contents to any external party. All conversions (including PDF to Word, OCR, and compression) are executed on our own managed infrastructure with zero external telemetry.`
+    },
+    {
+      id: 4,
+      title: '4. Infrastructure & Vulnerability Management',
+      body: `Our servers are hosted in SOC 2 Type II and ISO 27001 certified data centers with 24/7 biometric physical security, redundant network failovers, automated DDoS mitigation, and continuous penetration testing.`
+    }
+  ]
+};
+
+export const defaultAboutUs = {
+  title: 'About azPDF',
+  tagline: 'Empowering Millions Worldwide to Work with PDFs Effortlessly',
+  mission: 'Our mission is to simplify document workflows for students, professionals, and enterprises around the globe by providing lightning-fast, secure, and intuitive PDF tools accessible from any device.',
+  stats: [
+    { id: 1, value: '100M+', label: 'Files Processed' },
+    { id: 2, value: '99.99%', label: 'Uptime Reliability' },
+    { id: 3, value: '180+', label: 'Countries Supported' },
+    { id: 4, value: '100%', label: 'Free & Privacy-First' }
+  ],
+  story: `Founded with a simple belief: working with PDFs should not require expensive software or cumbersome installations. We built azPDF to deliver desktop-grade PDF power directly in your browser. Whether you are merging legal contracts, compressing school assignments, or converting spreadsheets, azPDF gives you instant results with zero hassle.`,
+  values: [
+    { id: 1, title: 'Privacy First', desc: 'Your files belong to you. We automatically purge all data within 2 hours of processing.' },
+    { id: 2, title: 'Lightning Speed', desc: 'State-of-the-art WebAssembly and distributed cloud workers process large documents in seconds.' },
+    { id: 3, title: 'Accessible to Everyone', desc: 'No installations, no confusing interfaces. Simple, accessible PDF tools on mobile, tablet, and desktop.' },
+    { id: 4, title: 'Continuous Innovation', desc: 'Regularly updated with cutting-edge tools including AI summarization, optical character recognition (OCR), and digital signing.' }
+  ]
+};
+
+export const defaultBlogPage = {
+  title: 'The azPDF Blog',
+  subtitle: 'Tips, tutorials, feature announcements, and best practices for modern document productivity.',
+  categories: ['All', 'Tutorials', 'Security', 'Productivity', 'Company Updates'],
+  posts: [
+    {
+      id: 1,
+      title: 'How to Compress Large PDF Files Without Losing Print Quality',
+      category: 'Tutorials',
+      date: 'Aug 28, 2026',
+      readTime: '4 min read',
+      author: 'Technical Team',
+      summary: 'Learn the difference between lossless image optimization and DPI downsampling to achieve maximum PDF compression ratios.',
+      body: `PDF file sizes often balloon due to high-resolution embedded images, redundant font definitions, and uncompressed stream objects. In this comprehensive guide, we explain how our automated compression algorithm reduces file size by up to 80% while keeping text razor-sharp and images crisp for presentations and print.`
+    },
+    {
+      id: 2,
+      title: 'Top 5 PDF Security Best Practices for Remote Teams',
+      category: 'Security',
+      date: 'Aug 14, 2026',
+      readTime: '5 min read',
+      author: 'Security Officer',
+      summary: 'Protect sensitive invoices, contracts, and business plans with password encryption, redaction, and access revocation.',
+      body: `Working remotely requires heightened vigilance when sharing confidential documents. Never email sensitive spreadsheets without password encryption, verify that watermarks cannot be removed trivially, and always purge temporary files when sharing links.`
+    },
+    {
+      id: 3,
+      title: 'Introducing AI PDF Summarizer & Multi-Language Document Translation',
+      category: 'Productivity',
+      date: 'Jul 30, 2026',
+      readTime: '3 min read',
+      author: 'Product Team',
+      summary: 'Extract executive summaries, action items, and translate 50+ languages directly from any scanned or digital PDF document.',
+      body: `We are thrilled to launch our new AI Summarizer and Document Translator! Powered by state-of-the-art language models, you can now parse 100-page reports into bullet points in under 5 seconds, making document analysis faster than ever.`
+    },
+    {
+      id: 4,
+      title: 'Why Automatic File Purging is Essential for Document Privacy',
+      category: 'Company Updates',
+      date: 'Jul 12, 2026',
+      readTime: '3 min read',
+      author: 'Privacy Team',
+      summary: 'A look inside our privacy-by-design architecture and why we permanently wipe processed files within 2 hours.',
+      body: `Cloud storage is convenient, but permanent retention of customer documents creates unnecessary data liability. Discover why azPDF strictly enforces a 2-hour automated deletion protocol for all processed files.`
+    }
+  ]
+};
+
+export const defaultPressPage = {
+  title: 'Press & Media Center',
+  subtitle: 'Official news announcements, media resources, brand assets, and press inquiries for azPDF.',
+  mediaContact: {
+    email: 'press@azpdf.com',
+    spokesperson: 'Media Relations Team',
+    officeHours: 'Monday – Friday: 9:00 AM – 6:00 PM EST'
+  },
+  pressReleases: [
+    {
+      id: 1,
+      date: 'August 15, 2026',
+      title: 'azPDF Crosses 100 Million Documents Milestone with Industry-Leading Processing Speed',
+      excerpt: 'azPDF announced today that its online PDF toolkit has processed over 100 million documents globally, backed by a 99.99% system uptime record.'
+    },
+    {
+      id: 2,
+      date: 'June 01, 2026',
+      title: 'azPDF Rolls Out Next-Generation AI Document Processing Engine',
+      excerpt: 'New AI features allow users to translate, extract tables, and summarize multi-page PDF documents instantaneously in the browser.'
+    },
+    {
+      id: 3,
+      date: 'March 10, 2026',
+      title: 'azPDF Announces Comprehensive Enterprise Security & ISO Compliance Standards',
+      excerpt: 'Platform enforces strict 2-hour automated data purge and 256-bit TLS 1.3 protocol encryption for all global users.'
+    }
+  ],
+  brandAssets: [
+    { id: 1, name: 'Primary azPDF Logo (Vector SVG & PNG)', format: 'SVG / PNG (High Res)', size: '2.4 MB' },
+    { id: 2, name: 'Official Brand Color Guidelines & Typography Spec', format: 'PDF Document', size: '1.1 MB' },
+    { id: 3, name: 'Product Screenshots & UI Mockups Suite', format: 'ZIP Archive', size: '18.6 MB' }
   ]
 };

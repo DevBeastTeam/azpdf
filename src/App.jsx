@@ -11,8 +11,19 @@ import TermsAndConditions from './components/TermsAndConditions';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import HelpAndSupport from './components/HelpAndSupport';
 import ToolWorkspace from './components/ToolWorkspace';
+import Security from './components/Security';
+import AboutUs from './components/AboutUs';
+import Blog from './components/Blog';
+import Press from './components/Press';
 import Footer from './components/Footer';
-import { defaultPrivacyPolicy, defaultTermsAndConditions } from './data/legalPagesData';
+import { 
+  defaultPrivacyPolicy, 
+  defaultTermsAndConditions, 
+  defaultSecurityPage, 
+  defaultAboutUs, 
+  defaultBlogPage, 
+  defaultPressPage 
+} from './data/legalPagesData';
 import { Eye, EyeOff } from 'lucide-react';
 import './App.css';
 
@@ -96,7 +107,7 @@ const defaultSiteContent = {
       id: 'col-legal',
       title: 'LEGAL',
       links: [
-        { label: 'Security', url: '/privacy' },
+        { label: 'Security', url: '/security' },
         { label: 'Privacy policy', url: '/privacy' },
         { label: 'Terms & conditions', url: '/terms' },
         { label: 'Cookies', url: '/privacy' }
@@ -106,10 +117,10 @@ const defaultSiteContent = {
       id: 'col-company',
       title: 'COMPANY',
       links: [
-        { label: 'About us', url: '/contact' },
+        { label: 'About us', url: '/about' },
         { label: 'Contact us', url: '/contact' },
-        { label: 'Blog', url: '/help' },
-        { label: 'Press', url: '/contact' }
+        { label: 'Blog', url: '/blog' },
+        { label: 'Press', url: '/press' }
       ]
     }
   ],
@@ -149,7 +160,11 @@ const defaultSiteContent = {
   },
   toolsInformation: {},
   privacyPolicy: defaultPrivacyPolicy,
-  termsAndConditions: defaultTermsAndConditions
+  termsAndConditions: defaultTermsAndConditions,
+  securityPage: defaultSecurityPage,
+  aboutUs: defaultAboutUs,
+  blogPage: defaultBlogPage,
+  pressPage: defaultPressPage
 };
 
 // ─── Home Page (combined hero + tools + pricing) ───────────────────────────────
@@ -337,9 +352,9 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
         const data = await res.json();
         setLoading(false);
         if (data.success) {
-          // Switch directly to Login popup so user logs in to reveal Dashboard
+          // First Step: Account created! Now transition to Login so user logs in with their password
           setMode('login');
-          setSuccessMsg('Account created successfully! Please enter your password to log in.');
+          setSuccessMsg('Account created successfully! Now please enter your password to log in.');
           setPassword('');
           setError('');
         } else {
@@ -446,12 +461,26 @@ function AuthModal({ initialMode = 'login', onClose, onSuccess }) {
   );
 }
 
+function RequireAuthRedirect({ onRequireAuth }) {
+  useEffect(() => {
+    if (onRequireAuth) onRequireAuth();
+  }, [onRequireAuth]);
+  return <Navigate to="/" replace />;
+}
+
 // ─── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [theme, setTheme] = useState('light');
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('azpdf_active_user');
+      // Clear legacy stale persistent storage keys so user starts logged out by default
+      localStorage.removeItem('azpdf_active_user');
+      localStorage.removeItem('azpdf_auth');
+      localStorage.removeItem('azpdf_user');
+      sessionStorage.removeItem('azpdf_active_user');
+
+      // Check sessionStorage (only persists if explicitly logged in during this active browser session)
+      const saved = sessionStorage.getItem('azpdf_user_session');
       if (saved) {
         const u = JSON.parse(saved);
         if (u && u.email) return u;
@@ -502,13 +531,27 @@ function App() {
               const hasValidFooterCols = Array.isArray(dbContent.footerColumns) &&
                 dbContent.footerColumns.length > 0 &&
                 dbContent.footerColumns.some(c => Array.isArray(c.links) && c.links.length > 0 && c.links[0].url && c.links[0].url.length > 1);
+              
+              let finalFooterCols = prev.footerColumns;
+              if (hasValidFooterCols) {
+                finalFooterCols = dbContent.footerColumns.map(col => ({
+                  ...col,
+                  links: (col.links || []).map(lnk => {
+                    const lbl = (lnk.label || '').toLowerCase().trim();
+                    if (lbl === 'security' && lnk.url === '/privacy') return { ...lnk, url: '/security' };
+                    if (lbl === 'about us' && lnk.url === '/contact') return { ...lnk, url: '/about' };
+                    if (lbl === 'blog' && lnk.url === '/help') return { ...lnk, url: '/blog' };
+                    if (lbl === 'press' && lnk.url === '/contact') return { ...lnk, url: '/press' };
+                    return lnk;
+                  })
+                }));
+              }
               const hasValidFooterBtns = Array.isArray(dbContent.footerButtons) && dbContent.footerButtons.length > 0;
               const hasValidSocialLinks = dbContent.socialLinks && typeof dbContent.socialLinks === 'object' && Object.keys(dbContent.socialLinks).length > 0;
               return {
                 ...prev,
                 ...dbContent,
-                // Keep our working defaults if DB has empty/broken footer data
-                footerColumns: hasValidFooterCols ? dbContent.footerColumns : prev.footerColumns,
+                footerColumns: finalFooterCols,
                 footerButtons: hasValidFooterBtns ? dbContent.footerButtons : prev.footerButtons,
                 socialLinks: hasValidSocialLinks ? dbContent.socialLinks : prev.socialLinks,
                 appStoreBadges: dbContent.appStoreBadges || prev.appStoreBadges,
@@ -617,7 +660,7 @@ function App() {
     setCurrentUser(user);
     try {
       if (user) {
-        localStorage.setItem('azpdf_active_user', JSON.stringify(user));
+        sessionStorage.setItem('azpdf_user_session', JSON.stringify(user));
       }
     } catch (e) {
       console.error(e);
@@ -628,13 +671,15 @@ function App() {
         return exists ? prev : [user, ...prev];
       });
     }
-    navigate('/dashboard');
+    navigate('/');
   };
 
   const handleLogout = () => {
     setShowLogoutModal(false);
     setCurrentUser(null);
     try {
+      sessionStorage.removeItem('azpdf_user_session');
+      sessionStorage.removeItem('azpdf_active_user');
       localStorage.removeItem('azpdf_active_user');
       localStorage.removeItem('azpdf_auth');
       localStorage.removeItem('azpdf_user');
@@ -746,9 +791,13 @@ function App() {
             <Route path="/features" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
             <Route path="/tools" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
             <Route path="/tool/:toolId" element={<ToolPage toolsConfig={toolsConfig} />} />
-            <Route path="/contact" element={<ContactUs />} />
-            <Route path="/terms"   element={<TermsAndConditions />} />
+            <Route path="/security" element={<Security />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms"   element={<TermsAndConditions />} />
+            <Route path="/about"   element={<AboutUs />} />
+            <Route path="/contact" element={<ContactUs />} />
+            <Route path="/blog"    element={<Blog />} />
+            <Route path="/press"   element={<Press />} />
             <Route path="/help"    element={<HelpAndSupport />} />
 
             {/* User Dashboard - Strictly Protected (Only visible when logged in) */}
@@ -762,7 +811,7 @@ function App() {
                   setRecentFiles={updateRecentFiles}
                 />
               ) : (
-                <Navigate to="/" replace />
+                <RequireAuthRedirect onRequireAuth={handleLoginClick} />
               )
             } />
 

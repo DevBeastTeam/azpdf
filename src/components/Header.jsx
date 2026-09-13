@@ -703,7 +703,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                     <CreditCard size={17} color="var(--text-gray)" /> Pricing
                   </a>
 
-                  <a href="#security" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/privacy'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#security" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/security'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <Shield size={17} color="var(--text-gray)" /> Security
                   </a>
 
@@ -711,7 +711,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                     <LayoutDashboard size={17} color="var(--text-gray)" /> Features
                   </a>
 
-                  <a href="#about" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/contact'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
+                  <a href="#about" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/about'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
                     <Heart size={17} color="var(--text-gray)" /> About us
                   </a>
                 </div>
