@@ -4,13 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -p \"[{name}]\" -n \"Vite,Server\" -c \"cyan.bold,yellow.bold\" \"vite\" \"node server/index.js\"",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"Vite,PHP-Backend\" -c \"cyan.bold,magenta.bold\" \"vite\" \"php -S 0.0.0.0:5000 backend/index.php\"",
     "dev:client": "vite",
-    "dev:server": "node server/index.js",
+    "dev:server": "php -S 0.0.0.0:5000 backend/index.php",
+    "dev:node": "node server/index.js",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "server": "node server/index.js"
+    "server": "php -S 0.0.0.0:5000 backend/index.php"
   },
   "dependencies": {
     "lucide-react": "^1.25.0",

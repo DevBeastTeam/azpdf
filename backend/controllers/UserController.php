@@ -1,0 +1,118 @@
+<?php
+// backend/controllers/UserController.php
+
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../utils/Response.php';
+
+class UserController {
+    public static function updateProfile(): void {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $email = trim($input['email'] ?? '');
+            $name = trim($input['name'] ?? '');
+
+            if (!$email) {
+                Response::error('Email is required.', 400);
+            }
+
+            $cleanEmail = strtolower($email);
+            $cleanName = $name ?: explode('@', $cleanEmail)[0];
+            $avatar = strtoupper($cleanName ? $cleanName[0] : 'U');
+
+            Database::run(
+                'UPDATE users SET name = ?, avatar = ? WHERE LOWER(email) = ?',
+                [$cleanName, $avatar, $cleanEmail]
+            );
+
+            Response::json(['success' => true, 'message' => 'Profile updated successfully!']);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
+    public static function updateBilling(): void {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $userId = $input['userId'] ?? null;
+            $plan = $input['plan'] ?? 'FREE';
+            $billingCycle = $input['billingCycle'] ?? 'monthly';
+            $paymentMethod = $input['paymentMethod'] ?? 'Visa ending in 4242';
+
+            $price = ($plan === 'BUSINESS')
+                ? ($billingCycle === 'yearly' ? 8 : 10)
+                : (($plan === 'PREMIUM') ? ($billingCycle === 'yearly' ? 4 : 6) : 0);
+
+            if ($userId) {
+                Database::run('UPDATE users SET plan = ? WHERE id = ?', [$plan, $userId]);
+            }
+
+            Response::json([
+                'success' => true,
+                'message' => "Successfully upgraded to {$plan} Plan!",
+                'billing' => [
+                    'plan' => $plan,
+                    'price' => $price,
+                    'billingCycle' => $billingCycle,
+                    'paymentMethod' => $paymentMethod,
+                    'nextBillingDate' => date('Y-m-d', strtotime('+30 days')),
+                    'status' => 'Active'
+                ]
+            ]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
+    public static function updatePaymentMethod(): void {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $cardType = $input['cardType'] ?? 'Credit';
+            $cardNumber = preg_replace('/\s+/', '', (string) ($input['cardNumber'] ?? ''));
+            $last4 = strlen($cardNumber) >= 4 ? substr($cardNumber, -4) : '4242';
+            $cardHolder = $input['cardHolder'] ?? 'Card Holder';
+            $expiryMonth = $input['expiryMonth'] ?? '12';
+            $expiryYear = $input['expiryYear'] ?? '2028';
+
+            Response::json([
+                'success' => true,
+                'message' => "{$cardType} card ending in {$last4} saved successfully!",
+                'card' => [
+                    'cardType' => $cardType,
+                    'last4' => $last4,
+                    'cardHolder' => $cardHolder,
+                    'expiry' => "{$expiryMonth}/{$expiryYear}"
+                ]
+            ]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
+    public static function getInvoices(): void {
+        Response::json([
+            'success' => true,
+            'invoices' => [
+                ['id' => 'INV-2026-001', 'date' => date('Y-m-01'), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
+                ['id' => 'INV-2026-002', 'date' => date('Y-m-01', strtotime('-1 month')), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
+                ['id' => 'INV-2026-003', 'date' => date('Y-m-01', strtotime('-2 months')), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
+            ]
+        ]);
+    }
+
+    public static function submitTicket(): void {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $category = $input['category'] ?? 'General';
+            $issueDetails = $input['issueDetails'] ?? '';
+            $ticketId = 'TICK-' . mt_rand(100000, 999999);
+
+            Response::json([
+                'success' => true,
+                'ticketId' => $ticketId,
+                'message' => 'Support ticket submitted successfully.'
+            ]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+}

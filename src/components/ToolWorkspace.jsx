@@ -212,7 +212,7 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const getOutputFilename = (toolId, firstFileName = 'document.pdf') => {
     const baseName = firstFileName.substring(0, firstFileName.lastIndexOf('.')) || firstFileName;
     if (toolId.includes('pdftoword')) return `${baseName}_converted.docx`;
-    if (toolId.includes('pdftopowerpoint')) return `${baseName}_slides.txt`;
+    if (toolId.includes('pdftopowerpoint')) return `${baseName}_slides.pptx`;
     if (toolId.includes('pdftoexcel')) return `${baseName}_spreadsheet.csv`;
     if (toolId.includes('pdftojpg')) return `${baseName}_images.zip`;
     if (toolId.includes('aisummarizer')) return `${baseName}_summary.txt`;
@@ -227,6 +227,13 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     if (toolId.includes('unlock')) return `${baseName}_unlocked.pdf`;
     if (toolId.includes('sign')) return `${baseName}_signed.pdf`;
     if (toolId.includes('edit')) return `${baseName}_edited.pdf`;
+    if (toolId.includes('organize')) return `${baseName}_reorganized.pdf`;
+    if (toolId.includes('redact')) return `${baseName}_redacted.pdf`;
+    if (toolId.includes('crop')) return `${baseName}_cropped.pdf`;
+    if (toolId.includes('forms')) return `${baseName}_form.pdf`;
+    if (toolId.includes('compare')) return `comparison_report.pdf`;
+    if (toolId.includes('ocr')) return `${baseName}_ocr.txt`;
+    if (toolId.includes('scan')) return `${baseName}_scanned.pdf`;
     return `${baseName}_processed.pdf`;
   };
 
