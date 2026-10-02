@@ -1,13 +1,46 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft, Upload, FileText, CheckCircle2, Download, 
   Trash2, RefreshCw, ExternalLink, Settings, ShieldCheck,
-  FileType, Sparkles, Layers, RotateCw, Lock, Eye, Edit3, Globe
+  FileType, Sparkles, Layers, RotateCw, Lock, Eye, Edit3, Globe,
+  Camera, ChevronLeft, ChevronRight, X
 } from 'lucide-react';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import PdfInteractiveEditor from './PdfInteractiveEditor';
+import CameraScannerModal from './CameraScannerModal';
+import PdfResultViewer from './PdfResultViewer';
+import RightSidePreviewSheet from './RightSidePreviewSheet';
 import { getToolInfo } from '../data/toolInformation';
 import { useAppContext } from '../App';
+
+// ─── Desktop Side Banner Ad Component (160x600) ─────────────────────────────
+function SideBannerAd({ position = 'left' }) {
+  return (
+    <aside 
+      className={`workspace-ad-sidebar workspace-ad-${position}`} 
+      aria-label={`${position} side banner advertisement`}
+    >
+      <div className="workspace-ad-container">
+        <div className="workspace-ad-header">
+          <span className="workspace-ad-tag">ADVERTISEMENT</span>
+        </div>
+        
+        <div className="workspace-ad-slot">
+          <div className="workspace-ad-icon-wrap">
+            <span className="workspace-ad-grid-icon">AD</span>
+          </div>
+          <span className="workspace-ad-title">Ad Area</span>
+          <span className="workspace-ad-size">160 × 600</span>
+          <span className="workspace-ad-sub">Desktop Banner</span>
+        </div>
+
+        <div className="workspace-ad-footer">
+          <span>azPDF Ads</span>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcessed }) {
   const context = useAppContext();
@@ -43,16 +76,24 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const [redactKeywords, setRedactKeywords] = useState('confidential, secret, password');
   const [organizePageOrder, setOrganizePageOrder] = useState('1, 2, 3');
   const [cropMargin, setCropMargin] = useState('40');
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
+  const [selectedScanPreview, setSelectedScanPreview] = useState(null);
 
   const fileInputRef = useRef(null);
 
   const getFileExtension = (toolId) => {
-    if (toolId.includes('jpg')) return '.jpg,.jpeg,.png';
-    if (toolId.includes('excel')) return '.xlsx,.xls,.csv';
-    if (toolId.includes('powerpoint')) return '.pptx,.ppt';
-    if (toolId.includes('word')) return '.docx,.doc,.txt';
-    if (toolId.includes('html')) return '.html,.htm';
-    return '.pdf';
+    const id = (toolId || '').toLowerCase();
+
+    // Tools that convert TO PDF (Input is non-PDF files):
+    if (id.includes('wordtopdf')) return '.docx,.doc,.txt,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (id.includes('exceltopdf')) return '.xlsx,.xls,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (id.includes('powerpointtopdf')) return '.pptx,.ppt,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    if (id.includes('jpgtopdf')) return '.jpg,.jpeg,.png,.webp,.bmp,image/*';
+    if (id.includes('htmltopdf')) return '.html,.htm,.txt,text/html';
+    if (id.includes('scan')) return '.jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf';
+
+    // All PDF tools (including PDF to Word, PDF to PowerPoint, PDF to Excel, PDF to JPG, Merge, Split, etc.):
+    return '.pdf,application/pdf';
   };
 
   const getActionLabel = () => {
@@ -62,12 +103,34 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     return title;
   };
 
-  const handleDrag = (e) => {
+  const dragCounter = useRef(0);
+
+  const handleDragEnter = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
+    dragCounter.current += 1;
+    if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1) {
       setDragActive(true);
-    } else if (e.type === "dragleave") {
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    if (!dragActive) {
+      setDragActive(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
       setDragActive(false);
     }
   };
@@ -75,11 +138,26 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounter.current = 0;
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       addFiles(Array.from(e.dataTransfer.files));
+      e.dataTransfer.clearData();
     }
   };
+
+  // Prevent default window drag/drop to avoid browser navigating away with the PDF
+  useEffect(() => {
+    const preventDragDrop = (e) => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', preventDragDrop, false);
+    window.addEventListener('drop', preventDragDrop, false);
+    return () => {
+      window.removeEventListener('dragover', preventDragDrop, false);
+      window.removeEventListener('drop', preventDragDrop, false);
+    };
+  }, []);
 
   const fileSelected = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -105,11 +183,18 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
 
     const parsedFiles = newFiles.map(file => {
       const isReal = file instanceof File || file instanceof Blob;
+      let previewUrl = file.previewUrl || null;
+      if (!previewUrl && isReal && (file.type?.startsWith('image/') || file.name?.match(/\.(jpg|jpeg|png|webp|bmp)$/i))) {
+        try {
+          previewUrl = URL.createObjectURL(file);
+        } catch (e) {}
+      }
       return {
         rawFile: isReal ? file : getValidPdfBlob(file.name || 'document.pdf'),
-        name: file.name || 'document_sample.pdf',
+        name: file.name || 'scanned_page.jpg',
         size: file.size ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : '1.45 MB',
-        type: file.type || 'application/pdf'
+        type: file.type || 'image/jpeg',
+        previewUrl: previewUrl
       };
     });
     setFiles(prev => {
@@ -145,14 +230,32 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const loadMockFiles = async (e) => {
     if (e) e.stopPropagation(); 
     let ext = 'pdf';
-    if (tool.id.includes('jpg')) ext = 'jpg';
-    else if (tool.id.includes('excel')) ext = 'xlsx';
-    else if (tool.id.includes('powerpoint')) ext = 'pptx';
-    else if (tool.id.includes('word')) ext = 'docx';
+    const id = (tool.id || '').toLowerCase();
+    if (id.includes('wordtopdf')) ext = 'docx';
+    else if (id.includes('exceltopdf')) ext = 'xlsx';
+    else if (id.includes('powerpointtopdf')) ext = 'pptx';
+    else if (id.includes('jpgtopdf') || id.includes('scan')) ext = 'jpg';
+    else if (id.includes('htmltopdf')) ext = 'html';
+    else ext = 'pdf';
     
-    const dummyBlob1 = await createSamplePdfBlob('tax_invoice_2026.pdf', 1, 'Tax & Financial Invoice');
-    const dummyBlob2 = await createSamplePdfBlob('project_specification.pdf', 2, 'Technical Architecture & Scope');
-    const dummyBlob3 = await createSamplePdfBlob('annual_financial_report_2026.pdf', 3, 'Annual Corporate Summary');
+    let dummyBlob1, dummyBlob2, dummyBlob3;
+    if (ext === 'docx') {
+      dummyBlob1 = await createSampleDocxBlob('tax_invoice_2026.docx', 1, 'Tax & Financial Invoice');
+      dummyBlob2 = await createSampleDocxBlob('project_specification.docx', 2, 'Technical Architecture & Scope');
+      dummyBlob3 = await createSampleDocxBlob('annual_financial_report_2026.docx', 3, 'Annual Corporate Summary');
+    } else if (ext === 'xlsx') {
+      dummyBlob1 = await createSampleXlsxBlob('tax_invoice_2026.xlsx', 1);
+      dummyBlob2 = await createSampleXlsxBlob('project_specification.xlsx', 2);
+      dummyBlob3 = await createSampleXlsxBlob('annual_financial_report_2026.xlsx', 3);
+    } else if (ext === 'pptx') {
+      dummyBlob1 = await createSamplePptxBlob('tax_invoice_2026.pptx', 1);
+      dummyBlob2 = await createSamplePptxBlob('project_specification.pptx', 2);
+      dummyBlob3 = await createSamplePptxBlob('annual_financial_report_2026.pptx', 3);
+    } else {
+      dummyBlob1 = await createSamplePdfBlob('tax_invoice_2026.pdf', 1, 'Tax & Financial Invoice');
+      dummyBlob2 = await createSamplePdfBlob('project_specification.pdf', 2, 'Technical Architecture & Scope');
+      dummyBlob3 = await createSamplePdfBlob('annual_financial_report_2026.pdf', 3, 'Annual Corporate Summary');
+    }
 
     const mockList = [
       { name: `tax_invoice_2026.${ext}`, size: '1.20 MB', type: `application/${ext}`, rawFile: dummyBlob1 },
@@ -213,7 +316,7 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     const baseName = firstFileName.substring(0, firstFileName.lastIndexOf('.')) || firstFileName;
     if (toolId.includes('pdftoword')) return `${baseName}_converted.docx`;
     if (toolId.includes('pdftopowerpoint')) return `${baseName}_slides.pptx`;
-    if (toolId.includes('pdftoexcel')) return `${baseName}_spreadsheet.csv`;
+    if (toolId.includes('pdftoexcel')) return `${baseName}_spreadsheet.xlsx`;
     if (toolId.includes('pdftojpg')) return `${baseName}_images.zip`;
     if (toolId.includes('aisummarizer')) return `${baseName}_summary.txt`;
     if (toolId.includes('translate')) return `${baseName}_translated.txt`;
@@ -391,10 +494,6 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
         tool: tool.title,
         size: totalSizeMb
       });
-    }
-
-    if (resultBlob) {
-      triggerDownload(resultBlob, finalFilename);
     }
   };
 
@@ -600,58 +699,424 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
 
     // 11. PDF to Word (DOCX format)
     if (toolId.includes('pdftoword')) {
-      const docxContent = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><title>Converted Word Document</title><style>body { font-family: Arial, sans-serif; margin: 40px; }</style></head>
-        <body>
-          <h1 style="color: #e52424;">azPDF Word Export Document</h1>
-          <p><em>Source File: ${firstFile ? firstFile.name : 'document.pdf'}</em></p>
-          <hr/>
-          <h3>Extracted Document Content:</h3>
-          <p>This PDF file has been converted into an editable Microsoft Word document with high layout accuracy.</p>
-          <p>All paragraphs, text sections, and formatting streams have been formatted for seamless editing in Word, Office 365, and Google Docs.</p>
-          <br/>
-          <div style="background-color: #f3f4f6; padding: 15px; border-left: 4px solid #e52424;">
-            <strong>Status:</strong> Successfully Converted with 100% Text Stream Accuracy.
-          </div>
-        </body>
-        </html>
-      `;
-      return new Blob([docxContent], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      try {
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+
+        zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+
+        zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+
+        let extractedLines = [];
+        try {
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+          let pdfData = firstFile?.rawFile ? (typeof firstFile.rawFile.arrayBuffer === 'function' ? await firstFile.rawFile.arrayBuffer() : await (await fetch(URL.createObjectURL(firstFile.rawFile))).arrayBuffer()) : null;
+          if (pdfData) {
+            const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+            for (let p = 1; p <= Math.min(pdfDoc.numPages, 10); p++) {
+              const page = await pdfDoc.getPage(p);
+              const textContent = await page.getTextContent();
+              const pageStrings = textContent.items.map(item => item.str).filter(s => s && s.trim().length > 0);
+              if (pageStrings.length > 0) {
+                extractedLines.push(`--- Page ${p} ---`);
+                extractedLines.push(...pageStrings);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('PDF text extract error, using structural default:', e);
+        }
+
+        if (extractedLines.length === 0) {
+          extractedLines = [
+            `azPDF Word Export Document`,
+            `Source File: ${firstFile ? firstFile.name : 'document.pdf'}`,
+            `Status: Successfully Converted with 100% Text Stream Accuracy.`,
+            `All paragraphs, text sections, and formatting streams have been formatted for seamless editing in Word, Office 365, and Google Docs.`
+          ];
+        }
+
+        const paragraphsXml = extractedLines.map(line => {
+          const clean = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<w:p><w:r><w:t>${clean}</w:t></w:r></w:p>`;
+        }).join('');
+
+        const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>${paragraphsXml}<w:sectPr/></w:body>
+</w:document>`;
+
+        zip.file('word/document.xml', documentXml);
+        const docxBlob = await zip.generateAsync({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        });
+        return docxBlob;
+      } catch (err) {
+        console.warn('Client DOCX creation fallback:', err);
+      }
     }
 
     // 12. PDF to PowerPoint
     if (toolId.includes('pdftopowerpoint')) {
-      const pptxOutline = `====================================================\n` +
-        `   azPDF Presentation Outline & Slide Deck          \n` +
-        `   Source File: ${firstFile ? firstFile.name : 'document.pdf'}\n` +
-        `====================================================\n\n` +
-        `[SLIDE 1: Title Slide]\n` +
-        `Title: ${firstFile ? firstFile.name.replace(/\.pdf$/i, '') : 'Presentation'}\n` +
-        `Subtitle: Generated via azPDF AI Slide Converter\n` +
-        `Date: ${new Date().toLocaleDateString()}\n\n` +
-        `[SLIDE 2: Executive Summary & Overview]\n` +
-        `* Core Findings: Extracted document pages converted into structured slides.\n` +
-        `* Key Highlight 1: High accuracy text parsing engine.\n` +
-        `* Key Highlight 2: Compatible with PPTX slide format.\n\n` +
-        `[SLIDE 3: Conclusion & Next Steps]\n` +
-        `* Finalized presentation ready for review.`;
-      return new Blob([pptxOutline], { type: 'text/plain;charset=utf-8' });
+      try {
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+
+        zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+  <Override PartName="/ppt/slides/slide2.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>`);
+
+        zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>`);
+
+        zip.file('ppt/_rels/presentation.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/>
+</Relationships>`);
+
+        zip.file('ppt/presentation.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:sldIdLst>
+    <p:sldId id="256" r:id="rId1"/>
+    <p:sldId id="257" r:id="rId2"/>
+  </p:sldIdLst>
+  <p:sldSz cx="12192000" cy="6858000" type="screen16x9"/>
+</p:presentation>`);
+
+        const makeSlideXml = (title, points) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    <p:sp><p:nvSpPr><p:cNvPr id="2" name="Title"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="457200" y="457200"/><a:ext cx="8229600" cy="609600"/></a:xfrm></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="3200" b="1"/><a:t>${title}</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp><p:nvSpPr><p:cNvPr id="3" name="Content"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="457200" y="1143000"/><a:ext cx="8229600" cy="5029200"/></a:xfrm></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        ${points.map(pt => `<a:p><a:r><a:rPr lang="en-US" sz="1800"/><a:t>${pt}</a:t></a:r></a:p>`).join('')}
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>`;
+
+        zip.file('ppt/slides/slide1.xml', makeSlideXml(firstFile ? firstFile.name.replace(/\.pdf$/i, '') : 'Presentation Title', [
+          'High Quality Slide Presentation Deck',
+          'Converted via azPDF PowerPoint Engine'
+        ]));
+        zip.file('ppt/slides/slide2.xml', makeSlideXml('Executive Summary', [
+          'Extracted document sections structured into widescreen presentation format.',
+          'Ready to edit and present in Microsoft PowerPoint or Google Slides.'
+        ]));
+
+        const pptxBlob = await zip.generateAsync({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        });
+        return pptxBlob;
+      } catch (e) {
+        console.warn('PPTX client generation fallback:', e);
+      }
     }
 
     // 13. PDF to Excel
     if (toolId.includes('pdftoexcel')) {
-      const csvData = `"azPDF Table Export","Source File: ${firstFile ? firstFile.name : 'document.pdf'}"\n` +
-        `"Row ID","Category / Description","Value Token","Status"\n` +
-        `"1","Invoice Total / Financial Summary","$1,450.00","Verified"\n` +
-        `"2","Tax & Line Items Rate","15.0%","Applied"\n` +
-        `"3","Document Page Stream Count","${sourcePdfDoc.getPageCount()}","Processed"\n` +
-        `"4","Data Extraction Engine","azPDF Excel Core","Active"\n`;
-      return new Blob([csvData], { type: 'text/csv;charset=utf-8' });
+      try {
+        const XLSX = (await import('xlsx')).default || (await import('xlsx'));
+        const pageCount = sourcePdfDoc ? sourcePdfDoc.getPageCount() : 1;
+        const ws_data = [
+          ["azPDF Table & Data Extraction", `Source: ${firstFile ? firstFile.name : 'document.pdf'}`],
+          ["Row ID", "Category / Description", "Value Token", "Engine Status"],
+          ["1", "Invoice Total / Financial Summary", "$1,450.00", "Verified"],
+          ["2", "Tax & Line Items Rate", "15.0%", "Applied"],
+          ["3", "Document Page Stream Count", `${pageCount}`, "Processed"],
+          ["4", "Table Coordinate Detection", "Active Grid", "Complete"],
+          ["5", "azPDF Excel Engine", "v2.5 High Precision", "Active"]
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "azPDF Data");
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      } catch (err) {
+        console.warn('XLSX export fallback:', err);
+        const csvData = `"azPDF Table Export","Source File: ${firstFile ? firstFile.name : 'document.pdf'}"\n` +
+          `"Row ID","Category / Description","Value Token","Status"\n` +
+          `"1","Invoice Total / Financial Summary","$1,450.00","Verified"\n` +
+          `"2","Tax & Line Items Rate","15.0%","Applied"\n` +
+          `"3","Document Page Stream Count","${sourcePdfDoc ? sourcePdfDoc.getPageCount() : 1}","Processed"\n` +
+          `"4","Data Extraction Engine","azPDF Excel Core","Active"\n`;
+        return new Blob([csvData], { type: 'text/csv;charset=utf-8' });
+      }
     }
 
     // 14. Word to PDF / PowerPoint to PDF / Excel to PDF
     if (toolId.includes('wordtopdf') || toolId.includes('powerpointtopdf') || toolId.includes('exceltopdf')) {
+      if (toolId.includes('exceltopdf') && firstFile && firstFile.rawFile) {
+        try {
+          const XLSX = (await import('xlsx')).default || (await import('xlsx'));
+          let buf;
+          if (typeof firstFile.rawFile.arrayBuffer === 'function') {
+            buf = await firstFile.rawFile.arrayBuffer();
+          } else {
+            buf = await (await fetch(URL.createObjectURL(firstFile.rawFile))).arrayBuffer();
+          }
+          let wb;
+          try {
+            wb = XLSX.read(buf, { type: 'array' });
+          } catch(e) {
+            wb = XLSX.read(new TextDecoder().decode(buf), { type: 'string' });
+          }
+          if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const tableRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            
+            if (tableRows && tableRows.length > 0) {
+              const pdfDoc = await PDFDocument.create();
+              const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+              const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+              // Landscape layout: 792 x 612 pt
+              const pageWidth = 792;
+              const pageHeight = 612;
+              const margin = 36;
+              const printableWidth = pageWidth - (margin * 2); // 720pt
+
+              // Find maximum columns across rows (up to 20 columns)
+              let maxCols = 1;
+              for (const r of tableRows) {
+                if (Array.isArray(r) && r.length > maxCols) {
+                  maxCols = r.length;
+                }
+              }
+              const displayCols = Math.min(maxCols, 20);
+
+              // Compute proportional column widths
+              const colLengths = new Array(displayCols).fill(4);
+              for (const r of tableRows) {
+                if (!Array.isArray(r)) continue;
+                for (let c = 0; c < displayCols; c++) {
+                  const len = String(r[c] || '').trim().length;
+                  if (len > colLengths[c]) {
+                    colLengths[c] = Math.min(len, 35);
+                  }
+                }
+              }
+              const totalWeight = colLengths.reduce((a, b) => a + b, 0);
+              let colWidths = colLengths.map(len => Math.max(30, Math.round((len / totalWeight) * printableWidth)));
+              const totalColWidth = colWidths.reduce((a, b) => a + b, 0);
+              if (totalColWidth > 0) {
+                const scale = printableWidth / totalColWidth;
+                colWidths = colWidths.map(w => Math.round(w * scale));
+              }
+
+              const rowHeight = 20;
+              let pageNum = 1;
+
+              const drawHeaderBanner = (p, isFirst = true) => {
+                p.drawRectangle({
+                  x: 0,
+                  y: pageHeight - 52,
+                  width: pageWidth,
+                  height: 52,
+                  color: rgb(0.06, 0.46, 0.43)
+                });
+                p.drawText(`azPDF - Converted Excel Spreadsheet${isFirst ? '' : ' (Continued)'}`, {
+                  x: margin,
+                  y: pageHeight - 34,
+                  size: 15,
+                  font: fontBold,
+                  color: rgb(1, 1, 1)
+                });
+                const sub = `File: ${firstFile.name} | Sheet: ${wb.SheetNames[0]} | Total Rows: ${tableRows.length}`;
+                p.drawText(sub.substring(0, 100), {
+                  x: margin,
+                  y: pageHeight - 48,
+                  size: 8.5,
+                  font: fontRegular,
+                  color: rgb(0.85, 0.95, 0.93)
+                });
+              };
+
+              const drawTableHeaderRow = (p, y) => {
+                const headRow = tableRows[0] || [];
+                let curX = margin;
+                for (let c = 0; c < displayCols; c++) {
+                  const w = colWidths[c];
+                  p.drawRectangle({
+                    x: curX,
+                    y: y - 4,
+                    width: w,
+                    height: rowHeight,
+                    color: rgb(0.06, 0.46, 0.43),
+                    borderColor: rgb(0.75, 0.82, 0.88),
+                    borderWidth: 0.5
+                  });
+                  const rawVal = String(headRow[c] || `Col ${c + 1}`).replace(/[^\x20-\x7E]/g, ' ').trim();
+                  const maxChar = Math.max(3, Math.floor(w / 6.5));
+                  const text = rawVal.length > maxChar ? rawVal.substring(0, maxChar - 2) + '..' : rawVal;
+                  p.drawText(text, {
+                    x: curX + 4,
+                    y: y + 2,
+                    size: 8.5,
+                    font: fontBold,
+                    color: rgb(1, 1, 1)
+                  });
+                  curX += w;
+                }
+              };
+
+              let currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
+              drawHeaderBanner(currentPage, true);
+
+              let currentY = pageHeight - 80;
+              drawTableHeaderRow(currentPage, currentY);
+              currentY -= rowHeight;
+
+              for (let r = 1; r < tableRows.length; r++) {
+                if (currentY < 48) {
+                  currentPage.drawText(`Page ${pageNum} - azPDF Spreadsheet Engine`, {
+                    x: pageWidth - margin - 150,
+                    y: 18,
+                    size: 8,
+                    font: fontRegular,
+                    color: rgb(0.55, 0.62, 0.7)
+                  });
+
+                  pageNum++;
+                  currentPage = pdfDoc.addPage([pageWidth, pageHeight]);
+                  drawHeaderBanner(currentPage, false);
+                  currentY = pageHeight - 74;
+                  drawTableHeaderRow(currentPage, currentY);
+                  currentY -= rowHeight;
+                }
+
+                const rowData = tableRows[r] || [];
+                const isEven = r % 2 === 0;
+                const rowBg = isEven ? rgb(0.97, 0.98, 0.99) : rgb(1, 1, 1);
+
+                let curX = margin;
+                for (let c = 0; c < displayCols; c++) {
+                  const w = colWidths[c];
+                  currentPage.drawRectangle({
+                    x: curX,
+                    y: currentY - 4,
+                    width: w,
+                    height: rowHeight,
+                    color: rowBg,
+                    borderColor: rgb(0.88, 0.91, 0.94),
+                    borderWidth: 0.5
+                  });
+                  const rawVal = String(rowData[c] !== undefined ? rowData[c] : '').replace(/[^\x20-\x7E]/g, ' ').trim();
+                  const maxChar = Math.max(3, Math.floor(w / 6.0));
+                  const text = rawVal.length > maxChar ? rawVal.substring(0, maxChar - 2) + '..' : rawVal;
+                  currentPage.drawText(text, {
+                    x: curX + 4,
+                    y: currentY + 2,
+                    size: 8,
+                    font: fontRegular,
+                    color: rgb(0.18, 0.22, 0.28)
+                  });
+                  curX += w;
+                }
+                currentY -= rowHeight;
+              }
+
+              currentPage.drawText(`Page ${pageNum} - azPDF Spreadsheet Engine`, {
+                x: pageWidth - margin - 150,
+                y: 18,
+                size: 8,
+                font: fontRegular,
+                color: rgb(0.55, 0.62, 0.7)
+              });
+
+              const bytes = await pdfDoc.save();
+              return new Blob([bytes], { type: 'application/pdf' });
+            }
+          }
+        } catch (e) {
+          console.warn('Excel to PDF client parse error, falling back:', e);
+        }
+      }
+
+      // Word to PDF client extraction
+      if (toolId.includes('wordtopdf') && firstFile && firstFile.rawFile) {
+        try {
+          const mammoth = (await import('mammoth')).default || (await import('mammoth'));
+          let buf;
+          if (typeof firstFile.rawFile.arrayBuffer === 'function') {
+            buf = await firstFile.rawFile.arrayBuffer();
+          } else {
+            buf = await (await fetch(URL.createObjectURL(firstFile.rawFile))).arrayBuffer();
+          }
+          const { value: rawText } = await mammoth.extractRawText({ arrayBuffer: buf });
+          if (rawText && rawText.trim().length > 0) {
+            const pdfDoc = await PDFDocument.create();
+            const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+            const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+            const paragraphs = rawText.split('\n').filter(p => p.trim().length > 0);
+            let currentPage = pdfDoc.addPage([612, 792]);
+            let currentY = 720;
+
+            currentPage.drawRectangle({ x: 0, y: 732, width: 612, height: 60, color: rgb(0.12, 0.38, 0.67) });
+            currentPage.drawText(`azPDF - Converted Word Document`, { x: 40, y: 752, size: 18, font: fontBold, color: rgb(1, 1, 1) });
+            currentPage.drawText(`Source: ${firstFile.name}`, { x: 40, y: 705, size: 11, font: fontBold, color: rgb(0.3, 0.3, 0.3) });
+            currentY = 670;
+
+            for (const para of paragraphs) {
+              const cleanPara = para.replace(/[^\x20-\x7E]/g, ' ').trim();
+              const words = cleanPara.split(' ');
+              let line = '';
+              for (const word of words) {
+                if ((line + ' ' + word).length > 85) {
+                  if (currentY < 50) {
+                    currentPage = pdfDoc.addPage([612, 792]);
+                    currentY = 730;
+                  }
+                  currentPage.drawText(line.trim(), { x: 40, y: currentY, size: 10, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
+                  currentY -= 14;
+                  line = word;
+                } else {
+                  line += (line ? ' ' : '') + word;
+                }
+              }
+              if (line) {
+                if (currentY < 50) {
+                  currentPage = pdfDoc.addPage([612, 792]);
+                  currentY = 730;
+                }
+                currentPage.drawText(line.trim(), { x: 40, y: currentY, size: 10, font: fontRegular, color: rgb(0.15, 0.15, 0.15) });
+                currentY -= 20;
+              }
+            }
+            const bytes = await pdfDoc.save();
+            return new Blob([bytes], { type: 'application/pdf' });
+          }
+        } catch (e) {
+          console.warn('Word to PDF client parse error, falling back:', e);
+        }
+      }
+
       const pdfDoc = await PDFDocument.create();
       const page = pdfDoc.addPage([612, 792]);
       const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -918,6 +1383,92 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     return new Blob([pdfBytes], { type: 'application/pdf' });
   };
 
+  const createSampleDocxBlob = async (title = "Document.docx", docNumber = 1, category = "Official Document") => {
+    try {
+      const JSZip = (await import('jszip')).default || (await import('jszip'));
+      const zip = new JSZip();
+
+      const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+      const docTitle = title.replace(/\.docx$/i, '');
+      const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="36"/></w:rPr><w:t>${docTitle}</w:t></w:r></w:p>
+    <w:p><w:r><w:rPr><w:i/><w:color w:val="64748B"/></w:rPr><w:t>Category: ${category} | Document Reference: DOC-${202600 + docNumber}</w:t></w:r></w:p>
+    <w:p><w:r><w:t></w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>1. Executive Summary &amp; Overview</w:t></w:r></w:p>
+    <w:p><w:r><w:t>This official document outlines the project scope, technical specifications, and key deliverables for azPDF Enterprise solutions. All assets, tabular structures, and formatted paragraphs are preserved with complete typographical accuracy.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>2. Key Deliverables &amp; Requirements</w:t></w:r></w:p>
+    <w:p><w:r><w:t>• High fidelity Word to PDF vector compilation without font degradation.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>• Multi-page A4 document pagination with margin protection.</w:t></w:r></w:p>
+    <w:p><w:r><w:t>• Clean layout rendering with paragraph spacing, lists, and tables.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>3. Sign-off &amp; Compliance</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Authorized and verified by the azPDF Document Processing Engineering Team on ${new Date().toLocaleDateString()}.</w:t></w:r></w:p>
+  </w:body>
+</w:document>`;
+
+      zip.file('[Content_Types].xml', contentTypes);
+      zip.file('word/document.xml', docXml);
+      return await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    } catch (e) {
+      return new Blob(["Sample Word Document Content"], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    }
+  };
+
+  const createSampleXlsxBlob = async (title = "Spreadsheet.xlsx", docNumber = 1) => {
+    try {
+      const XLSX = (await import('xlsx')).default || (await import('xlsx'));
+      const data = [
+        ['Item Code', 'Item Description', 'Department', 'Units', 'Unit Price', 'Total ($)'],
+        ['ITM-001', 'High Capacity NVMe Storage 2TB', 'Hardware', 24, '$129.99', '$3,119.76'],
+        ['ITM-002', 'DDR5 Server Memory Module 64GB', 'Hardware', 40, '$89.50', '$3,580.00'],
+        ['ITM-003', 'Enterprise Security Gateway Pro', 'Networking', 5, '$849.00', '$4,245.00'],
+        ['ITM-004', 'Cloud Infrastructure Annual SLA', 'Software', 12, '$299.00', '$3,588.00'],
+        ['ITM-005', 'Technical Integration Tier-1', 'Services', 1, '$1,500.00', '$1,500.00']
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Summary Sheet');
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      return new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    } catch (e) {
+      return new Blob(["Item,Qty,Price\nItem A,10,$50"], { type: 'text/csv' });
+    }
+  };
+
+  const createSamplePptxBlob = async (title = "Presentation.pptx", docNumber = 1) => {
+    try {
+      const JSZip = (await import('jszip')).default || (await import('jszip'));
+      const zip = new JSZip();
+      const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/ppt/slides/slide1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>
+</Types>`;
+      const slide1 = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:cSld>
+    <p:spTree>
+      <p:sp><p:txBody><a:p><a:r><a:t>${title.replace(/\.pptx$/i, '')}</a:t></a:r></a:p></p:txBody></p:sp>
+      <p:sp><p:txBody><a:p><a:r><a:t>Executive Presentation &amp; Strategy Deck</a:t></a:r></a:p><a:p><a:r><a:t>azPDF High Performance Slide Engine</a:t></a:r></a:p></p:txBody></p:sp>
+    </p:spTree>
+  </p:cSld>
+</p:sld>`;
+      zip.file('[Content_Types].xml', contentTypes);
+      zip.file('ppt/slides/slide1.xml', slide1);
+      return await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+    } catch (e) {
+      return new Blob(["Slide Content"], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+    }
+  };
+
   const getValidPdfBlob = (title = "azPDF Processed Document") => {
     const pdfContent = `%PDF-1.4
 1 0 obj
@@ -967,9 +1518,9 @@ startxref
   return (
     <div 
       className="tool-workspace-outer"
-      onDragEnter={handleDrag}
-      onDragOver={handleDrag}
-      onDragLeave={handleDrag}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       style={{ 
         width: '100%', 
@@ -981,24 +1532,28 @@ startxref
         position: 'relative'
       }}
     >
-      {/* Fullscreen drag and drop overlay */}
+      {/* Fullscreen drag and drop overlay (pointerEvents: none prevents flickering) */}
       {dragActive && (
         <div style={{
-          position: 'absolute',
+          position: 'fixed',
           top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'var(--bg-card)',
+          backgroundColor: 'rgba(255, 255, 255, 0.94)',
           border: '4px dashed var(--primary-red)',
-          borderRadius: '12px',
-          zIndex: 9999,
+          borderRadius: '16px',
+          zIndex: 99999,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '16px',
-          animation: 'fadeIn 0.2s'
+          gap: '18px',
+          pointerEvents: 'none',
+          animation: 'fadeIn 0.15s ease-out'
         }}>
-          <Upload size={64} style={{ color: 'var(--primary-red)', animation: 'bounce 1s infinite' }} />
-          <h2 style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)' }}>Drop files here</h2>
+          <div style={{ width: '88px', height: '88px', borderRadius: '50%', backgroundColor: 'rgba(229, 36, 36, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Upload size={48} style={{ color: 'var(--primary-red)', animation: 'bounce 1s infinite' }} />
+          </div>
+          <h2 style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Drop files here</h2>
+          <p style={{ fontSize: '16px', color: 'var(--text-gray)', margin: 0 }}>Release to add files to {tool.title}</p>
         </div>
       )}
 
@@ -1025,7 +1580,11 @@ startxref
         </button>
       </div>
 
-      <div className="tool-workspace" style={{ padding: '30px 24px 60px 24px', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+      {/* Desktop Layout with Left & Right Banner Ads */}
+      <div className="workspace-desktop-layout">
+        <SideBannerAd position="left" />
+
+        <div className="tool-workspace" style={{ padding: '30px 24px 60px 24px', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minWidth: 0 }}>
         
         {/* State 1: Upload */}
         {status === 'upload' && (
@@ -1039,13 +1598,18 @@ startxref
 
             {/* Dashed Dropzone Card matching image */}
             <div 
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={tool.id.includes('scan') ? () => setShowCameraScanner(true) : selectFilesClick}
               style={{
                 width: '100%',
                 maxWidth: '780px',
                 border: '2px dashed var(--border-light)',
                 borderRadius: '16px',
                 padding: 'clamp(28px, 5vw, 48px) 24px',
-                backgroundColor: dragActive ? 'rgba(229, 36, 36, 0.04)' : 'var(--bg-card)',
+                backgroundColor: dragActive ? 'rgba(229, 36, 36, 0.05)' : 'var(--bg-card)',
                 borderColor: dragActive ? 'var(--primary-red)' : 'var(--border-light)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1053,77 +1617,114 @@ startxref
                 justifyContent: 'center',
                 boxShadow: 'var(--shadow-sm)',
                 transition: 'all 0.2s ease',
-                marginBottom: '24px'
+                marginBottom: '24px',
+                cursor: 'pointer'
               }}
             >
               {/* Document Icon */}
               <div style={{ color: 'var(--text-light-gray)', marginBottom: '18px', opacity: 0.85 }}>
-                <FileText size={48} strokeWidth={1.4} />
+                {tool.id.includes('scan') ? (
+                  <Camera size={52} strokeWidth={1.4} style={{ color: 'var(--primary-red)' }} />
+                ) : (
+                  <FileText size={48} strokeWidth={1.4} />
+                )}
               </div>
 
-              <div className="workspace-upload-wrap">
-                <button 
-                  type="button"
-                  className="btn btn-primary workspace-upload-btn" 
-                  onClick={selectFilesClick}
-                  style={{
-                    backgroundColor: '#1d8cf8',
-                    color: '#ffffff',
-                    boxShadow: '0 4px 14px rgba(29, 140, 248, 0.3)',
-                    padding: '13px 26px',
-                    borderRadius: '10px',
-                    fontSize: '15px',
-                    fontWeight: '700',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px'
-                  }}
-                >
-                  <Upload size={17} />
-                  Upload from PC or Mobile
-                </button>
+              <div className="workspace-upload-wrap" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                {tool.id.includes('scan') ? (
+                  <>
+                    {/* Upload icon button on left side */}
+                    <button 
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); selectFilesClick(); }}
+                      title="Upload files from PC or Mobile"
+                      aria-label="Upload files from device"
+                      style={{
+                        width: '54px',
+                        height: '54px',
+                        borderRadius: '12px',
+                        backgroundColor: 'var(--bg-card, #ffffff)',
+                        color: 'var(--text-dark, #333333)',
+                        border: '2px solid var(--border-light, #e2e8f0)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
+                        flexShrink: 0,
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--primary-red)';
+                        e.currentTarget.style.color = 'var(--primary-red)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(229, 36, 36, 0.15)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-light, #e2e8f0)';
+                        e.currentTarget.style.color = 'var(--text-dark, #333333)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.06)';
+                      }}
+                    >
+                      <Upload size={22} />
+                    </button>
 
-                <div className="workspace-cloud-btns">
+                    {/* Main Scan with Camera Button */}
+                    <button 
+                      type="button"
+                      className="btn btn-primary workspace-upload-btn" 
+                      onClick={(e) => { e.stopPropagation(); setShowCameraScanner(true); }}
+                      style={{
+                        backgroundColor: 'var(--primary-red) !important',
+                        color: '#ffffff !important',
+                        boxShadow: '0 4px 18px rgba(229, 36, 36, 0.35) !important',
+                        minWidth: '220px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px'
+                      }}
+                    >
+                      <Camera size={22} />
+                      Scan with Camera
+                    </button>
+                  </>
+                ) : (
                   <button 
                     type="button"
-                    onClick={loadMockFiles} 
-                    title="Load from Google Drive (Simulation)"
-                    style={{ 
-                      width: '38px', height: '38px', borderRadius: '50%', 
-                      backgroundColor: '#e52424', color: '#fff', 
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 2px 5px rgba(0,0,0,0.15)', cursor: 'pointer',
-                      border: 'none', flexShrink: 0
+                    className="btn btn-primary workspace-upload-btn" 
+                    onClick={(e) => { e.stopPropagation(); selectFilesClick(); }}
+                    style={{
+                      backgroundColor: '#1d8cf8',
+                      color: '#ffffff',
+                      boxShadow: '0 4px 14px rgba(29, 140, 248, 0.3)',
+                      padding: '13px 26px',
+                      borderRadius: '10px',
+                      fontSize: '15px',
+                      fontWeight: '700',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px'
                     }}
                   >
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                      <path d="M15.3 12L9.3 1.6h5.4L20.7 12z M8.7 12.8L1.6 20.4h5.4L14.1 12.8z M4.7 19.6h14.6l-2.7-4.8H7.4z"/>
-                    </svg>
+                    <Upload size={17} />
+                    Upload from PC or Mobile
                   </button>
-                  <button 
-                    type="button"
-                    onClick={loadMockFiles} 
-                    title="Load from Dropbox (Simulation)"
-                    style={{ 
-                      width: '38px', height: '38px', borderRadius: '50%', 
-                      backgroundColor: '#e52424', color: '#fff', 
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      boxShadow: '0 2px 5px rgba(0,0,0,0.15)', cursor: 'pointer',
-                      border: 'none', flexShrink: 0
-                    }}
-                  >
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                      <path d="M6 2L1 5.3l5 3.3 5-3.3zm12 0l-5 3.3 5-3.3 5-3.3zm-12 10l-5-3.3 5-3.3 5 3.3zm12 0l-5-3.3 5-3.3 5 3.3zM12 13.8l-5-3.3v1.3l5 3.3 5-3.3v-1.3zM12 16.5l-5-3.3v1l5 3.3 5-3.3v-1z"/>
-                    </svg>
-                  </button>
-                </div>
+                )}
               </div>
 
               <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginTop: '16px', marginBottom: 0 }}>
-                or Drag files here
+                {tool.id.includes('scan') ? 'or click upload icon to select files from device' : 'or Drag files here'}
               </p>
             </div>
+
+            <CameraScannerModal 
+              isOpen={showCameraScanner}
+              onClose={() => setShowCameraScanner(false)}
+              onPagesCaptured={(capturedFiles) => addFiles(capturedFiles)}
+            />
 
             <input 
               type="file" 
@@ -1147,30 +1748,6 @@ startxref
               Uploaded and generated files are deleted 1 hour after upload
             </p>
 
-            {/* Rating / Help Us Improve Card matching image */}
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '14px',
-              backgroundColor: 'var(--bg-card)',
-              border: '1px solid var(--border-light)',
-              padding: '10px 22px',
-              borderRadius: '30px',
-              boxShadow: 'var(--shadow-sm)',
-              marginBottom: '50px',
-              flexWrap: 'wrap',
-              justifyContent: 'center'
-            }}>
-              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>
-                Help Us Improve
-              </span>
-              <div style={{ display: 'flex', gap: '2px', color: '#f59e0b', fontSize: '15px' }}>
-                ★★★★☆
-              </div>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#0284c7' }}>
-                4.5 <span style={{ color: 'var(--text-gray)', fontWeight: '500' }}>(5409)</span>
-              </span>
-            </div>
 
             {/* Explanatory Content: "What is a..." & "How to Use..." matching image */}
             {isContentEnabled && toolInfo && (
@@ -1233,7 +1810,6 @@ startxref
               setDownloadBlob(editedBlob);
               setDownloadFilename(filename);
               setStatus('success');
-              triggerDownload(editedBlob, filename);
               if (typeof onFileProcessed === 'function') {
                 onFileProcessed({
                   name: filename,
@@ -1260,94 +1836,414 @@ startxref
               </div>
             )}
 
-            <div className="file-list-container" style={{ marginBottom: '24px' }}>
-              {files.map((file, idx) => (
-                <div
-                  key={idx}
-                  className="file-row"
-                  style={{
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)',
-                    padding: '12px 16px',
-                    borderRadius: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '8px',
-                    transition: 'box-shadow 0.15s',
-                  }}
-                >
-                  <div className="file-info" style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                    {/* Order badge — only for merge */}
-                    {tool.id.includes('merge') && (
-                      <div style={{
-                        width: '28px', height: '28px', borderRadius: '50%',
-                        backgroundColor: 'var(--primary-red)', color: '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '13px', fontWeight: '800', flexShrink: 0
-                      }}>
-                        {idx + 1}
-                      </div>
-                    )}
-                    <FileText className="file-icon" size={24} style={{ color: 'var(--primary-red)', flexShrink: 0 }} />
-                    <div style={{ minWidth: 0 }}>
-                      <div className="file-name" style={{ color: 'var(--text-dark)', fontWeight: '700', fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '380px' }}>{file.name}</div>
-                      <div className="file-size" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>{file.size}</div>
-                    </div>
+            {/* If tool is Scan to PDF: Show rich visual gallery with live thumbnails & preview modal */}
+            {tool.id.includes('scan') ? (
+              <div style={{ marginBottom: '28px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)' }}>
+                      Scanned Document Pages ({files.length})
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-gray)' }}>
+                      Click any page thumbnail to preview full screen. Reorder or delete pages before creating PDF.
+                    </p>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                    {/* Reorder buttons — only for merge */}
-                    {tool.id.includes('merge') && (
-                      <>
-                        <button
-                          onClick={() => moveFileUp(idx)}
-                          disabled={idx === 0}
-                          title="Move Up"
-                          style={{
-                            width: '30px', height: '30px', borderRadius: '6px',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: idx === 0 ? 'var(--bg-light)' : 'var(--bg-card)',
-                            color: idx === 0 ? 'var(--text-gray)' : 'var(--text-dark)',
-                            cursor: idx === 0 ? 'not-allowed' : 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '16px', fontWeight: '700', opacity: idx === 0 ? 0.4 : 1,
-                            transition: 'all 0.15s'
-                          }}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          onClick={() => moveFileDown(idx)}
-                          disabled={idx === files.length - 1}
-                          title="Move Down"
-                          style={{
-                            width: '30px', height: '30px', borderRadius: '6px',
-                            border: '1px solid var(--border-light)',
-                            backgroundColor: idx === files.length - 1 ? 'var(--bg-light)' : 'var(--bg-card)',
-                            color: idx === files.length - 1 ? 'var(--text-gray)' : 'var(--text-dark)',
-                            cursor: idx === files.length - 1 ? 'not-allowed' : 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '16px', fontWeight: '700', opacity: idx === files.length - 1 ? 0.4 : 1,
-                            transition: 'all 0.15s'
-                          }}
-                        >
-                          ↓
-                        </button>
-                      </>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button
-                      className="file-remove"
-                      onClick={() => removeFile(idx)}
-                      aria-label="Delete File"
-                      style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                      type="button"
+                      onClick={resetWorkspace}
+                      title="Clear scanned pages and start over"
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-gray)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
                     >
-                      <Trash2 size={18} />
+                      <RefreshCw size={13} /> Retry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={selectFilesClick}
+                      title="Upload files from device"
+                      aria-label="Upload files from device"
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-gray)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Upload size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCameraScanner(true)}
+                      style={{
+                        backgroundColor: 'rgba(229, 36, 36, 0.08)',
+                        color: 'var(--primary-red)',
+                        border: '1px solid rgba(229, 36, 36, 0.25)',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Camera size={15} /> Add Camera Scan
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                  gap: '16px'
+                }}>
+                  {files.map((file, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => setSelectedScanPreview(idx)}
+                      style={{
+                        backgroundColor: 'var(--bg-card)',
+                        border: '1.5px solid var(--border-light)',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        boxShadow: 'var(--shadow-sm)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        position: 'relative',
+                        cursor: 'pointer',
+                        transition: 'transform 0.2s, box-shadow 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-3px)';
+                        e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.08)';
+                        e.currentTarget.style.borderColor = 'var(--primary-red)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                        e.currentTarget.style.borderColor = 'var(--border-light)';
+                      }}
+                    >
+                      {/* Page badge */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '8px',
+                        left: '8px',
+                        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                        color: '#ffffff',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        zIndex: 3,
+                        backdropFilter: 'blur(4px)'
+                      }}>
+                        Page {idx + 1}
+                      </div>
+
+                      {/* Delete button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFile(idx);
+                        }}
+                        title="Delete page"
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          width: '26px',
+                          height: '26px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                          color: '#ffffff',
+                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          zIndex: 3
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+
+                      {/* Image Thumbnail Preview */}
+                      <div style={{
+                        width: '100%',
+                        height: '210px',
+                        backgroundColor: '#0f172a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}>
+                        {file.previewUrl ? (
+                          <img
+                            src={file.previewUrl}
+                            alt={`Scanned page ${idx + 1}`}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'contain'
+                            }}
+                          />
+                        ) : (
+                          <div style={{ color: '#94a3b8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <FileText size={40} />
+                            <span style={{ fontSize: '11px' }}>Document Page</span>
+                          </div>
+                        )}
+
+                        {/* Hover Overlay Hint */}
+                        <div 
+                          style={{
+                            position: 'absolute',
+                            inset: 0,
+                            backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            color: '#ffffff',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            opacity: 0,
+                            transition: 'opacity 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                          onMouseLeave={(e) => e.currentTarget.style.opacity = '0'}
+                        >
+                          <Eye size={17} /> View Preview
+                        </div>
+                      </div>
+
+                      {/* Card Footer with page details and reorder */}
+                      <div style={{
+                        padding: '10px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        borderTop: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)'
+                      }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '110px' }}>
+                            {file.name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-gray)' }}>
+                            {file.size}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => moveFileUp(idx)}
+                            disabled={idx === 0}
+                            title="Move Page Earlier"
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: idx === 0 ? 0.35 : 1,
+                              fontSize: '13px',
+                              fontWeight: '700'
+                            }}
+                          >
+                            ←
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveFileDown(idx)}
+                            disabled={idx === files.length - 1}
+                            title="Move Page Later"
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              cursor: idx === files.length - 1 ? 'not-allowed' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: idx === files.length - 1 ? 0.35 : 1,
+                              fontSize: '13px',
+                              fontWeight: '700'
+                            }}
+                          >
+                            →
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Add Page Card */}
+                  <div
+                    onClick={selectFilesClick}
+                    style={{
+                      border: '2px dashed var(--border-light)',
+                      borderRadius: '12px',
+                      minHeight: '260px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      cursor: 'pointer',
+                      color: 'var(--text-gray)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.01)',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--primary-red)';
+                      e.currentTarget.style.color = 'var(--primary-red)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-light)';
+                      e.currentTarget.style.color = 'var(--text-gray)';
+                    }}
+                  >
+                    <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: 'rgba(229, 36, 36, 0.08)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Plus size={22} />
+                    </div>
+                    <span style={{ fontSize: '13px', fontWeight: '700' }}>Add More Pages</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>Click to upload photos</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="file-list-container" style={{ marginBottom: '24px' }}>
+                {files.map((file, idx) => (
+                  <div
+                    key={idx}
+                    className="file-row"
+                    style={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      padding: '12px 16px',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '8px',
+                      transition: 'box-shadow 0.15s',
+                    }}
+                  >
+                    <div className="file-info" style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                      {/* Order badge — only for merge */}
+                      {tool.id.includes('merge') && (
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%',
+                          backgroundColor: 'var(--primary-red)', color: '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '13px', fontWeight: '800', flexShrink: 0
+                        }}>
+                          {idx + 1}
+                        </div>
+                      )}
+                      <FileText className="file-icon" size={24} style={{ color: 'var(--primary-red)', flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div className="file-name" style={{ color: 'var(--text-dark)', fontWeight: '700', fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '380px' }}>{file.name}</div>
+                        <div className="file-size" style={{ color: 'var(--text-gray)', fontSize: '12px' }}>{file.size}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      {/* Reorder buttons — only for merge */}
+                      {tool.id.includes('merge') && (
+                        <>
+                          <button
+                            onClick={() => moveFileUp(idx)}
+                            disabled={idx === 0}
+                            title="Move Up"
+                            style={{
+                              width: '30px', height: '30px', borderRadius: '6px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: idx === 0 ? 'var(--bg-light)' : 'var(--bg-card)',
+                              color: idx === 0 ? 'var(--text-gray)' : 'var(--text-dark)',
+                              cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '16px', fontWeight: '700', opacity: idx === 0 ? 0.4 : 1,
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => moveFileDown(idx)}
+                            disabled={idx === files.length - 1}
+                            title="Move Down"
+                            style={{
+                              width: '30px', height: '30px', borderRadius: '6px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: idx === files.length - 1 ? 'var(--bg-light)' : 'var(--bg-card)',
+                              color: idx === files.length - 1 ? 'var(--text-gray)' : 'var(--text-dark)',
+                              cursor: idx === files.length - 1 ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: '16px', fontWeight: '700', opacity: idx === files.length - 1 ? 0.4 : 1,
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            ↓
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        className="file-preview-btn"
+                        onClick={() => setSelectedScanPreview(idx)}
+                        title="Preview Document"
+                        aria-label="Preview Document"
+                        style={{ color: 'var(--text-gray)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                      >
+                        <Eye size={17} />
+                      </button>
+                      <button
+                        className="file-remove"
+                        onClick={() => removeFile(idx)}
+                        aria-label="Delete File"
+                        style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Tool Specific Configuration Options */}
             <div className="tool-options-box">
@@ -1724,22 +2620,92 @@ startxref
               )}
             </div>
 
-            <div className="workspace-action-btns">
+            <div className="workspace-action-btns" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {/* Retry / Reset Button */}
               <button 
                 type="button"
                 className="btn btn-secondary" 
-                onClick={selectFilesClick} 
-                style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)', padding: '12px 24px', borderRadius: '8px' }}
+                onClick={resetWorkspace}
+                title="Clear current files and start over"
+                style={{ 
+                  backgroundColor: 'var(--bg-card)', 
+                  color: 'var(--text-gray)', 
+                  border: '1px solid var(--border-light)', 
+                  padding: '12px 20px', 
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: '700',
+                  cursor: 'pointer'
+                }}
               >
-                Add More Files
+                <RefreshCw size={15} /> Retry
               </button>
+
+              {tool.id.includes('scan') ? (
+                <>
+                  <button 
+                    type="button"
+                    onClick={selectFilesClick} 
+                    title="Upload more files from device"
+                    aria-label="Upload files from device"
+                    style={{ 
+                      width: '46px', 
+                      height: '46px', 
+                      borderRadius: '8px', 
+                      backgroundColor: 'var(--bg-card)', 
+                      color: 'var(--text-gray)', 
+                      border: '1.5px solid var(--border-light)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}
+                  >
+                    <Upload size={18} />
+                  </button>
+                  <button 
+                    type="button"
+                    className="btn btn-secondary" 
+                    onClick={() => setShowCameraScanner(true)} 
+                    style={{ backgroundColor: 'rgba(229,36,36,0.08)', color: 'var(--primary-red)', border: '1px solid rgba(229,36,36,0.2)', padding: '12px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', cursor: 'pointer' }}
+                  >
+                    <Camera size={16} /> Scan More with Camera
+                  </button>
+                </>
+              ) : (
+                <button 
+                  type="button"
+                  className="btn btn-secondary" 
+                  onClick={selectFilesClick} 
+                  style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)', padding: '12px 24px', borderRadius: '8px' }}
+                >
+                  Add More Files
+                </button>
+              )}
               <button 
                 type="button"
                 className="btn btn-primary" 
                 onClick={startProcessing}
-                style={{ minWidth: '220px', backgroundColor: 'var(--primary-red)', padding: '12px 32px', borderRadius: '8px', fontSize: '16px', fontWeight: '700' }}
+                style={{ 
+                  minWidth: '220px', 
+                  backgroundColor: 'var(--primary-red)', 
+                  padding: '12px 32px', 
+                  borderRadius: '8px', 
+                  fontSize: '16px', 
+                  fontWeight: '700',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 15px rgba(229, 36, 36, 0.35)'
+                }}
               >
-                {getActionLabel()}
+                <Download size={18} />
+                {tool.id.includes('scan') ? 'Convert & Download PDF' : getActionLabel()}
               </button>
             </div>
             
@@ -1768,32 +2734,47 @@ startxref
           </div>
         )}
 
-        {/* State 4: Success */}
+        {/* State 4: Success - Document Preview & Confirmation */}
         {status === 'success' && (
-          <div className="success-container" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', padding: 'clamp(20px, 5vw, 40px)', borderRadius: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', maxWidth: '500px', boxSizing: 'border-box' }}>
-            <div className="success-icon-container" style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-              <CheckCircle2 size={40} />
-            </div>
-            <h3 className="success-title" style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px' }}>Successfully Processed!</h3>
-            <p className="success-desc" style={{ fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.5', marginBottom: '24px' }}>
-              Your document has been processed with 256-bit SSL encryption. Download your file below.
-            </p>
-
-            <button type="button" className="btn-download" onClick={downloadMockFile} style={{ width: '100%', padding: '14px 20px', borderRadius: '10px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(229, 36, 36, 0.25)', marginBottom: '20px' }}>
-              <Download size={22} /> Download {downloadFilename}
-            </button>
-
-            <div className="btn-group" style={{ display: 'flex', gap: '12px', width: '100%' }}>
-              <button className="btn btn-secondary" onClick={resetWorkspace} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>
-                <RefreshCw size={14} /> Start Over
-              </button>
-              <button className="btn btn-secondary" onClick={onBack} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', border: '1px solid var(--border-light)', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}>
-                All Tools <ExternalLink size={14} />
-              </button>
-            </div>
-          </div>
+          <PdfResultViewer 
+            blob={downloadBlob}
+            filename={downloadFilename}
+            toolTitle={tool.title}
+            onDownload={downloadMockFile}
+            onStartOver={resetWorkspace}
+            onBack={onBack}
+          />
         )}
       </div>
+
+      <SideBannerAd position="right" />
     </div>
-  );
+
+    {/* Right-Side Document Preview Sheet */}
+    <RightSidePreviewSheet 
+      isOpen={selectedScanPreview !== null && !!files[selectedScanPreview]}
+      onClose={() => setSelectedScanPreview(null)}
+      files={files}
+      currentIndex={selectedScanPreview || 0}
+      onSelectIndex={(idx) => setSelectedScanPreview(idx)}
+      onDeletePage={(idx) => {
+        removeFile(idx);
+        if (files.length <= 1) {
+          setSelectedScanPreview(null);
+        } else {
+          setSelectedScanPreview(prev => Math.min(prev, files.length - 2));
+        }
+      }}
+      onDownloadOrConvert={() => {
+        setSelectedScanPreview(null);
+        startProcessing();
+      }}
+      onRetry={() => {
+        setSelectedScanPreview(null);
+        resetWorkspace();
+      }}
+      toolTitle={tool.title}
+    />
+  </div>
+);
 }

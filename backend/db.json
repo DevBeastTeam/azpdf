@@ -377,7 +377,7 @@
         "enabled": true
       },
       "tool-pdftopowerpoint": {
-        "whatIsHeading": "What is a PDF to PowerPoint Converter?wsedrftgv",
+        "whatIsHeading": "What is a PDF to PowerPoint Converter?",
         "whatIsParagraph": "A PDF to PowerPoint converter transforms multi-page PDF documents into presentation-ready Microsoft PowerPoint slides (.PPTX). Each PDF page is converted into a distinct slide, enabling you to present slideshows, edit slide content, reposition visual assets, and customize lecture materials without re-creating pitch decks from scratch.",
         "howToHeading": "How to Use PDF to PowerPoint Converter",
         "howToParagraph": "Convert slides from PDF to PowerPoint in seconds:\n\n1. Upload your presentation PDF by clicking the upload button or dropping your file.\n2. Review your selected document and click \"Convert to PowerPoint\".\n3. Our conversion engine creates native PPTX presentation slides maintaining page layouts.\n4. Download your PowerPoint presentation and start presenting or customizing.",

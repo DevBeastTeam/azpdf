@@ -80,7 +80,23 @@ class PdfHelper {
                 $xml = $zip->getFromName('word/document.xml');
                 $zip->close();
                 if ($xml) {
-                    $clean = strip_tags(str_replace(['</w:p>', '</w:tr>'], ["\n", "\n"], $xml));
+                    $paragraphs = [];
+                    if (preg_match_all('#<w:p[^>]*>(.*?)</w:p>#s', $xml, $pMatches)) {
+                        foreach ($pMatches[1] as $pXml) {
+                            if (preg_match_all('#<w:t[^>]*>(.*?)</w:t>#s', $pXml, $tMatches)) {
+                                $line = implode('', $tMatches[1]);
+                                $line = html_entity_decode($line, ENT_QUOTES, 'UTF-8');
+                                $trimmed = trim($line);
+                                if ($trimmed !== '') {
+                                    $paragraphs[] = $trimmed;
+                                }
+                            }
+                        }
+                    }
+                    if (!empty($paragraphs)) {
+                        return implode("\n\n", $paragraphs);
+                    }
+                    $clean = strip_tags(str_replace(['</w:p>', '</w:tr>'], ["\n\n", "\n"], $xml));
                     return trim(html_entity_decode($clean, ENT_QUOTES, 'UTF-8'));
                 }
             }
@@ -97,31 +113,114 @@ class PdfHelper {
                 $stringsXml = $zip->getFromName('xl/sharedStrings.xml');
                 if ($stringsXml) {
                     $xmlObj = simplexml_load_string($stringsXml);
-                    foreach ($xmlObj->si as $val) {
-                        $sharedStrings[] = (string) ($val->t ?? ($val->r ? $val->r->t : ''));
+                    if ($xmlObj && isset($xmlObj->si)) {
+                        foreach ($xmlObj->si as $val) {
+                            if (isset($val->t)) {
+                                $sharedStrings[] = (string) $val->t;
+                            } elseif (isset($val->r)) {
+                                $str = '';
+                                foreach ($val->r as $r) {
+                                    $str .= (string) ($r->t ?? '');
+                                }
+                                $sharedStrings[] = $str;
+                            } else {
+                                $sharedStrings[] = '';
+                            }
+                        }
                     }
                 }
 
-                $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
-                $zip->close();
+                // Locate sheet XMLs
+                $sheetFiles = [];
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $name = $zip->getNameIndex($i);
+                    if (preg_match('#xl/worksheets/sheet[0-9]+\.xml#i', $name)) {
+                        $sheetFiles[] = $name;
+                    }
+                }
+                natsort($sheetFiles);
+                if (empty($sheetFiles)) {
+                    $sheetFiles[] = 'xl/worksheets/sheet1.xml';
+                }
 
-                if ($sheetXml) {
+                foreach ($sheetFiles as $sf) {
+                    $sheetXml = $zip->getFromName($sf);
+                    if (!$sheetXml) continue;
+
                     $sheetObj = simplexml_load_string($sheetXml);
-                    foreach ($sheetObj->sheetData->row as $r) {
-                        $row = [];
-                        foreach ($r->c as $c) {
-                            $type = (string) $c['t'];
-                            $val = (string) $c->v;
-                            if ($type === 's' && isset($sharedStrings[(int) $val])) {
-                                $row[] = $sharedStrings[(int) $val];
-                            } else {
-                                $row[] = $val;
+                    if ($sheetObj && isset($sheetObj->sheetData->row)) {
+                        foreach ($sheetObj->sheetData->row as $r) {
+                            $rowMap = [];
+                            $maxCol = -1;
+                            foreach ($r->c as $c) {
+                                $ref = (string) $c['r'];
+                                $colIdx = 0;
+                                if (preg_match('/^([A-Z]+)(\d+)$/i', $ref, $m)) {
+                                    $colStr = strtoupper($m[1]);
+                                    $cIdx = 0;
+                                    $cLen = strlen($colStr);
+                                    for ($ci = 0; $ci < $cLen; $ci++) {
+                                        $cIdx = $cIdx * 26 + (ord($colStr[$ci]) - 64);
+                                    }
+                                    $colIdx = $cIdx - 1;
+                                } else {
+                                    $colIdx = $maxCol + 1;
+                                }
+                                if ($colIdx > $maxCol) $maxCol = $colIdx;
+
+                                $type = (string) $c['t'];
+                                $cellVal = '';
+
+                                if ($type === 's') {
+                                    $sIdx = (int) $c->v;
+                                    $cellVal = $sharedStrings[$sIdx] ?? '';
+                                } elseif ($type === 'inlineStr') {
+                                    if (isset($c->is->t)) {
+                                        $cellVal = (string) $c->is->t;
+                                    } elseif (isset($c->is->r)) {
+                                        $str = '';
+                                        foreach ($c->is->r as $rItem) {
+                                            $str .= (string) ($rItem->t ?? '');
+                                        }
+                                        $cellVal = $str;
+                                    }
+                                } elseif ($type === 'b') {
+                                    $cellVal = ((string) $c->v === '1') ? 'TRUE' : 'FALSE';
+                                } elseif (isset($c->v)) {
+                                    $cellVal = (string) $c->v;
+                                }
+                                $rowMap[$colIdx] = trim($cellVal);
+                            }
+
+                            if ($maxCol >= 0) {
+                                $row = [];
+                                for ($ci = 0; $ci <= $maxCol; $ci++) {
+                                    $row[$ci] = $rowMap[$ci] ?? '';
+                                }
+                                if (!empty(array_filter($row, fn($x) => trim((string)$x) !== ''))) {
+                                    $rows[] = $row;
+                                }
                             }
                         }
-                        if (!empty($row)) {
-                            $rows[] = $row;
+                    }
+                    if (!empty($rows)) {
+                        break; // Stop at first non-empty sheet
+                    }
+                }
+                $zip->close();
+            } else {
+                // Fallback for CSV / TSV / text spreadsheets
+                if (($handle = @fopen($filePath, 'r')) !== false) {
+                    $firstLine = fgets($handle);
+                    rewind($handle);
+                    $sep = (substr_count($firstLine, "\t") > substr_count($firstLine, ',')) ? "\t" : 
+                           ((substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',');
+                    while (($data = fgetcsv($handle, 4096, $sep)) !== false) {
+                        if (!empty(array_filter($data, fn($v) => trim((string)$v) !== ''))) {
+                            $rows[] = array_map('trim', $data);
                         }
                     }
+                    fclose($handle);
                 }
             }
         } catch (Throwable $e) {}

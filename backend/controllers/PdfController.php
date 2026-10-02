@@ -453,20 +453,84 @@ class PdfController {
             if (!$text) $text = "azPDF Word to PDF\nDocument: {$file['name']}\n";
 
             $pdf = PdfHelper::createPdf();
-            $pdf->AddPage();
-            $pdf->SetFont('Arial', 'B', 16);
-            $pdf->SetTextColor(229, 36, 36);
-            $pdf->Cell(0, 10, 'azPDF - Word to PDF Conversion', 0, 1);
-            $pdf->SetFont('Arial', '', 10);
-            $pdf->SetTextColor(100, 100, 100);
-            $pdf->Cell(0, 6, 'Source: ' . $file['name'] . ' | Generated: ' . date('Y-m-d H:i'), 0, 1);
-            $pdf->Ln(6);
+            $pdf->SetMargins(18, 18, 18);
+            $pdf->SetAutoPageBreak(false);
+            $pdf->AliasNbPages();
 
-            $pdf->SetFont('Arial', '', 11);
-            $pdf->SetTextColor(30, 30, 30);
-            $pdf->MultiCell(0, 6, iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $text));
+            $printableWidth = 174; // 210 - 36mm margins
 
-            Response::buffer($pdf->Output('S'), 'converted_word.pdf');
+            $drawPageHeader = function(bool $isFirst = true) use ($pdf, $file) {
+                $pdf->SetFont('Arial', 'B', 14);
+                $pdf->SetTextColor(29, 78, 216); // Word Royal Blue
+                $pdf->Cell(0, 8, 'azPDF - Converted Word Document' . ($isFirst ? '' : ' (Continued)'), 0, 1, 'L');
+                
+                $pdf->SetFont('Arial', '', 8.5);
+                $pdf->SetTextColor(100, 116, 139);
+                $cleanFilename = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT//IGNORE', $file['name']) ?: 'document.docx';
+                $pdf->Cell(0, 5, "File: {$cleanFilename}  |  Generated: " . date('Y-m-d H:i'), 0, 1, 'L');
+                
+                $pdf->SetDrawColor(203, 213, 225);
+                $pdf->SetLineWidth(0.3);
+                $pdf->Line(18, $pdf->GetY() + 2, 192, $pdf->GetY() + 2);
+                $pdf->Ln(6);
+            };
+
+            $drawPageFooter = function() use ($pdf) {
+                $pdf->SetY(282);
+                $pdf->SetFont('Arial', 'I', 7.5);
+                $pdf->SetTextColor(148, 163, 184);
+                $pdf->Cell(0, 5, 'Page ' . $pdf->PageNo() . ' - azPDF Word Document Engine', 0, 0, 'R');
+            };
+
+            $pdf->AddPage('P');
+            $drawPageHeader(true);
+
+            $paragraphs = explode("\n\n", $text);
+            foreach ($paragraphs as $para) {
+                $para = trim($para);
+                if ($para === '') continue;
+
+                $clean = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT//IGNORE', $para);
+                if (!$clean) {
+                    $clean = preg_replace('/[^\x20-\x7E\n\r]/', ' ', $para);
+                }
+
+                $isHeading = (strlen($clean) < 65 && !preg_match('/[\.\?\!]$/', $clean) && (preg_match('/^(\d+\.|\b(Chapter|Section|Part|Table)\b)/i', $clean) || strtoupper($clean) === $clean));
+                
+                if ($isHeading) {
+                    $pdf->SetFont('Arial', 'B', 12);
+                    $pdf->SetTextColor(30, 41, 59);
+                    $lineHeight = 7;
+                } else {
+                    $pdf->SetFont('Arial', '', 10);
+                    $pdf->SetTextColor(51, 65, 85);
+                    $lineHeight = 5.5;
+                }
+
+                $estLines = max(1, (int)ceil($pdf->GetStringWidth($clean) / $printableWidth));
+                $neededHeight = ($estLines * $lineHeight) + 4;
+
+                if ($pdf->GetY() + $neededHeight > 275) {
+                    $drawPageFooter();
+                    $pdf->AddPage('P');
+                    $drawPageHeader(false);
+                    if ($isHeading) {
+                        $pdf->SetFont('Arial', 'B', 12);
+                        $pdf->SetTextColor(30, 41, 59);
+                    } else {
+                        $pdf->SetFont('Arial', '', 10);
+                        $pdf->SetTextColor(51, 65, 85);
+                    }
+                }
+
+                $pdf->MultiCell($printableWidth, $lineHeight, $clean, 0, 'L');
+                $pdf->Ln(2.5);
+            }
+
+            $drawPageFooter();
+
+            $outputName = pathinfo($file['name'], PATHINFO_FILENAME) . '_converted.pdf';
+            Response::buffer($pdf->Output('S'), $outputName);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }
@@ -481,35 +545,129 @@ class PdfController {
             $file = $files[0];
             $rows = PdfHelper::extractXlsxText($file['tmp_name']);
 
+            if (empty($rows)) {
+                Response::error('Could not extract table data from the uploaded file. Please make sure it is a valid .xlsx, .xls, or .csv document.', 400);
+            }
+
             $pdf = PdfHelper::createPdf();
-            $pdf->AddPage('L'); // Landscape for tables
-            $pdf->SetFont('Arial', 'B', 16);
-            $pdf->SetTextColor(229, 36, 36);
-            $pdf->Cell(0, 10, 'azPDF - Excel to PDF Table', 0, 1);
-            $pdf->SetFont('Arial', '', 9);
-            $pdf->SetTextColor(100, 100, 100);
-            $pdf->Cell(0, 6, 'File: ' . $file['name'], 0, 1);
-            $pdf->Ln(4);
+            $pdf->SetMargins(10, 10, 10);
+            $pdf->SetAutoPageBreak(false);
+            $pdf->AliasNbPages();
 
-            $pdf->SetFont('Arial', '', 10);
-            $pdf->SetTextColor(30, 30, 30);
+            $pageWidth = 297;  // A4 Landscape width
+            $pageHeight = 210; // A4 Landscape height
+            $printableWidth = 277; // 297 - 20mm margins
 
-            foreach (array_slice($rows, 0, 100) as $rowIdx => $row) {
-                if ($rowIdx === 0) {
+            // Find maximum columns
+            $maxCols = 1;
+            foreach ($rows as $r) {
+                if (count($r) > $maxCols) $maxCols = count($r);
+            }
+            $displayCols = min($maxCols, 24);
+
+            // Compute proportional column widths based on text lengths
+            $colLengths = array_fill(0, $displayCols, 4);
+            foreach ($rows as $r) {
+                for ($ci = 0; $ci < $displayCols; $ci++) {
+                    $len = mb_strlen(trim((string)($r[$ci] ?? '')));
+                    if ($len > $colLengths[$ci]) {
+                        $colLengths[$ci] = min($len, 35);
+                    }
+                }
+            }
+            $totalWeight = array_sum($colLengths);
+            $colWidths = [];
+            foreach ($colLengths as $ci => $len) {
+                $w = ($len / $totalWeight) * $printableWidth;
+                $colWidths[$ci] = max(13, round($w, 1));
+            }
+            $sumWidths = array_sum($colWidths);
+            if ($sumWidths > 0) {
+                $scale = $printableWidth / $sumWidths;
+                foreach ($colWidths as $ci => $w) {
+                    $colWidths[$ci] = round($w * $scale, 1);
+                }
+            }
+
+            $drawHeader = function() use ($pdf, $rows, $colWidths, $displayCols) {
+                $pdf->SetFont('Arial', 'B', 8.5);
+                $pdf->SetFillColor(15, 118, 110); // Emerald 700
+                $pdf->SetTextColor(255, 255, 255);
+                $pdf->SetDrawColor(203, 213, 225); // Slate 300
+                $pdf->SetLineWidth(0.2);
+
+                $headerRow = $rows[0] ?? [];
+                foreach ($colWidths as $ci => $cw) {
+                    $raw = (string)($headerRow[$ci] ?? ('Col ' . ($ci + 1)));
+                    $text = iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $raw);
+                    $maxChars = max(4, (int)floor($cw / 1.9));
+                    if (strlen($text) > $maxChars) $text = substr($text, 0, $maxChars - 2) . '..';
+                    $pdf->Cell($cw, 7.5, ' ' . $text, 1, 0, 'L', true);
+                }
+                $pdf->Ln();
+            };
+
+            // First page
+            $pdf->AddPage('L');
+            $pdf->SetFont('Arial', 'B', 14);
+            $pdf->SetTextColor(15, 118, 110);
+            $pdf->Cell(0, 8, 'azPDF - Converted Excel Spreadsheet', 0, 1, 'L');
+            
+            $pdf->SetFont('Arial', '', 8.5);
+            $pdf->SetTextColor(100, 116, 139);
+            $cleanFilename = iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $file['name']);
+            $pdf->Cell(0, 5, "File: {$cleanFilename}  |  Total Rows: " . count($rows) . "  |  Columns: {$displayCols}", 0, 1, 'L');
+            $pdf->Ln(2);
+
+            $drawHeader();
+
+            $totalRows = count($rows);
+            for ($ri = 1; $ri < $totalRows; $ri++) {
+                if ($pdf->GetY() + 6.5 > 192) {
+                    // Page footer
+                    $pdf->SetY(196);
+                    $pdf->SetFont('Arial', 'I', 7.5);
+                    $pdf->SetTextColor(148, 163, 184);
+                    $pdf->Cell(0, 5, 'Page ' . $pdf->PageNo() . ' - azPDF Spreadsheet Engine', 0, 0, 'R');
+
+                    $pdf->AddPage('L');
                     $pdf->SetFont('Arial', 'B', 10);
-                    $pdf->SetFillColor(240, 240, 245);
+                    $pdf->SetTextColor(15, 118, 110);
+                    $pdf->Cell(0, 6, 'azPDF - Converted Excel Spreadsheet (Continued)', 0, 1, 'L');
+                    $pdf->Ln(1);
+                    $drawHeader();
+                }
+
+                $r = $rows[$ri];
+                if ($ri % 2 === 0) {
+                    $pdf->SetFillColor(248, 250, 252);
                 } else {
-                    $pdf->SetFont('Arial', '', 9);
                     $pdf->SetFillColor(255, 255, 255);
                 }
-                foreach (array_slice($row, 0, 8) as $cell) {
-                    $clean = iconv('UTF-8', 'ISO-8859-1//TRANSLIT', substr((string)$cell, 0, 24));
-                    $pdf->Cell(34, 7, $clean, 1, 0, 'L', true);
+                $pdf->SetTextColor(30, 41, 59);
+                $pdf->SetFont('Arial', '', 8);
+                $pdf->SetDrawColor(226, 232, 240);
+
+                foreach ($colWidths as $ci => $cw) {
+                    $raw = (string)($r[$ci] ?? '');
+                    $clean = iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $raw);
+                    $maxChars = max(4, (int)floor($cw / 1.8));
+                    if (strlen($clean) > $maxChars) $clean = substr($clean, 0, $maxChars - 2) . '..';
+                    
+                    $align = (preg_match('/^[\$€£]?\s*[\d,]+(\.\d+)?%?$/', trim($raw))) ? 'R' : 'L';
+                    $pdf->Cell($cw, 6.2, ' ' . $clean . ' ', 1, 0, $align, true);
                 }
                 $pdf->Ln();
             }
 
-            Response::buffer($pdf->Output('S'), 'excel_to_pdf.pdf');
+            // Footer on last page
+            $pdf->SetY(196);
+            $pdf->SetFont('Arial', 'I', 7.5);
+            $pdf->SetTextColor(148, 163, 184);
+            $pdf->Cell(0, 5, 'Page ' . $pdf->PageNo() . ' - azPDF Spreadsheet Engine', 0, 0, 'R');
+
+            $outputName = pathinfo($file['name'], PATHINFO_FILENAME) . '_converted.pdf';
+            Response::buffer($pdf->Output('S'), $outputName);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }

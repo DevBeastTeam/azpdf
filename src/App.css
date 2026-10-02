@@ -2162,3 +2162,242 @@
     font-size: 18px !important;
   }
 }
+
+/* ── Workspace Desktop Ad Banners (160x600 Skyscraper) ── */
+.workspace-desktop-layout {
+  display: flex;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  align-items: flex-start;
+  justify-content: center;
+  position: relative;
+  flex: 1;
+  box-sizing: border-box;
+}
+
+.workspace-ad-sidebar {
+  display: none; /* hidden on mobile / tablet */
+  width: 176px;
+  flex-shrink: 0;
+  padding: 24px 8px;
+  position: sticky;
+  top: 76px;
+  z-index: 4;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1260px) {
+  .workspace-ad-sidebar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.workspace-ad-container {
+  width: 160px;
+  min-height: 600px;
+  background: var(--bg-card);
+  border: 1.5px dashed var(--border-light);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 12px;
+  box-sizing: border-box;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  transition: all 0.25s ease;
+  user-select: none;
+}
+
+.workspace-ad-container:hover {
+  border-color: rgba(229, 36, 36, 0.45);
+  box-shadow: 0 8px 24px rgba(229, 36, 36, 0.08);
+}
+
+.workspace-ad-header {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.workspace-ad-tag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-gray);
+  opacity: 0.75;
+  background: rgba(100, 116, 139, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.workspace-ad-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: auto 0;
+  width: 100%;
+}
+
+.workspace-ad-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(229, 36, 36, 0.08);
+  color: var(--primary-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.workspace-ad-grid-icon {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+}
+
+.workspace-ad-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.workspace-ad-size {
+  display: inline-block;
+  padding: 3px 10px;
+  background: rgba(229, 36, 36, 0.09);
+  color: var(--primary-red);
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.workspace-ad-sub {
+  font-size: 11px;
+  color: var(--text-gray);
+  font-weight: 500;
+}
+
+.workspace-ad-footer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-gray);
+  opacity: 0.6;
+}
+
+/* ==========================================================================
+   Right-Side Document Preview Sheet Animations & Styles
+   ========================================================================== */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.preview-sheet-overlay {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.preview-side-sheet {
+  animation: slideInRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 640px) {
+  .preview-side-sheet {
+    width: 100vw !important;
+  }
+}
+
+/* ==========================================================================
+   Word Document Preview A4 Sheet Scoped Typography
+   ========================================================================== */
+.word-a4-page-sheet h1 {
+  font-size: 1.75em !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  margin-top: 0.6em !important;
+  margin-bottom: 0.4em !important;
+  line-height: 1.3 !important;
+}
+
+.word-a4-page-sheet h2 {
+  font-size: 1.35em !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  margin-top: 0.6em !important;
+  margin-bottom: 0.35em !important;
+  line-height: 1.35 !important;
+}
+
+.word-a4-page-sheet h3 {
+  font-size: 1.15em !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.3em !important;
+}
+
+.word-a4-page-sheet p {
+  margin-bottom: 0.9em !important;
+  line-height: 1.7 !important;
+  color: #1e293b !important;
+  word-break: break-word !important;
+}
+
+.word-a4-page-sheet ul,
+.word-a4-page-sheet ol {
+  margin-left: 1.5em !important;
+  margin-bottom: 1em !important;
+}
+
+.word-a4-page-sheet li {
+  margin-bottom: 0.35em !important;
+  line-height: 1.6 !important;
+}
+
+.word-a4-page-sheet table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 1.2em 0 !important;
+  font-size: 0.9em !important;
+}
+
+.word-a4-page-sheet th,
+.word-a4-page-sheet td {
+  border: 1px solid #cbd5e1 !important;
+  padding: 8px 12px !important;
+  text-align: left !important;
+}
+
+.word-a4-page-sheet th {
+  background-color: #f1f5f9 !important;
+  font-weight: 700 !important;
+}
+
+.word-a4-page-sheet blockquote {
+  border-left: 4px solid #3b82f6 !important;
+  padding-left: 14px !important;
+  margin: 1em 0 !important;
+  color: #475569 !important;
+  font-style: italic !important;
+}
+

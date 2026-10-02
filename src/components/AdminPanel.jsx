@@ -2591,21 +2591,6 @@ export default function AdminPanel({
                       </div>
 
                       {/* Mockup Rating Pill */}
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '5px 14px',
-                        borderRadius: '20px',
-                        backgroundColor: 'var(--bg-card)',
-                        border: '1px solid var(--border-light)',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        color: 'var(--text-dark)',
-                        marginBottom: '28px'
-                      }}>
-                        Help Us Improve <span style={{ color: '#f59e0b' }}>★★★★☆</span> <span style={{ color: '#0284c7' }}>4.5</span>
-                      </div>
 
                       {/* Preview: Section 1 */}
                       <div style={{ textAlign: 'left', marginBottom: '28px', opacity: menuToolForm.enabled ? 1 : 0.35 }}>
