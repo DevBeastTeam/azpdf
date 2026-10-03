@@ -25,6 +25,7 @@ export default function PdfResultViewer({
   const [showTestPassword, setShowTestPassword] = useState(false);
   const [testingPassword, setTestingPassword] = useState(false);
   const [testPasswordError, setTestPasswordError] = useState('');
+  const [unlockedBlob, setUnlockedBlob] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pdfJsDoc, setPdfJsDoc] = useState(null);
   const [textContent, setTextContent] = useState('');
@@ -89,7 +90,8 @@ export default function PdfResultViewer({
           if (cancelled) return;
           arrayBufferRef.current = arrayBuffer;
 
-          const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          // Pass a sliced copy so the worker transfer does not detach arrayBufferRef.current
+          const doc = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) }).promise;
           if (cancelled) return;
 
           setPdfJsDoc(doc);
@@ -100,9 +102,7 @@ export default function PdfResultViewer({
           console.warn('PDF.js preview render error:', err);
           if (!cancelled) {
             const isPassword = err?.name === 'PasswordException' || 
-                               (err?.message && err.message.toLowerCase().includes('password')) ||
-                               (filename && filename.toLowerCase().includes('protected')) ||
-                               (toolTitle && toolTitle.toLowerCase().includes('protect'));
+                               (err?.message && err.message.toLowerCase().includes('password'));
             if (isPassword) {
               setIsPasswordProtected(true);
             } else {
@@ -171,30 +171,103 @@ export default function PdfResultViewer({
     }
     setTestingPassword(true);
     setTestPasswordError('');
+
+    // Attempt 1: Try pdfjs-dist client-side decryption using fresh buffer from blob
     try {
       const pdfjsLib = await import('pdfjs-dist');
-      const doc = await pdfjsLib.getDocument({
-        data: arrayBufferRef.current,
-        password: testPassword
-      }).promise;
-      setPdfJsDoc(doc);
-      setNumPages(doc.numPages);
-      setCurrentPage(1);
-      setIsPasswordProtected(false);
-      setTestingPassword(false);
-    } catch (err) {
-      setTestingPassword(false);
-      if (err?.name === 'PasswordException' || err?.message?.toLowerCase().includes('password')) {
-        setTestPasswordError('Incorrect password. Please verify and try again.');
-      } else {
-        setTestPasswordError('Could not unlock document with this password.');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString();
+
+      let freshBuffer;
+      if (blob && typeof blob.arrayBuffer === 'function') {
+        freshBuffer = await blob.arrayBuffer();
+      } else if (blob) {
+        freshBuffer = await (await fetch(URL.createObjectURL(blob))).arrayBuffer();
       }
+
+      if (freshBuffer && freshBuffer.byteLength > 0) {
+        const doc = await pdfjsLib.getDocument({
+          data: new Uint8Array(freshBuffer),
+          password: testPassword
+        }).promise;
+        setPdfJsDoc(doc);
+        setNumPages(doc.numPages);
+        setCurrentPage(1);
+        setIsPasswordProtected(false);
+        setTestingPassword(false);
+        return;
+      }
+    } catch (clientErr) {
+      console.warn('Client-side decrypt failed, falling back to engine backend:', clientErr.message);
+    }
+
+    // Attempt 2: Fall back to backend /api/unlock (handles AES-256 via pypdf)
+    try {
+      const formData = new FormData();
+      // Use original immutable blob to guarantee full document bytes are sent
+      formData.append('files', blob, filename || 'document.pdf');
+      formData.append('password', testPassword);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      const response = await fetch('/api/unlock', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const decryptedBlob = await response.blob();
+        setUnlockedBlob(decryptedBlob);
+
+        let decryptedBuffer;
+        if (typeof decryptedBlob.arrayBuffer === 'function') {
+          decryptedBuffer = await decryptedBlob.arrayBuffer();
+        } else {
+          decryptedBuffer = await (await fetch(URL.createObjectURL(decryptedBlob))).arrayBuffer();
+        }
+        arrayBufferRef.current = decryptedBuffer;
+
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url
+        ).toString();
+
+        const doc = await pdfjsLib.getDocument({ data: new Uint8Array(decryptedBuffer) }).promise;
+        setPdfJsDoc(doc);
+        setNumPages(doc.numPages);
+        setCurrentPage(1);
+        setIsPasswordProtected(false);
+        setTestingPassword(false);
+      } else {
+        const errData = await response.json().catch(() => null);
+        const errMsg = errData?.error || 'Incorrect password.';
+        setTestingPassword(false);
+        setTestPasswordError(errMsg.includes('ncorrect') ? 'Incorrect password. Please verify and try again.' : errMsg);
+      }
+    } catch (backendErr) {
+      setTestingPassword(false);
+      const isTimeout = backendErr.name === 'AbortError';
+      setTestPasswordError(isTimeout ? 'Unlock timed out. Please try again.' : 'Incorrect password. Please verify and try again.');
     }
   };
 
   // Render active page onto canvas
   const renderPage = useCallback(async (pageNum, scale) => {
-    if (!pdfJsDoc || !canvasRef.current) return;
+    if (!pdfJsDoc) return;
+    if (!canvasRef.current) {
+      requestAnimationFrame(() => {
+        if (canvasRef.current && pdfJsDoc) {
+          renderPage(pageNum, scale);
+        }
+      });
+      return;
+    }
 
     try {
       if (renderTaskRef.current) {
@@ -213,6 +286,8 @@ export default function PdfResultViewer({
       canvas.height = viewport.height;
       canvas.style.width = `${viewport.width / dpr}px`;
       canvas.style.height = `${viewport.height / dpr}px`;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const renderContext = {
         canvasContext: ctx,
@@ -355,6 +430,37 @@ export default function PdfResultViewer({
             <RefreshCw size={15} /> Start Over
           </button>
 
+          {unlockedBlob && (
+            <button
+              type="button"
+              onClick={() => {
+                const url = URL.createObjectURL(unlockedBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = (filename || 'document.pdf').replace(/_protected\.pdf$/i, '_unlocked.pdf');
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                padding: '11px 20px',
+                borderRadius: '8px',
+                fontWeight: '800',
+                fontSize: '14px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Download size={18} /> Download Unlocked PDF
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onDownload}
@@ -374,7 +480,7 @@ export default function PdfResultViewer({
               transition: 'all 0.2s'
             }}
           >
-            <Download size={18} /> Download Document
+            <Download size={18} /> {unlockedBlob ? 'Download Protected PDF' : 'Download Document'}
           </button>
         </div>
       </div>
@@ -694,6 +800,25 @@ export default function PdfResultViewer({
             >
               <Download size={16} /> Download File
             </button>
+          </div>
+        )}
+
+        {unlockedBlob && !isPasswordProtected && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            backgroundColor: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            color: '#065f46',
+            padding: '10px 18px',
+            borderRadius: '10px',
+            fontSize: '13px',
+            fontWeight: '700',
+            marginBottom: '16px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+          }}>
+            <span>🔒 Password verified! Live document preview is now unlocked.</span>
           </div>
         )}
 

@@ -19,10 +19,28 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
     : location.pathname.startsWith('/tool/') ? 'tool-' + location.pathname.replace('/tool/', '') 
     : location.pathname.replace('/', '');
 
-  const setView = (view) => {
-    if (view === 'home') navigate('/');
-    else if (view.startsWith('tool-')) navigate(`/tool/${view.replace('tool-', '')}`);
-    else navigate(`/${view}`);
+  const setView = (view, e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    setIsConvertOpen(false);
+    setIsAllToolsOpen(false);
+    setIsAppLauncherOpen(false);
+    setMobileMenuOpen(false);
+    setMobileConvertOpen(false);
+    setMobileAllToolsOpen(false);
+
+    if (view === 'home') {
+      navigate('/');
+    } else if (view.startsWith('tool-')) {
+      const toolSlug = view.replace('tool-', '');
+      navigate(`/tool/${toolSlug}`);
+    } else {
+      navigate(`/${view}`);
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
   };
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [isAllToolsOpen, setIsAllToolsOpen] = useState(false);
@@ -83,7 +101,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
   return (
     <header className="header">
       <div className="header-left">
-        <a href="#home" className="brand" onClick={() => { setView('home'); setMobileMenuOpen(false); }} style={{ gap: '4px' }}>
+        <a href="/" className="brand" onClick={(e) => setView('home', e)} style={{ gap: '4px' }}>
           <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>{siteContent?.brandPrefix || 'I'}</span>
           <span style={{ color: 'var(--primary-red)', fontSize: '20px', display: 'flex', alignItems: 'center' }}>{siteContent?.brandIcon || '❤️'}</span>
           <span style={{ fontWeight: '900', color: 'var(--text-dark)' }}>{siteContent?.brandName || 'PDF'}</span>
@@ -93,11 +111,11 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
         <ul className="nav-menu">
           <li>
             <a 
-              href="#home" 
+              href="/" 
               className="nav-item" 
               onClick={(e) => {
                 e.preventDefault();
-                setView('home');
+                setView('home', e);
                 if (location.pathname !== '/') {
                   navigate('/');
                 } else {
@@ -114,10 +132,12 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </li>
           <li>
             <a 
-              href="/#pricing" 
+              href="/pricing" 
               className="nav-item" 
               onClick={(e) => {
                 e.preventDefault();
+                setIsConvertOpen(false);
+                setIsAllToolsOpen(false);
                 if (location.pathname !== '/') {
                   navigate('/');
                   setTimeout(() => {
@@ -136,9 +156,9 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </li>
           <li>
             <a 
-              href="#merge" 
+              href="/tool/merge" 
               className="nav-item" 
-              onClick={() => setView('tool-merge')}
+              onClick={(e) => setView('tool-merge', e)}
               style={getNavItemStyle(['tool-merge'])}
             >
               MERGE PDF
@@ -146,9 +166,9 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </li>
           <li>
             <a 
-              href="#split" 
+              href="/tool/split" 
               className="nav-item" 
-              onClick={() => setView('tool-split')}
+              onClick={(e) => setView('tool-split', e)}
               style={getNavItemStyle(['tool-split'])}
             >
               SPLIT PDF
@@ -156,9 +176,9 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </li>
           <li>
             <a 
-              href="#compress" 
+              href="/tool/compress" 
               className="nav-item" 
-              onClick={() => setView('tool-compress')}
+              onClick={(e) => setView('tool-compress', e)}
               style={getNavItemStyle(['tool-compress'])}
             >
               COMPRESS PDF
@@ -196,19 +216,19 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                   CONVERT TO PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <a href="#jpg-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-jpgtopdf')} style={getLinkStyle('tool-jpgtopdf')}>
+                  <a href="/tool/jpgtopdf" className="dropdown-link-custom" onClick={(e) => setView('tool-jpgtopdf', e)} style={getLinkStyle('tool-jpgtopdf')}>
                     <JpgToPdfIcon /> JPG to PDF
                   </a>
-                  <a href="#word-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-wordtopdf')} style={getLinkStyle('tool-wordtopdf')}>
+                  <a href="/tool/wordtopdf" className="dropdown-link-custom" onClick={(e) => setView('tool-wordtopdf', e)} style={getLinkStyle('tool-wordtopdf')}>
                     <WordToPdfIcon /> WORD to PDF
                   </a>
-                  <a href="#powerpoint-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-powerpointtopdf')} style={getLinkStyle('tool-powerpointtopdf')}>
+                  <a href="/tool/powerpointtopdf" className="dropdown-link-custom" onClick={(e) => setView('tool-powerpointtopdf', e)} style={getLinkStyle('tool-powerpointtopdf')}>
                     <PowerpointToPdfIcon /> POWERPOINT to PDF
                   </a>
-                  <a href="#excel-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-exceltopdf')} style={getLinkStyle('tool-exceltopdf')}>
+                  <a href="/tool/exceltopdf" className="dropdown-link-custom" onClick={(e) => setView('tool-exceltopdf', e)} style={getLinkStyle('tool-exceltopdf')}>
                     <ExcelToPdfIcon /> EXCEL to PDF
                   </a>
-                  <a href="#html-to-pdf" className="dropdown-link-custom" onClick={() => setView('tool-htmltopdf')} style={getLinkStyle('tool-htmltopdf')}>
+                  <a href="/tool/htmltopdf" className="dropdown-link-custom" onClick={(e) => setView('tool-htmltopdf', e)} style={getLinkStyle('tool-htmltopdf')}>
                     <HtmlToPdfIcon /> HTML to PDF
                   </a>
                 </div>
@@ -220,19 +240,19 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                   CONVERT FROM PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <a href="#pdf-to-jpg" className="dropdown-link-custom" onClick={() => setView('tool-pdftojpg')} style={getLinkStyle('tool-pdftojpg')}>
+                  <a href="/tool/pdftojpg" className="dropdown-link-custom" onClick={(e) => setView('tool-pdftojpg', e)} style={getLinkStyle('tool-pdftojpg')}>
                     <PdfToJpgIcon /> PDF to JPG
                   </a>
-                  <a href="#pdf-to-word" className="dropdown-link-custom" onClick={() => setView('tool-pdftoword')} style={getLinkStyle('tool-pdftoword')}>
+                  <a href="/tool/pdftoword" className="dropdown-link-custom" onClick={(e) => setView('tool-pdftoword', e)} style={getLinkStyle('tool-pdftoword')}>
                     <PdfToWordIcon /> PDF to WORD
                   </a>
-                  <a href="#pdf-to-powerpoint" className="dropdown-link-custom" onClick={() => setView('tool-pdftopowerpoint')} style={getLinkStyle('tool-pdftopowerpoint')}>
+                  <a href="/tool/pdftopowerpoint" className="dropdown-link-custom" onClick={(e) => setView('tool-pdftopowerpoint', e)} style={getLinkStyle('tool-pdftopowerpoint')}>
                     <PdfToPowerpointIcon /> PDF to POWERPOINT
                   </a>
-                  <a href="#pdf-to-excel" className="dropdown-link-custom" onClick={() => setView('tool-pdftoexcel')} style={getLinkStyle('tool-pdftoexcel')}>
+                  <a href="/tool/pdftoexcel" className="dropdown-link-custom" onClick={(e) => setView('tool-pdftoexcel', e)} style={getLinkStyle('tool-pdftoexcel')}>
                     <PdfToExcelIcon /> PDF to EXCEL
                   </a>
-                  <a href="#pdf-to-pdfa" className="dropdown-link-custom" onClick={() => setView('tool-pdfa')} style={getLinkStyle('tool-pdfa')}>
+                  <a href="/tool/pdfa" className="dropdown-link-custom" onClick={(e) => setView('tool-pdfa', e)} style={getLinkStyle('tool-pdfa')}>
                     <PdfToPdfaIcon /> PDF to PDF/A
                   </a>
                 </div>
@@ -287,22 +307,22 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                     ORGANIZE PDF
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <a href="#merge" className="dropdown-link-custom" style={getLinkStyle('tool-merge')} onClick={() => setView('tool-merge')}>
+                    <a href="/tool/merge" className="dropdown-link-custom" style={getLinkStyle('tool-merge')} onClick={(e) => setView('tool-merge', e)}>
                       <MergePdfIcon /> Merge PDF
                     </a>
-                    <a href="#split" className="dropdown-link-custom" style={getLinkStyle('tool-split')} onClick={() => setView('tool-split')}>
+                    <a href="/tool/split" className="dropdown-link-custom" style={getLinkStyle('tool-split')} onClick={(e) => setView('tool-split', e)}>
                       <SplitPdfIcon /> Split PDF
                     </a>
-                    <a href="#remove-pages" className="dropdown-link-custom" style={getLinkStyle('tool-remove')} onClick={() => setView('tool-remove')}>
+                    <a href="/tool/remove" className="dropdown-link-custom" style={getLinkStyle('tool-remove')} onClick={(e) => setView('tool-remove', e)}>
                       <RemovePagesIcon /> Remove pages
                     </a>
-                    <a href="#extract-pages" className="dropdown-link-custom" style={getLinkStyle('tool-extract')} onClick={() => setView('tool-extract')}>
+                    <a href="/tool/extract" className="dropdown-link-custom" style={getLinkStyle('tool-extract')} onClick={(e) => setView('tool-extract', e)}>
                       <ExtractPagesIcon /> Extract pages
                     </a>
-                    <a href="#organize" className="dropdown-link-custom" style={getLinkStyle('tool-organize')} onClick={() => setView('tool-organize')}>
+                    <a href="/tool/organize" className="dropdown-link-custom" style={getLinkStyle('tool-organize')} onClick={(e) => setView('tool-organize', e)}>
                       <OrganizePdfIcon /> Organize PDF
                     </a>
-                    <a href="#scan-to-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-scan')} onClick={() => setView('tool-scan')}>
+                    <a href="/tool/scan" className="dropdown-link-custom" style={getLinkStyle('tool-scan')} onClick={(e) => setView('tool-scan', e)}>
                       <ScanPdfIcon /> Scan to PDF
                     </a>
                   </div>
@@ -313,13 +333,13 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                     PDF INTELLIGENCE
                   </h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <a href="#ai-summarizer" className="dropdown-link-custom" style={getLinkStyle('tool-aisummarizer')} onClick={() => setView('tool-aisummarizer')}>
+                    <a href="/tool/aisummarizer" className="dropdown-link-custom" style={getLinkStyle('tool-aisummarizer')} onClick={(e) => setView('tool-aisummarizer', e)}>
                       <AiSummarizerIcon /> AI Summarizer
                     </a>
-                    <a href="#translate-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-translate')} onClick={() => setView('tool-translate')}>
+                    <a href="/tool/translate" className="dropdown-link-custom" style={getLinkStyle('tool-translate')} onClick={(e) => setView('tool-translate', e)}>
                       <TranslatePdfIcon /> Translate PDF
                     </a>
-                    <a href="#pdf-to-markdown" className="dropdown-link-custom" style={getLinkStyle('tool-markdown')} onClick={() => setView('tool-markdown')}>
+                    <a href="/tool/markdown" className="dropdown-link-custom" style={getLinkStyle('tool-markdown')} onClick={(e) => setView('tool-markdown', e)}>
                       <PdfToMarkdownIcon /> PDF to Markdown
                     </a>
                   </div>
@@ -332,13 +352,13 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                   OPTIMIZE PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <a href="#compress" className="dropdown-link-custom" style={getLinkStyle('tool-compress')} onClick={() => setView('tool-compress')}>
+                  <a href="/tool/compress" className="dropdown-link-custom" style={getLinkStyle('tool-compress')} onClick={(e) => setView('tool-compress', e)}>
                     <CompressPdfIcon /> Compress PDF
                   </a>
-                  <a href="#repair" className="dropdown-link-custom" style={getLinkStyle('tool-repair')} onClick={() => setView('tool-repair')}>
+                  <a href="/tool/repair" className="dropdown-link-custom" style={getLinkStyle('tool-repair')} onClick={(e) => setView('tool-repair', e)}>
                     <RepairPdfIcon /> Repair PDF
                   </a>
-                  <a href="#ocr-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-ocr')} onClick={() => setView('tool-ocr')}>
+                  <a href="/tool/ocr" className="dropdown-link-custom" style={getLinkStyle('tool-ocr')} onClick={(e) => setView('tool-ocr', e)}>
                     <OcrPdfIcon /> OCR PDF
                   </a>
                 </div>
@@ -350,19 +370,19 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                   CONVERT TO PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <a href="#jpg-to-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-jpgtopdf')} onClick={() => setView('tool-jpgtopdf')}>
+                  <a href="/tool/jpgtopdf" className="dropdown-link-custom" style={getLinkStyle('tool-jpgtopdf')} onClick={(e) => setView('tool-jpgtopdf', e)}>
                     <JpgToPdfIcon /> JPG to PDF
                   </a>
-                  <a href="#word-to-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-wordtopdf')} onClick={() => setView('tool-wordtopdf')}>
+                  <a href="/tool/wordtopdf" className="dropdown-link-custom" style={getLinkStyle('tool-wordtopdf')} onClick={(e) => setView('tool-wordtopdf', e)}>
                     <WordToPdfIcon /> WORD to PDF
                   </a>
-                  <a href="#powerpoint-to-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-powerpointtopdf')} onClick={() => setView('tool-powerpointtopdf')}>
+                  <a href="/tool/powerpointtopdf" className="dropdown-link-custom" style={getLinkStyle('tool-powerpointtopdf')} onClick={(e) => setView('tool-powerpointtopdf', e)}>
                     <PowerpointToPdfIcon /> POWERPOINT to PDF
                   </a>
-                  <a href="#excel-to-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-exceltopdf')} onClick={() => setView('tool-exceltopdf')}>
+                  <a href="/tool/exceltopdf" className="dropdown-link-custom" style={getLinkStyle('tool-exceltopdf')} onClick={(e) => setView('tool-exceltopdf', e)}>
                     <ExcelToPdfIcon /> EXCEL to PDF
                   </a>
-                  <a href="#html-to-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-htmltopdf')} onClick={() => setView('tool-htmltopdf')}>
+                  <a href="/tool/htmltopdf" className="dropdown-link-custom" style={getLinkStyle('tool-htmltopdf')} onClick={(e) => setView('tool-htmltopdf', e)}>
                     <HtmlToPdfIcon /> HTML to PDF
                   </a>
                 </div>
@@ -374,19 +394,19 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                   CONVERT FROM PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <a href="#pdf-to-jpg" className="dropdown-link-custom" style={getLinkStyle('tool-pdftojpg')} onClick={() => setView('tool-pdftojpg')}>
+                  <a href="/tool/pdftojpg" className="dropdown-link-custom" style={getLinkStyle('tool-pdftojpg')} onClick={(e) => setView('tool-pdftojpg', e)}>
                     <PdfToJpgIcon /> PDF to JPG
                   </a>
-                  <a href="#pdf-to-word" className="dropdown-link-custom" style={getLinkStyle('tool-pdftoword')} onClick={() => setView('tool-pdftoword')}>
+                  <a href="/tool/pdftoword" className="dropdown-link-custom" style={getLinkStyle('tool-pdftoword')} onClick={(e) => setView('tool-pdftoword', e)}>
                     <PdfToWordIcon /> PDF to WORD
                   </a>
-                  <a href="#pdf-to-powerpoint" className="dropdown-link-custom" style={getLinkStyle('tool-pdftopowerpoint')} onClick={() => setView('tool-pdftopowerpoint')}>
+                  <a href="/tool/pdftopowerpoint" className="dropdown-link-custom" style={getLinkStyle('tool-pdftopowerpoint')} onClick={(e) => setView('tool-pdftopowerpoint', e)}>
                     <PdfToPowerpointIcon /> PDF to POWERPOINT
                   </a>
-                  <a href="#pdf-to-excel" className="dropdown-link-custom" style={getLinkStyle('tool-pdftoexcel')} onClick={() => setView('tool-pdftoexcel')}>
+                  <a href="/tool/pdftoexcel" className="dropdown-link-custom" style={getLinkStyle('tool-pdftoexcel')} onClick={(e) => setView('tool-pdftoexcel', e)}>
                     <PdfToExcelIcon /> PDF to EXCEL
                   </a>
-                  <a href="#pdf-to-pdfa" className="dropdown-link-custom" style={getLinkStyle('tool-pdfa')} onClick={() => setView('tool-pdfa')}>
+                  <a href="/tool/pdfa" className="dropdown-link-custom" style={getLinkStyle('tool-pdfa')} onClick={(e) => setView('tool-pdfa', e)}>
                     <PdfToPdfaIcon /> PDF to PDF/A
                   </a>
                 </div>
@@ -398,22 +418,22 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                   EDIT PDF
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <a href="#rotate-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-rotate')} onClick={() => setView('tool-rotate')}>
+                  <a href="/tool/rotate" className="dropdown-link-custom" style={getLinkStyle('tool-rotate')} onClick={(e) => setView('tool-rotate', e)}>
                     <RotatePdfIcon /> Rotate PDF
                   </a>
-                  <a href="#add-page-numbers" className="dropdown-link-custom" style={getLinkStyle('tool-pagenumber')} onClick={() => setView('tool-pagenumber')}>
+                  <a href="/tool/pagenumber" className="dropdown-link-custom" style={getLinkStyle('tool-pagenumber')} onClick={(e) => setView('tool-pagenumber', e)}>
                     <PageNumbersIcon /> Add page numbers
                   </a>
-                  <a href="#add-watermark" className="dropdown-link-custom" style={getLinkStyle('tool-watermark')} onClick={() => setView('tool-watermark')}>
+                  <a href="/tool/watermark" className="dropdown-link-custom" style={getLinkStyle('tool-watermark')} onClick={(e) => setView('tool-watermark', e)}>
                     <WatermarkIcon /> Add watermark
                   </a>
-                  <a href="#crop-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-crop')} onClick={() => setView('tool-crop')}>
+                  <a href="/tool/crop" className="dropdown-link-custom" style={getLinkStyle('tool-crop')} onClick={(e) => setView('tool-crop', e)}>
                     <CropPdfIcon /> Crop PDF
                   </a>
-                  <a href="#edit-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-edit')} onClick={() => setView('tool-edit')}>
+                  <a href="/tool/edit" className="dropdown-link-custom" style={getLinkStyle('tool-edit')} onClick={(e) => setView('tool-edit', e)}>
                     <EditPdfIcon /> Edit PDF
                   </a>
-                  <a href="#pdf-forms" className="dropdown-link-custom" style={getLinkStyle('tool-forms')} onClick={() => setView('tool-forms')}>
+                  <a href="/tool/forms" className="dropdown-link-custom" style={getLinkStyle('tool-forms')} onClick={(e) => setView('tool-forms', e)}>
                     <PdfFormsIcon /> PDF Forms
                   </a>
                 </div>
@@ -425,19 +445,19 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
                   PDF SECURITY
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <a href="#unlock-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-unlock')} onClick={() => setView('tool-unlock')}>
+                  <a href="/tool/unlock" className="dropdown-link-custom" style={getLinkStyle('tool-unlock')} onClick={(e) => setView('tool-unlock', e)}>
                     <UnlockPdfIcon /> Unlock PDF
                   </a>
-                  <a href="#protect-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-protect')} onClick={() => setView('tool-protect')}>
+                  <a href="/tool/protect" className="dropdown-link-custom" style={getLinkStyle('tool-protect')} onClick={(e) => setView('tool-protect', e)}>
                     <ProtectPdfIcon /> Protect PDF
                   </a>
-                  <a href="#sign-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-sign')} onClick={() => setView('tool-sign')}>
+                  <a href="/tool/sign" className="dropdown-link-custom" style={getLinkStyle('tool-sign')} onClick={(e) => setView('tool-sign', e)}>
                     <SignPdfIcon /> Sign PDF
                   </a>
-                  <a href="#redact-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-redact')} onClick={() => setView('tool-redact')}>
+                  <a href="/tool/redact" className="dropdown-link-custom" style={getLinkStyle('tool-redact')} onClick={(e) => setView('tool-redact', e)}>
                     <RedactPdfIcon /> Redact PDF
                   </a>
-                  <a href="#compare-pdf" className="dropdown-link-custom" style={getLinkStyle('tool-compare')} onClick={() => setView('tool-compare')}>
+                  <a href="/tool/compare" className="dropdown-link-custom" style={getLinkStyle('tool-compare')} onClick={(e) => setView('tool-compare', e)}>
                     <ComparePdfIcon /> Compare PDF
                   </a>
                 </div>
@@ -743,13 +763,13 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
             {/* Quick Popular Tools */}
             <div className="mobile-nav-section-title">POPULAR TOOLS</div>
-            <a href="#merge" className="mobile-nav-item" onClick={() => { setView('tool-merge'); setMobileMenuOpen(false); }}>
+            <a href="/tool/merge" className="mobile-nav-item" onClick={(e) => setView('tool-merge', e)}>
               <span className="mobile-nav-label"><MergePdfIcon /> Merge PDF</span> <ArrowRight size={16} />
             </a>
-            <a href="#split" className="mobile-nav-item" onClick={() => { setView('tool-split'); setMobileMenuOpen(false); }}>
+            <a href="/tool/split" className="mobile-nav-item" onClick={(e) => setView('tool-split', e)}>
               <span className="mobile-nav-label"><SplitPdfIcon /> Split PDF</span> <ArrowRight size={16} />
             </a>
-            <a href="#compress" className="mobile-nav-item" onClick={() => { setView('tool-compress'); setMobileMenuOpen(false); }}>
+            <a href="/tool/compress" className="mobile-nav-item" onClick={(e) => setView('tool-compress', e)}>
               <span className="mobile-nav-label"><CompressPdfIcon /> Compress PDF</span> <ArrowRight size={16} />
             </a>
 
@@ -765,36 +785,36 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
             {mobileConvertOpen && (
               <div className="mobile-nav-sublist">
                 <div className="mobile-nav-subheading">CONVERT TO PDF</div>
-                <a href="#jpg-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-jpgtopdf'); setMobileMenuOpen(false); }}>
+                <a href="/tool/jpgtopdf" className="mobile-nav-sublink" onClick={(e) => setView('tool-jpgtopdf', e)}>
                   <JpgToPdfIcon /> JPG to PDF
                 </a>
-                <a href="#word-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-wordtopdf'); setMobileMenuOpen(false); }}>
+                <a href="/tool/wordtopdf" className="mobile-nav-sublink" onClick={(e) => setView('tool-wordtopdf', e)}>
                   <WordToPdfIcon /> Word to PDF
                 </a>
-                <a href="#powerpoint-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-powerpointtopdf'); setMobileMenuOpen(false); }}>
+                <a href="/tool/powerpointtopdf" className="mobile-nav-sublink" onClick={(e) => setView('tool-powerpointtopdf', e)}>
                   <PowerpointToPdfIcon /> PowerPoint to PDF
                 </a>
-                <a href="#excel-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-exceltopdf'); setMobileMenuOpen(false); }}>
+                <a href="/tool/exceltopdf" className="mobile-nav-sublink" onClick={(e) => setView('tool-exceltopdf', e)}>
                   <ExcelToPdfIcon /> Excel to PDF
                 </a>
-                <a href="#html-to-pdf" className="mobile-nav-sublink" onClick={() => { setView('tool-htmltopdf'); setMobileMenuOpen(false); }}>
+                <a href="/tool/htmltopdf" className="mobile-nav-sublink" onClick={(e) => setView('tool-htmltopdf', e)}>
                   <HtmlToPdfIcon /> HTML to PDF
                 </a>
 
                 <div className="mobile-nav-subheading" style={{ marginTop: '10px' }}>CONVERT FROM PDF</div>
-                <a href="#pdf-to-jpg" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftojpg'); setMobileMenuOpen(false); }}>
+                <a href="/tool/pdftojpg" className="mobile-nav-sublink" onClick={(e) => setView('tool-pdftojpg', e)}>
                   <PdfToJpgIcon /> PDF to JPG
                 </a>
-                <a href="#pdf-to-word" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftoword'); setMobileMenuOpen(false); }}>
+                <a href="/tool/pdftoword" className="mobile-nav-sublink" onClick={(e) => setView('tool-pdftoword', e)}>
                   <PdfToWordIcon /> PDF to Word
                 </a>
-                <a href="#pdf-to-powerpoint" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftopowerpoint'); setMobileMenuOpen(false); }}>
+                <a href="/tool/pdftopowerpoint" className="mobile-nav-sublink" onClick={(e) => setView('tool-pdftopowerpoint', e)}>
                   <PdfToPowerpointIcon /> PDF to PowerPoint
                 </a>
-                <a href="#pdf-to-excel" className="mobile-nav-sublink" onClick={() => { setView('tool-pdftoexcel'); setMobileMenuOpen(false); }}>
+                <a href="/tool/pdftoexcel" className="mobile-nav-sublink" onClick={(e) => setView('tool-pdftoexcel', e)}>
                   <PdfToExcelIcon /> PDF to Excel
                 </a>
-                <a href="#pdf-to-pdfa" className="mobile-nav-sublink" onClick={() => { setView('tool-pdfa'); setMobileMenuOpen(false); }}>
+                <a href="/tool/pdfa" className="mobile-nav-sublink" onClick={(e) => setView('tool-pdfa', e)}>
                   <PdfToPdfaIcon /> PDF to PDF/A
                 </a>
               </div>
@@ -812,62 +832,62 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
             {mobileAllToolsOpen && (
               <div className="mobile-nav-sublist">
                 <div className="mobile-nav-subheading">EDIT & SIGN</div>
-                <a href="#edit" className="mobile-nav-sublink" onClick={() => { setView('tool-edit'); setMobileMenuOpen(false); }}>
+                <a href="/tool/edit" className="mobile-nav-sublink" onClick={(e) => setView('tool-edit', e)}>
                   <EditPdfIcon /> Edit PDF
                 </a>
-                <a href="#sign" className="mobile-nav-sublink" onClick={() => { setView('tool-sign'); setMobileMenuOpen(false); }}>
+                <a href="/tool/sign" className="mobile-nav-sublink" onClick={(e) => setView('tool-sign', e)}>
                   <SignPdfIcon /> Sign PDF
                 </a>
-                <a href="#watermark" className="mobile-nav-sublink" onClick={() => { setView('tool-watermark'); setMobileMenuOpen(false); }}>
+                <a href="/tool/watermark" className="mobile-nav-sublink" onClick={(e) => setView('tool-watermark', e)}>
                   <WatermarkIcon /> Watermark
                 </a>
-                <a href="#rotate" className="mobile-nav-sublink" onClick={() => { setView('tool-rotate'); setMobileMenuOpen(false); }}>
+                <a href="/tool/rotate" className="mobile-nav-sublink" onClick={(e) => setView('tool-rotate', e)}>
                   <RotatePdfIcon /> Rotate PDF
                 </a>
-                <a href="#crop" className="mobile-nav-sublink" onClick={() => { setView('tool-crop'); setMobileMenuOpen(false); }}>
+                <a href="/tool/crop" className="mobile-nav-sublink" onClick={(e) => setView('tool-crop', e)}>
                   <CropPdfIcon /> Crop PDF
                 </a>
-                <a href="#pagenumber" className="mobile-nav-sublink" onClick={() => { setView('tool-pagenumber'); setMobileMenuOpen(false); }}>
+                <a href="/tool/pagenumber" className="mobile-nav-sublink" onClick={(e) => setView('tool-pagenumber', e)}>
                   <PageNumbersIcon /> Page Numbers
                 </a>
 
                 <div className="mobile-nav-subheading" style={{ marginTop: '10px' }}>SECURITY & REPAIR</div>
-                <a href="#protect" className="mobile-nav-sublink" onClick={() => { setView('tool-protect'); setMobileMenuOpen(false); }}>
+                <a href="/tool/protect" className="mobile-nav-sublink" onClick={(e) => setView('tool-protect', e)}>
                   <ProtectPdfIcon /> Protect PDF
                 </a>
-                <a href="#unlock" className="mobile-nav-sublink" onClick={() => { setView('tool-unlock'); setMobileMenuOpen(false); }}>
+                <a href="/tool/unlock" className="mobile-nav-sublink" onClick={(e) => setView('tool-unlock', e)}>
                   <UnlockPdfIcon /> Unlock PDF
                 </a>
-                <a href="#redact" className="mobile-nav-sublink" onClick={() => { setView('tool-redact'); setMobileMenuOpen(false); }}>
+                <a href="/tool/redact" className="mobile-nav-sublink" onClick={(e) => setView('tool-redact', e)}>
                   <RedactPdfIcon /> Redact PDF
                 </a>
-                <a href="#repair" className="mobile-nav-sublink" onClick={() => { setView('tool-repair'); setMobileMenuOpen(false); }}>
+                <a href="/tool/repair" className="mobile-nav-sublink" onClick={(e) => setView('tool-repair', e)}>
                   <RepairPdfIcon /> Repair PDF
                 </a>
 
                 <div className="mobile-nav-subheading" style={{ marginTop: '10px' }}>AI & ADVANCED</div>
-                <a href="#ocr" className="mobile-nav-sublink" onClick={() => { setView('tool-ocr'); setMobileMenuOpen(false); }}>
+                <a href="/tool/ocr" className="mobile-nav-sublink" onClick={(e) => setView('tool-ocr', e)}>
                   <OcrPdfIcon /> OCR PDF
                 </a>
-                <a href="#compare" className="mobile-nav-sublink" onClick={() => { setView('tool-compare'); setMobileMenuOpen(false); }}>
+                <a href="/tool/compare" className="mobile-nav-sublink" onClick={(e) => setView('tool-compare', e)}>
                   <ComparePdfIcon /> Compare PDF
                 </a>
-                <a href="#aisummarizer" className="mobile-nav-sublink" onClick={() => { setView('tool-aisummarizer'); setMobileMenuOpen(false); }}>
+                <a href="/tool/aisummarizer" className="mobile-nav-sublink" onClick={(e) => setView('tool-aisummarizer', e)}>
                   <AiSummarizerIcon /> AI Summarizer
                 </a>
-                <a href="#translate" className="mobile-nav-sublink" onClick={() => { setView('tool-translate'); setMobileMenuOpen(false); }}>
+                <a href="/tool/translate" className="mobile-nav-sublink" onClick={(e) => setView('tool-translate', e)}>
                   <TranslatePdfIcon /> Translate PDF
                 </a>
-                <a href="#markdown" className="mobile-nav-sublink" onClick={() => { setView('tool-markdown'); setMobileMenuOpen(false); }}>
+                <a href="/tool/markdown" className="mobile-nav-sublink" onClick={(e) => setView('tool-markdown', e)}>
                   <PdfToMarkdownIcon /> PDF to Markdown
                 </a>
-                <a href="#forms" className="mobile-nav-sublink" onClick={() => { setView('tool-forms'); setMobileMenuOpen(false); }}>
+                <a href="/tool/forms" className="mobile-nav-sublink" onClick={(e) => setView('tool-forms', e)}>
                   <PdfFormsIcon /> PDF Forms
                 </a>
-                <a href="#organize" className="mobile-nav-sublink" onClick={() => { setView('tool-organize'); setMobileMenuOpen(false); }}>
+                <a href="/tool/organize" className="mobile-nav-sublink" onClick={(e) => setView('tool-organize', e)}>
                   <OrganizePdfIcon /> Organize PDF
                 </a>
-                <a href="#scan" className="mobile-nav-sublink" onClick={() => { setView('tool-scan'); setMobileMenuOpen(false); }}>
+                <a href="/tool/scan" className="mobile-nav-sublink" onClick={(e) => setView('tool-scan', e)}>
                   <ScanPdfIcon /> Scan to PDF
                 </a>
               </div>
@@ -875,19 +895,19 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
             {/* General Navigation Links */}
             <div className="mobile-nav-section-title" style={{ marginTop: '14px' }}>NAVIGATION</div>
-            <a href="#pricing" className="mobile-nav-item" onClick={() => { navigate('/#pricing'); setMobileMenuOpen(false); }}>
+            <a href="/pricing" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/pricing'); setMobileMenuOpen(false); }}>
               <span className="mobile-nav-label"><CreditCard size={18} /> Pricing</span> <ArrowRight size={16} />
             </a>
-            <a href="#features" className="mobile-nav-item" onClick={() => { navigate('/#features'); setMobileMenuOpen(false); }}>
+            <a href="/#features" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/#features'); setMobileMenuOpen(false); }}>
               <span className="mobile-nav-label"><LayoutDashboard size={18} /> Features</span> <ArrowRight size={16} />
             </a>
-            <a href="#help" className="mobile-nav-item" onClick={() => { navigate('/help'); setMobileMenuOpen(false); }}>
+            <a href="/help" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/help'); setMobileMenuOpen(false); }}>
               <span className="mobile-nav-label"><HelpCircle size={18} /> Help & Support</span> <ArrowRight size={16} />
             </a>
-            <a href="#contact" className="mobile-nav-item" onClick={() => { navigate('/contact'); setMobileMenuOpen(false); }}>
+            <a href="/contact" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/contact'); setMobileMenuOpen(false); }}>
               <span className="mobile-nav-label"><Building2 size={18} /> Contact Sales</span> <ArrowRight size={16} />
             </a>
-            <a href="#privacy" className="mobile-nav-item" onClick={() => { navigate('/privacy'); setMobileMenuOpen(false); }}>
+            <a href="/privacy" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/privacy'); setMobileMenuOpen(false); }}>
               <span className="mobile-nav-label"><Shield size={18} /> Privacy Policy</span> <ArrowRight size={16} />
             </a>
 

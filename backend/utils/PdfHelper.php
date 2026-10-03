@@ -283,12 +283,17 @@ class PdfHelper {
     }
 
     public static function encryptPdf(string $inputFile, string $outputFile, string $password): bool {
-        // 1. Try Python3 with pypdf (Industry standard AES-256 encryption)
+        if (!file_exists($inputFile) || filesize($inputFile) < 10) {
+            return false;
+        }
+
+        // 1. Try Python3 with pypdf (Industry standard AES-256 encryption, preserving all pages and document structure)
         $pyCode = 'import sys; from pypdf import PdfReader, PdfWriter;
 in_f, out_f, pw = sys.argv[1], sys.argv[2], sys.argv[3];
 r = PdfReader(in_f);
+if len(r.pages) == 0: sys.exit(1);
 w = PdfWriter();
-for p in r.pages: w.add_page(p);
+w.append(r);
 w.encrypt(user_password=pw, owner_password=pw + "_azowner", algorithm="AES-256");
 with open(out_f, "wb") as f: w.write(f);
 ';
@@ -322,6 +327,10 @@ with open(out_f, "wb") as f: w.write(f);
     }
 
     public static function decryptPdf(string $inputFile, string $outputFile, string $password): array {
+        if (!file_exists($inputFile) || filesize($inputFile) < 10) {
+            return ['success' => false, 'error' => 'The uploaded PDF file is empty or invalid.'];
+        }
+
         // 1. Try Python3 with pypdf (Handles AES-256, AES-128, RC4)
         $pyCode = 'import sys; from pypdf import PdfReader, PdfWriter;
 in_f, out_f, pw = sys.argv[1], sys.argv[2], sys.argv[3];
@@ -331,8 +340,11 @@ if r.is_encrypted:
     if res == 0:
         print("INCORRECT_PASSWORD");
         sys.exit(2);
+if len(r.pages) == 0:
+    print("EMPTY_PAGES");
+    sys.exit(3);
 w = PdfWriter();
-for p in r.pages: w.add_page(p);
+w.append(r);
 with open(out_f, "wb") as f: w.write(f);
 ';
         $cmd = 'python3 -c ' . escapeshellarg($pyCode) . ' '
@@ -349,7 +361,7 @@ with open(out_f, "wb") as f: w.write(f);
             return ['success' => true];
         }
 
-        // 2. Fallback to Ghostscript
+        // 2. Fallback to Ghostscript ONLY if not a wrong password
         $gsArgs = [
             '-sDEVICE=pdfwrite',
             '-dCompatibilityLevel=1.7',
@@ -361,11 +373,77 @@ with open(out_f, "wb") as f: w.write(f);
             $inputFile
         ];
 
-        if (self::runGhostscript($gsArgs) && file_exists($outputFile) && filesize($outputFile) > 0) {
-            return ['success' => true];
+        if (self::runGhostscript($gsArgs) && file_exists($outputFile) && filesize($outputFile) > 500) {
+            $checkCmd = 'python3 -c "from pypdf import PdfReader; r = PdfReader(\"' . addslashes($outputFile) . '\"); print(len(r.pages))" 2>/dev/null';
+            $pageCount = (int)trim(shell_exec($checkCmd) ?? '0');
+            if ($pageCount > 0) {
+                return ['success' => true];
+            }
         }
 
         return ['success' => false, 'error' => 'Incorrect password or unable to unlock this PDF.'];
+    }
+
+    public static function rotatePdfPages(string $inputFile, string $outputFile, int $defaultAngle, array $pageRotations = []): bool {
+        // 1. Try Python3 with pypdf (Lossless, lightning fast dictionary rotation for all PDF versions)
+        $pyCode = 'import sys, json; from pypdf import PdfReader, PdfWriter;
+in_f, out_f, def_angle, rots_str = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4];
+rots = json.loads(rots_str) if rots_str else {};
+r = PdfReader(in_f);
+w = PdfWriter();
+for idx, page in enumerate(r.pages):
+    p_num = str(idx + 1);
+    ang = int(rots.get(p_num, def_angle));
+    if ang % 360 != 0:
+        page.rotate(ang);
+    w.add_page(page);
+with open(out_f, "wb") as f: w.write(f);
+';
+        $cmd = 'python3 -c ' . escapeshellarg($pyCode) . ' '
+            . escapeshellarg($inputFile) . ' '
+            . escapeshellarg($outputFile) . ' '
+            . escapeshellarg((string) $defaultAngle) . ' '
+            . escapeshellarg(!empty($pageRotations) ? json_encode($pageRotations) : '{}') . ' 2>&1';
+
+        exec($cmd, $out, $code);
+        if ($code === 0 && file_exists($outputFile) && filesize($outputFile) > 0) {
+            return true;
+        }
+
+        // 2. Fallback to FPDI / FPDF
+        try {
+            $pdf = self::createPdf();
+            $pageCount = $pdf->setSourceFile($inputFile);
+            for ($p = 1; $p <= $pageCount; $p++) {
+                $tpl = $pdf->importPage($p);
+                $size = $pdf->getTemplateSize($tpl);
+                $curAngle = isset($pageRotations[$p]) 
+                    ? ((int) $pageRotations[$p] % 360 + 360) % 360 
+                    : (isset($pageRotations[(string)$p]) ? ((int) $pageRotations[(string)$p] % 360 + 360) % 360 : $defaultAngle);
+
+                $w = $size['width'];
+                $h = $size['height'];
+                if ($curAngle % 180 !== 0) {
+                    $orientation = ($h > $w) ? 'L' : 'P';
+                    $pdf->AddPage($orientation, [$h, $w]);
+                    $pdf->rotate($curAngle, $h / 2, $w / 2);
+                    $pdf->useTemplate($tpl, ($h - $w) / 2, ($w - $h) / 2);
+                    $pdf->rotate(0);
+                } else {
+                    $orientation = ($w > $h) ? 'L' : 'P';
+                    $pdf->AddPage($orientation, [$w, $h]);
+                    if ($curAngle === 180) {
+                        $pdf->rotate(180, $w / 2, $h / 2);
+                    }
+                    $pdf->useTemplate($tpl);
+                    $pdf->rotate(0);
+                }
+            }
+            $pdf->Output('F', $outputFile);
+            return file_exists($outputFile) && filesize($outputFile) > 0;
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 
     public static function createDocxFromText(string $text, string $title = 'Converted Document'): string {

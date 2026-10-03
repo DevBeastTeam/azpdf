@@ -124,7 +124,7 @@ const FloatingItemControls = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onRotate(((rotation || 0) + 90) % 360);
+              onRotate(label?.includes('Watermark') ? (((rotation || 0) + 45) % 360) : (((rotation || 0) + 90) % 360));
             }}
             style={{
               backgroundColor: '#1e293b',
@@ -141,10 +141,10 @@ const FloatingItemControls = ({
               boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
               whiteSpace: 'nowrap'
             }}
-            title="Click to rotate +90° clockwise"
+            title={label?.includes('Watermark') ? "Click to rotate +45°" : "Click to rotate +90° clockwise"}
           >
             <RotateCw size={11} />
-            <span>{rotation ? `${rotation}°` : 'Rotate'}</span>
+            <span>{rotation !== undefined ? `${rotation}°` : 'Rotate'}</span>
           </button>
         )}
 
@@ -1462,16 +1462,26 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel, mode = 'e
 
               for (const targetPg of targetPages) {
                 const { width: tw, height: th } = targetPg.getSize();
-                const xPdf = (item.x / 100) * tw;
-                const yPdf = th - ((item.y / 100) * th);
-                targetPg.drawText(item.text || 'CONFIDENTIAL', {
-                  x: Math.max(10, xPdf),
-                  y: Math.max(10, yPdf),
+                const textStr = item.text || 'CONFIDENTIAL';
+                const textW = fontBold.widthOfTextAtSize(textStr, fs);
+                const textH = fontBold.heightAtSize(fs);
+                const cx = (item.x / 100) * tw + textW / 2;
+                const cy = th - ((item.y / 100) * th) - textH / 2;
+                const angleDeg = -rot; // In PDF-lib, counter-clockwise is positive, CSS is clockwise
+                const rad = (angleDeg * Math.PI) / 180;
+                const u0 = -textW / 2;
+                const v0 = -textH / 2;
+                const drawX = cx + (u0 * Math.cos(rad) - v0 * Math.sin(rad));
+                const drawY = cy + (u0 * Math.sin(rad) + v0 * Math.cos(rad));
+
+                targetPg.drawText(textStr, {
+                  x: drawX,
+                  y: drawY,
                   size: fs,
                   font: fontBold,
                   color: col,
                   opacity: op,
-                  rotate: degrees(rot)
+                  rotate: degrees(angleDeg)
                 });
               }
             }
@@ -2132,20 +2142,21 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel, mode = 'e
             <span style={{ fontWeight: 700, color: '#e2e8f0', minWidth: 32 }}>{selectedAnnotation.fontSize || 48}px</span>
 
             <Lbl>Rotate:</Lbl>
-            <div style={{ display: 'flex', gap: 3 }}>
+            <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
               {[
-                { label: '0°', val: 0 },
-                { label: '45°', val: 45 },
-                { label: '-45°', val: -45 },
-                { label: '90°', val: 90 }
+                { label: '45° ↗', val: 45 },
+                { label: '0° →', val: 0 },
+                { label: '90° ↑', val: 90 },
+                { label: '-45° ↘', val: -45 },
+                { label: '180° ←', val: 180 }
               ].map(r => (
                 <button
                   key={r.val}
                   type="button"
                   onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: r.val } : i))}
                   style={{
-                    backgroundColor: (selectedAnnotation.rotation === r.val) ? '#0284c7' : '#0f172a',
-                    color: (selectedAnnotation.rotation === r.val) ? '#fff' : '#94a3b8',
+                    backgroundColor: ((selectedAnnotation.rotation ?? 45) === r.val) ? '#0284c7' : '#0f172a',
+                    color: ((selectedAnnotation.rotation ?? 45) === r.val) ? '#fff' : '#94a3b8',
                     border: '1px solid #475569',
                     borderRadius: 4,
                     padding: '2px 6px',
@@ -2157,6 +2168,23 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel, mode = 'e
                   {r.label}
                 </button>
               ))}
+
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={5}
+                value={selectedAnnotation.rotation ?? 45}
+                onChange={(e) => {
+                  const val = +e.target.value;
+                  updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: val } : i));
+                }}
+                style={{ accentColor: '#0284c7', width: 70 }}
+                title="Slide to rotate watermark"
+              />
+              <span style={{ fontWeight: 700, color: '#e2e8f0', minWidth: 26, fontSize: 11 }}>
+                {selectedAnnotation.rotation ?? 45}°
+              </span>
             </div>
 
             <Lbl>Opacity:</Lbl>
@@ -3357,6 +3385,7 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel, mode = 'e
               return (
                 <div
                   key={item.id}
+                  data-annotation-id={item.id}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedId(item.id);
@@ -3457,7 +3486,13 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel, mode = 'e
                       onStartRotate={(e) => {
                         let cx = e.clientX;
                         let cy = e.clientY + 40;
-                        if (containerRef.current) {
+                        const handleEl = e.currentTarget || e.target;
+                        const itemEl = handleEl?.closest(`[data-annotation-id="${item.id}"]`);
+                        if (itemEl) {
+                          const rect = itemEl.getBoundingClientRect();
+                          cx = rect.left + rect.width / 2;
+                          cy = rect.top + rect.height / 2;
+                        } else if (containerRef.current) {
                           const rect = containerRef.current.getBoundingClientRect();
                           cx = rect.left + (item.x / 100) * rect.width;
                           cy = rect.top + (item.y / 100) * rect.height;

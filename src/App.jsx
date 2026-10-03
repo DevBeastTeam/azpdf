@@ -167,6 +167,19 @@ const defaultSiteContent = {
   pressPage: defaultPressPage
 };
 
+// ─── Scroll to top on route change ──────────────────────────────────────────
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  }, [pathname]);
+
+  return null;
+}
+
 // ─── Home Page (combined hero + tools + pricing) ───────────────────────────────
 function HomePage({ toolsConfig, siteContent, isLoggedIn, onOpenAuth }) {
   const navigate = useNavigate();
@@ -180,13 +193,13 @@ function HomePage({ toolsConfig, siteContent, isLoggedIn, onOpenAuth }) {
       targetId = 'features';
     } else if (location.pathname === '/tools' || location.hash === '#tools') {
       targetId = 'tools';
-    } else if (location.hash) {
+    } else if (location.hash && location.hash.length > 1) {
       targetId = location.hash.replace('#', '');
     }
 
     if (targetId) {
       const scrollTimer = setTimeout(() => {
-        const el = document.getElementById(targetId) || document.getElementById('tools');
+        const el = document.getElementById(targetId);
         if (el) {
           el.scrollIntoView({ behavior: 'smooth' });
         }
@@ -201,7 +214,10 @@ function HomePage({ toolsConfig, siteContent, isLoggedIn, onOpenAuth }) {
       <ToolsGrid
         toolsConfig={toolsConfig}
         siteContent={siteContent}
-        onSelectTool={(tool) => navigate(`/tool/${tool.id.replace('tool-', '')}`)}
+        onSelectTool={(tool) => {
+          navigate(`/tool/${tool.id.replace('tool-', '')}`);
+          window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }}
       />
       <Pricing 
         siteContent={siteContent} 
@@ -744,6 +760,7 @@ function App() {
 
   return (
     <AppContext.Provider value={contextValue}>
+      <ScrollToTop />
       <div style={{ display:'flex', flexDirection:'column', minHeight:'100vh' }}>
 
         {!isAdminPage && (

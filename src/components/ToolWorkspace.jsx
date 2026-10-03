@@ -3,7 +3,7 @@ import {
   ArrowLeft, Upload, FileText, CheckCircle2, Download, 
   Trash2, RefreshCw, ExternalLink, Settings, ShieldCheck,
   FileType, Sparkles, Layers, RotateCw, RotateCcw, Lock, Eye, EyeOff, Edit3, Globe,
-  Camera, ChevronLeft, ChevronRight, X, Code, FileCode, ArrowUpDown, Undo2
+  Camera, ChevronLeft, ChevronRight, X, Code, FileCode, ArrowUpDown, Undo2, Plus
 } from 'lucide-react';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import PdfInteractiveEditor from './PdfInteractiveEditor';
@@ -119,6 +119,8 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   // Interactive options for queued tools
   const [splitPagesRange, setSplitPagesRange] = useState('1-2');
   const [rotateAngle, setRotateAngle] = useState(90);
+  const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
+  const [watermarkRotation, setWatermarkRotation] = useState(45);
   const [protectPassword, setProtectPassword] = useState('');
   const [confirmProtectPassword, setConfirmProtectPassword] = useState('');
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -141,6 +143,7 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const [pastedHtmlContent, setPastedHtmlContent] = useState('');
   const [htmlActiveTab, setHtmlActiveTab] = useState('code'); // 'code' or 'preview'
   const [htmlOrientation, setHtmlOrientation] = useState('portrait'); // 'portrait' or 'landscape'
+  const [redactKeywords, setRedactKeywords] = useState('');
 
   const handleProceedWithPastedHtml = () => {
     const content = (pastedHtmlContent && pastedHtmlContent.trim()) ? pastedHtmlContent : SAMPLE_HTML_TEMPLATE;
@@ -161,6 +164,30 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const [organizeLoadingPages, setOrganizeLoadingPages] = useState(false);
   const [draggedOrganizeIdx, setDraggedOrganizeIdx] = useState(null);
   const lastLoadedOrganizeFileRef = useRef(null);
+  const uploadBoxRef = useRef(null);
+
+  // When tool changes or workspace mounts, reset tool status and focus directly on upload box
+  useEffect(() => {
+    setStatus('upload');
+    setFiles([]);
+    setProgress(0);
+    setActiveStepText('');
+    setDownloadBlob(null);
+
+    // Instantly reset window scroll so it never starts or jumps to bottom/footer
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+
+    // Smoothly ensure the upload box is perfectly in view
+    const timer = setTimeout(() => {
+      if (uploadBoxRef.current) {
+        uploadBoxRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+
+    return () => clearTimeout(timer);
+  }, [tool.id]);
 
   const moveOrganizePage = (fromIndex, toIndex) => {
     if (toIndex < 0 || toIndex >= organizePdfPages.length || fromIndex === toIndex) return;
@@ -751,8 +778,9 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     formData.append('fileOrder', files.map((_, i) => i).join(','));
 
     // Pass parameters
-    formData.append('pages', splitPagesRange);
-    formData.append('angle', rotateAngle);
+    const angleToSend = tool.id.includes('watermark') ? watermarkRotation : rotateAngle;
+    formData.append('angle', angleToSend);
+    formData.append('rotation', angleToSend);
     formData.append('text', watermarkText);
     formData.append('watermark', watermarkText);
     const passwordToSend = tool.id.includes('unlock') ? unlockPassword.trim() : protectPassword.trim();
@@ -842,17 +870,25 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
         finalFilename = targetFilename;
         setDownloadFilename(finalFilename);
       } catch (rotateErr) {
-        console.warn('Client-side rotation error, falling back:', rotateErr);
+        console.warn('Client-side rotation error:', rotateErr);
+        alert('Could not rotate PDF: ' + (rotateErr.message || 'Unknown error'));
+        setStatus('queued');
+        return;
       }
     } else {
       try {
         setProgress(45);
         setActiveStepText('Sending files to engine backend...');
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch(endpoint, {
           method: 'POST',
-          body: formData
+          body: formData,
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           setProgress(85);
@@ -878,9 +914,11 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
           }
         }
       } catch (err) {
-        console.warn('Backend server offline or failed, activating high-precision client fallback:', err.message);
+        const isTimeout = err.name === 'AbortError';
+        const errMsg = isTimeout ? 'Server took too long to respond. Processing will continue in browser.' : err.message;
+        console.warn('Backend server offline or failed, activating high-precision client fallback:', errMsg);
         if (tool.id.includes('protect') || tool.id.includes('unlock')) {
-          alert('Could not connect to encryption engine: ' + err.message);
+          alert(isTimeout ? 'Encryption engine timed out. Please try again.' : 'Could not connect to encryption engine: ' + err.message);
           setStatus('queued');
           return;
         }
@@ -891,9 +929,16 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     if (!backendSuccess || !resultBlob) {
       setProgress(70);
       setActiveStepText('Processing directly in browser engine (pdf-lib)...');
-      resultBlob = await processClientSideTool();
-      finalFilename = targetFilename;
-      setDownloadFilename(finalFilename);
+      try {
+        resultBlob = await processClientSideTool();
+        finalFilename = targetFilename;
+        setDownloadFilename(finalFilename);
+      } catch (fallbackErr) {
+        console.error('Client-side fallback also failed:', fallbackErr);
+        alert('Processing failed: ' + (fallbackErr.message || 'Unknown error. Please try again.'));
+        setStatus('queued');
+        return;
+      }
     }
 
     setProgress(100);
@@ -1005,18 +1050,28 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       const font = await sourcePdfDoc.embedFont(StandardFonts.HelveticaBold);
       const pages = sourcePdfDoc.getPages();
       const textToDraw = watermarkText || 'CONFIDENTIAL';
+      const rot = Number(watermarkRotation) || 45;
       pages.forEach(p => {
         const { width, height } = p.getSize();
         const fontSize = 42;
         const textWidth = font.widthOfTextAtSize(textToDraw, fontSize);
+        const textHeight = font.heightAtSize(fontSize);
+        const cx = width / 2;
+        const cy = height / 2;
+        const rad = (rot * Math.PI) / 180;
+        const u0 = -textWidth / 2;
+        const v0 = -textHeight / 2;
+        const drawX = cx + (u0 * Math.cos(rad) - v0 * Math.sin(rad));
+        const drawY = cy + (u0 * Math.sin(rad) + v0 * Math.cos(rad));
+
         p.drawText(textToDraw, {
-          x: Math.max(20, (width - textWidth) / 2),
-          y: Math.max(20, height / 2),
+          x: drawX,
+          y: drawY,
           size: fontSize,
           font,
           color: rgb(0.85, 0.15, 0.15),
           opacity: 0.35,
-          rotate: degrees(45)
+          rotate: degrees(rot)
         });
       });
       const bytes = await sourcePdfDoc.save();
@@ -2214,19 +2269,23 @@ startxref
 
             {/* If HTML to PDF and Paste mode is active */}
             {tool.id.includes('htmltopdf') && htmlInputMode === 'paste' ? (
-              <div style={{
-                width: '100%',
-                maxWidth: '780px',
-                backgroundColor: 'var(--bg-card)',
-                border: '1.5px solid var(--border-light)',
-                borderRadius: '16px',
-                padding: '24px',
-                boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                flexDirection: 'column',
-                textAlign: 'left',
-                marginBottom: '24px'
-              }}>
+              <div 
+                ref={uploadBoxRef}
+                id="workspace-upload-box-html"
+                style={{
+                  width: '100%',
+                  maxWidth: '780px',
+                  scrollMarginTop: '80px',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1.5px solid var(--border-light)',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  boxShadow: 'var(--shadow-sm)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  textAlign: 'left',
+                  marginBottom: '24px'
+                }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Code size={20} style={{ color: 'var(--primary-red)' }} />
@@ -2320,6 +2379,8 @@ startxref
             ) : (
               /* Dashed Dropzone Card matching image */
               <div 
+                ref={uploadBoxRef}
+                id="workspace-upload-box"
                 onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -2328,6 +2389,7 @@ startxref
                 style={{
                   width: '100%',
                   maxWidth: '780px',
+                  scrollMarginTop: '80px',
                   border: '2px dashed var(--border-light)',
                   borderRadius: '16px',
                   padding: 'clamp(28px, 5vw, 48px) 24px',
@@ -3696,22 +3758,101 @@ startxref
 
               {/* Watermark PDF controls */}
               {tool.id.includes('watermark') && (
-                <div>
+                <div style={{ maxWidth: '640px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
-                    Enter custom watermark text to stamp diagonally over PDF pages:
+                    Enter watermark text and customize its stamp angle:
                   </p>
-                  <input 
-                    type="text" 
-                    value={watermarkText} 
-                    onChange={(e) => setWatermarkText(e.target.value)}
-                    placeholder="Enter Watermark Text..." 
-                    style={{ 
-                      padding: '10px 14px', borderRadius: '8px', 
-                      border: '1px solid var(--border-light)', fontSize: '14px', 
-                      width: '100%', maxWidth: '360px', fontWeight: '600',
-                      backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
-                    }}
-                  />
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
+                    <input 
+                      type="text" 
+                      value={watermarkText} 
+                      onChange={(e) => setWatermarkText(e.target.value)}
+                      placeholder="Enter Watermark Text..." 
+                      style={{ 
+                        padding: '10px 14px', borderRadius: '8px', 
+                        border: '1px solid var(--border-light)', fontSize: '14px', 
+                        width: '260px', fontWeight: '600',
+                        backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                      }}
+                    />
+                    {/* Quick text presets */}
+                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                      {['CONFIDENTIAL', 'DRAFT', 'DO NOT COPY', 'SAMPLE'].map(preset => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setWatermarkText(preset)}
+                          style={{
+                            padding: '6px 10px', borderRadius: '6px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: watermarkText === preset ? 'var(--primary-red)' : 'var(--bg-light)',
+                            color: watermarkText === preset ? '#fff' : 'var(--text-dark)',
+                            fontSize: '11px', fontWeight: '700', cursor: 'pointer'
+                          }}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Watermark Rotation Controls */}
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', display: 'block', marginBottom: '8px' }}>
+                      Watermark Rotation Angle: <span style={{ color: 'var(--primary-red)' }}>{watermarkRotation}°</span>
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
+                      {[
+                        { label: '45° Diagonal ↗', val: 45 },
+                        { label: '0° Horizontal →', val: 0 },
+                        { label: '90° Vertical ↑', val: 90 },
+                        { label: '-45° Reverse ↘', val: -45 },
+                        { label: '180° Inverted ←', val: 180 }
+                      ].map(ang => (
+                        <button
+                          key={ang.val}
+                          type="button"
+                          onClick={() => setWatermarkRotation(ang.val)}
+                          style={{
+                            padding: '6px 12px', borderRadius: '6px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: watermarkRotation === ang.val ? '#0f172a' : 'var(--bg-light)',
+                            color: watermarkRotation === ang.val ? '#fff' : 'var(--text-dark)',
+                            fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', gap: '5px'
+                          }}
+                        >
+                          <RotateCw size={13} /> {ang.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-gray)' }}>Fine Tune:</span>
+                      <input 
+                        type="range"
+                        min={-180}
+                        max={180}
+                        step={5}
+                        value={watermarkRotation}
+                        onChange={(e) => setWatermarkRotation(Number(e.target.value))}
+                        style={{ accentColor: 'var(--primary-red)', width: '180px' }}
+                      />
+                      <input 
+                        type="number"
+                        min={-180}
+                        max={360}
+                        value={watermarkRotation}
+                        onChange={(e) => setWatermarkRotation(Number(e.target.value) || 0)}
+                        style={{
+                          width: '65px', padding: '4px 8px', borderRadius: '6px',
+                          border: '1px solid var(--border-light)', fontSize: '12px', fontWeight: '700',
+                          backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                        }}
+                      />
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-gray)' }}>degrees</span>
+                    </div>
+                  </div>
                 </div>
               )}
 

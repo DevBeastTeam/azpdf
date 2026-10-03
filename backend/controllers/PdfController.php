@@ -317,8 +317,9 @@ class PdfController {
             if (empty($files)) Response::error('Please upload a PDF file.', 400);
 
             $file = $files[0];
-            $text = trim($_POST['text'] ?? 'CONFIDENTIAL');
+            $text = trim($_POST['text'] ?? $_POST['watermark'] ?? 'CONFIDENTIAL');
             $opacity = (float) ($_POST['opacity'] ?? 0.35);
+            $angle = (float) ($_POST['angle'] ?? $_POST['rotation'] ?? 45);
 
             $pdf = PdfHelper::createPdf();
             $pageCount = $pdf->setSourceFile($file['tmp_name']);
@@ -330,21 +331,23 @@ class PdfController {
                 $pdf->AddPage($orientation, [$size['width'], $size['height']]);
                 $pdf->useTemplate($tpl);
 
-                // Stamp watermark
+                // Stamp watermark with dynamic rotation
                 $pdf->setAlpha($opacity);
                 $pdf->SetFont('Arial', 'B', 46);
                 $pdf->SetTextColor(220, 38, 38);
 
                 $cx = $size['width'] / 2;
                 $cy = $size['height'] / 2;
-                $pdf->rotate(45, $cx, $cy);
+                $pdf->rotate($angle, $cx, $cy);
                 $textW = $pdf->GetStringWidth($text);
                 $pdf->Text($cx - ($textW / 2), $cy, $text);
                 $pdf->rotate(0);
                 $pdf->setAlpha(1.0);
             }
 
-            Response::buffer($pdf->Output('S'), 'watermarked_document.pdf');
+            $origName = pathinfo($file['name'] ?? 'document', PATHINFO_FILENAME);
+            $outputName = $origName . '_watermarked.pdf';
+            Response::buffer($pdf->Output('S'), $outputName);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }
@@ -367,9 +370,9 @@ class PdfController {
                 $origName = pathinfo($file['name'] ?? 'document', PATHINFO_FILENAME);
                 $outputName = $origName . '_protected.pdf';
                 Response::file($tempOut, $outputName);
+            } else {
+                Response::error('Failed to encrypt PDF with password. Please try again.', 500);
             }
-
-            Response::error('Failed to encrypt PDF with password. Please try again.', 500);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }
