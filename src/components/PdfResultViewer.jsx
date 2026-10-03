@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Download, RefreshCw, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, 
   Maximize2, Minimize2, CheckCircle2, FileText, ArrowLeft, ExternalLink,
-  Layers, Eye, ShieldCheck
+  Layers, Eye, EyeOff, KeyRound, Check, ShieldCheck, Lock
 } from 'lucide-react';
 import OfficeDocumentViewer from './OfficeDocumentViewer';
 
@@ -12,13 +12,19 @@ export default function PdfResultViewer({
   toolTitle, 
   onDownload, 
   onStartOver, 
-  onBack 
+  onBack,
+  onReorganize 
 }) {
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(() => (window.innerWidth < 768 ? 0.85 : 1.0));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false);
+  const [testPassword, setTestPassword] = useState('');
+  const [showTestPassword, setShowTestPassword] = useState(false);
+  const [testingPassword, setTestingPassword] = useState(false);
+  const [testPasswordError, setTestPasswordError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pdfJsDoc, setPdfJsDoc] = useState(null);
   const [textContent, setTextContent] = useState('');
@@ -28,6 +34,7 @@ export default function PdfResultViewer({
   const renderTaskRef = useRef(null);
   const containerRef = useRef(null);
   const scrollContainerRef = useRef(null);
+  const arrayBufferRef = useRef(null);
 
   // Scroll to the very top header whenever page or zoom changes
   useEffect(() => {
@@ -80,6 +87,7 @@ export default function PdfResultViewer({
           }
 
           if (cancelled) return;
+          arrayBufferRef.current = arrayBuffer;
 
           const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
           if (cancelled) return;
@@ -91,7 +99,15 @@ export default function PdfResultViewer({
         } catch (err) {
           console.warn('PDF.js preview render error:', err);
           if (!cancelled) {
-            setError('Could not render in-canvas preview. You can still download the complete file below.');
+            const isPassword = err?.name === 'PasswordException' || 
+                               (err?.message && err.message.toLowerCase().includes('password')) ||
+                               (filename && filename.toLowerCase().includes('protected')) ||
+                               (toolTitle && toolTitle.toLowerCase().includes('protect'));
+            if (isPassword) {
+              setIsPasswordProtected(true);
+            } else {
+              setError('Could not render in-canvas preview. You can still download the complete file below.');
+            }
             setLoading(false);
           }
         }
@@ -146,6 +162,35 @@ export default function PdfResultViewer({
       }
     };
   }, [blob, isPdf, isText, isOffice, isZip]);
+
+  const handleTestUnlock = async (e) => {
+    if (e) e.preventDefault();
+    if (!testPassword) {
+      setTestPasswordError('Please enter the password to test unlocking.');
+      return;
+    }
+    setTestingPassword(true);
+    setTestPasswordError('');
+    try {
+      const pdfjsLib = await import('pdfjs-dist');
+      const doc = await pdfjsLib.getDocument({
+        data: arrayBufferRef.current,
+        password: testPassword
+      }).promise;
+      setPdfJsDoc(doc);
+      setNumPages(doc.numPages);
+      setCurrentPage(1);
+      setIsPasswordProtected(false);
+      setTestingPassword(false);
+    } catch (err) {
+      setTestingPassword(false);
+      if (err?.name === 'PasswordException' || err?.message?.toLowerCase().includes('password')) {
+        setTestPasswordError('Incorrect password. Please verify and try again.');
+      } else {
+        setTestPasswordError('Could not unlock document with this password.');
+      }
+    }
+  };
 
   // Render active page onto canvas
   const renderPage = useCallback(async (pageNum, scale) => {
@@ -265,6 +310,30 @@ export default function PdfResultViewer({
 
         {/* Primary Header Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {onReorganize && (
+            <button
+              type="button"
+              onClick={onReorganize}
+              title="Return to interactive page organizer to reorder or delete pages"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(238, 108, 77, 0.1)',
+                color: '#EE6C4D',
+                border: '1.5px solid #EE6C4D',
+                padding: '10px 16px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Layers size={16} /> Sort / Delete Pages
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onStartOver}
@@ -447,7 +516,157 @@ export default function PdfResultViewer({
           </div>
         )}
 
-        {error && (
+        {isPasswordProtected && (
+          <div style={{
+            backgroundColor: '#ffffff',
+            padding: '36px 28px',
+            borderRadius: '16px',
+            textAlign: 'center',
+            maxWidth: '500px',
+            boxShadow: '0 12px 30px rgba(0,0,0,0.18)',
+            margin: 'auto'
+          }}>
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%',
+              backgroundColor: 'rgba(229, 36, 36, 0.1)',
+              color: 'var(--primary-red)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px auto'
+            }}>
+              <Lock size={32} />
+            </div>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>
+              Document Successfully Protected
+            </h3>
+            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: 'var(--text-gray)', lineHeight: '1.5' }}>
+              Your PDF is now encrypted with standard AES encryption. A password prompt will appear whenever this document is opened in Adobe Acrobat, Google Chrome, Apple Preview, or any PDF reader.
+            </p>
+
+            <button
+              type="button"
+              onClick={onDownload}
+              style={{
+                backgroundColor: 'var(--primary-red)',
+                color: '#fff',
+                border: 'none',
+                padding: '12px 28px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 4px 12px rgba(229, 36, 36, 0.25)',
+                marginBottom: '24px'
+              }}
+            >
+              <Download size={18} /> Download Protected PDF
+            </button>
+
+            {/* Test Password and Preview in-browser */}
+            <div style={{
+              borderTop: '1px solid var(--border-light, #e2e8f0)',
+              paddingTop: '20px',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                <KeyRound size={15} style={{ color: 'var(--primary-red)' }} />
+                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                  Test Your Password (Live Preview)
+                </span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                Enter the password you just set to unlock and verify the document preview directly on this screen:
+              </p>
+
+              <form onSubmit={handleTestUnlock} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type={showTestPassword ? 'text' : 'password'}
+                    value={testPassword}
+                    onChange={(e) => {
+                      setTestPassword(e.target.value);
+                      if (testPasswordError) setTestPasswordError('');
+                    }}
+                    placeholder="Enter password to verify..."
+                    style={{
+                      width: '100%',
+                      padding: '9px 36px 9px 12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${testPasswordError ? '#ef4444' : '#cbd5e1'}`,
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      backgroundColor: '#f8fafc',
+                      color: 'var(--text-dark)'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTestPassword(!showTestPassword)}
+                    title={showTestPassword ? 'Hide' : 'Show'}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#64748b',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    {showTestPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={testingPassword || !testPassword}
+                  style={{
+                    backgroundColor: testPassword ? '#0f172a' : '#94a3b8',
+                    color: '#ffffff',
+                    border: 'none',
+                    padding: '9px 16px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: testPassword && !testingPassword ? 'pointer' : 'default',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {testingPassword ? (
+                    'Verifying...'
+                  ) : (
+                    <>
+                      <Eye size={15} /> Unlock Preview
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {testPasswordError && (
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: '#ef4444',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}>
+                  ⚠️ {testPasswordError}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!isPasswordProtected && error && (
           <div style={{
             backgroundColor: '#ffffff',
             padding: '24px',
@@ -478,7 +697,7 @@ export default function PdfResultViewer({
           </div>
         )}
 
-        {isPdf && !error && (
+        {isPdf && !error && !isPasswordProtected && (
           <div style={{
             display: loading ? 'none' : 'flex',
             flexDirection: 'column',
@@ -691,6 +910,30 @@ export default function PdfResultViewer({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {onReorganize && (
+            <button
+              type="button"
+              onClick={onReorganize}
+              title="Return to interactive page organizer to reorder or delete pages"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(238, 108, 77, 0.1)',
+                color: '#EE6C4D',
+                border: '1.5px solid #EE6C4D',
+                padding: '10px 18px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '14px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Layers size={16} /> Sort / Delete Pages
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onStartOver}

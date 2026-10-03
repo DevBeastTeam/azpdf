@@ -3,9 +3,11 @@ import {
   Type, Edit3, Square, Stamp, Trash2, Download,
   ZoomIn, ZoomOut, ChevronLeft, ChevronRight,
   FileText, ArrowLeft, Image as ImageIcon, Check, Move, Upload,
-  Bold, Italic, Underline, Strikethrough
+  Bold, Italic, Underline, Strikethrough,
+  PenTool, Droplets, RotateCw, RotateCcw
 } from 'lucide-react';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
+import SignatureModal from './SignatureModal';
 
 // ─── hex → pdf-lib rgb ────────────────────────────────────────────────────────
 const hexToRgbLib = (hex) => {
@@ -36,8 +38,236 @@ const fmtBtnStyle = (active) => ({
   boxShadow: active ? '0 0 0 1px #3b82f6' : 'none'
 });
 
+// ─── Floating Controls for Selected Items (Move, Delete, Resize) ─────────────
+const FloatingItemControls = ({
+  label,
+  onDelete,
+  onStartMove,
+  onStartResize,
+  onRotate,
+  onStartRotate,
+  rotation = 0,
+  hasResize = true,
+  hasRotate = false,
+  isNearTop = false
+}) => {
+  return (
+    <>
+      {/* Floating Toolbar: Move + Label Badge + Delete */}
+      <div
+        className="no-drag-target"
+        style={{
+          position: 'absolute',
+          ...(isNearTop ? { bottom: -34 } : { top: -34 }),
+          left: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          zIndex: 130,
+          pointerEvents: 'auto',
+          userSelect: 'none'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {onStartMove && (
+          <div
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onStartMove(e);
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              onStartMove(e.touches[0]);
+            }}
+            style={{
+              backgroundColor: '#1e293b',
+              color: '#38bdf8',
+              border: '1px solid #475569',
+              borderRadius: 5,
+              padding: '2px 7px',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'grab',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
+              whiteSpace: 'nowrap'
+            }}
+            title="Drag to reposition"
+          >
+            <Move size={12} />
+            <span>Move</span>
+          </div>
+        )}
+
+        {label && (
+          <span
+            style={{
+              backgroundColor: '#334155',
+              color: '#cbd5e1',
+              padding: '2px 7px',
+              borderRadius: 5,
+              fontSize: 10,
+              fontWeight: 700,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {label}
+          </span>
+        )}
+
+        {onRotate && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRotate(((rotation || 0) + 90) % 360);
+            }}
+            style={{
+              backgroundColor: '#1e293b',
+              color: '#a7f3d0',
+              border: '1px solid #059669',
+              borderRadius: 5,
+              padding: '2px 7px',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.35)',
+              whiteSpace: 'nowrap'
+            }}
+            title="Click to rotate +90° clockwise"
+          >
+            <RotateCw size={11} />
+            <span>{rotation ? `${rotation}°` : 'Rotate'}</span>
+          </button>
+        )}
+
+        {onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            style={{
+              backgroundColor: '#dc2626',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 5,
+              padding: '3px 8px',
+              fontSize: 11,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              boxShadow: '0 2px 8px rgba(220, 38, 38, 0.45)',
+              whiteSpace: 'nowrap'
+            }}
+            title="Delete item (or press Delete / Backspace key)"
+          >
+            <Trash2 size={12} />
+            <span>Delete</span>
+          </button>
+        )}
+      </div>
+
+      {/* Top Rotation Handle with Connector Line */}
+      {hasRotate && onStartRotate && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              top: -14,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 1.5,
+              height: 14,
+              backgroundColor: '#10b981',
+              pointerEvents: 'none',
+              zIndex: 134
+            }}
+          />
+          <div
+            className="no-drag-target"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onStartRotate(e);
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              onStartRotate(e.touches[0]);
+            }}
+            style={{
+              position: 'absolute',
+              top: -26,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 20,
+              height: 20,
+              backgroundColor: '#10b981',
+              border: '2px solid #ffffff',
+              borderRadius: '50%',
+              cursor: 'grab',
+              zIndex: 135,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.45)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              pointerEvents: 'auto',
+              userSelect: 'none'
+            }}
+            title="Drag to rotate freely (or click Rotate button)"
+          >
+            <RotateCw size={11} strokeWidth={2.5} />
+          </div>
+        </>
+      )}
+
+      {/* Resize Handle at Bottom-Right Corner */}
+      {hasResize && onStartResize && (
+        <div
+          className="no-drag-target"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onStartResize(e);
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            onStartResize(e.touches[0]);
+          }}
+          style={{
+            position: 'absolute',
+            bottom: -7,
+            right: -7,
+            width: 15,
+            height: 15,
+            backgroundColor: '#2563eb',
+            border: '2px solid #ffffff',
+            borderRadius: '50%',
+            cursor: 'nwse-resize',
+            zIndex: 130,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+            pointerEvents: 'auto'
+          }}
+          title="Drag to scale / resize"
+        />
+      )}
+    </>
+  );
+};
+
 // ─── PdfInteractiveEditor ─────────────────────────────────────────────────────
-export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
+export default function PdfInteractiveEditor({ file, onSave, onCancel, mode = 'edit' }) {
 
   // ── page state ──────────────────────────────────────────────────────────────
   const [numPages,    setNumPages]    = useState(0);
@@ -50,8 +280,11 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
     return 1.3;
   });
 
+  // ── signature modal state ───────────────────────────────────────────────────
+  const [showSignModal, setShowSignModal] = useState(mode === 'sign');
+
   // ── tool state ──────────────────────────────────────────────────────────────
-  const [activeTool, setActiveTool] = useState('text');  // 'text' | 'image' | 'draw' | 'whiteout' | 'stamp'
+  const [activeTool, setActiveTool] = useState(mode === 'sign' ? 'sign' : 'text');  // 'text' | 'image' | 'draw' | 'whiteout' | 'stamp'
 
   // ── text tool settings ──────────────────────────────────────────────────────
   const [fontSize,   setFontSize]   = useState(14);
@@ -90,6 +323,7 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
   // ── dragging & resizing state for annotations ───────────────────────────────
   const [draggingItem, setDraggingItem] = useState(null);
   const [resizingItem, setResizingItem] = useState(null);
+  const [rotatingItem, setRotatingItem] = useState(null);
 
   // ── refs ────────────────────────────────────────────────────────────────────
   const pdfCanvasRef   = useRef(null);
@@ -133,6 +367,36 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
     load();
     return () => { cancelled = true; };
   }, [file]);
+
+  // ── Auto-initialize Watermark when in watermark mode ────────────────────────
+  useEffect(() => {
+    if (pdfLoaded && mode === 'watermark') {
+      setAnnotations(prev => {
+        const p1 = prev[1] || [];
+        if (p1.some(it => it.type === 'watermark')) return prev;
+        const id = 'wm-' + Date.now();
+        setSelectedId(id);
+        return {
+          ...prev,
+          1: [
+            ...p1,
+            {
+              id,
+              type: 'watermark',
+              text: 'CONFIDENTIAL',
+              x: 25,
+              y: 40,
+              fontSize: 50,
+              rotation: 45,
+              opacity: 0.35,
+              color: '#ef4444',
+              applyAllPages: true
+            }
+          ]
+        };
+      });
+    }
+  }, [pdfLoaded, mode]);
 
   // ── Render page (canvas) + extract grouped text lines ──────────────────────
   const renderPage = useCallback(async (pageNum, scale) => {
@@ -355,6 +619,21 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
     const items = annotations[currentPage] || [];
     items.forEach(item => {
       if (item.type === 'draw' && item.points?.length > 1) {
+        const isSel = item.id === selectedId;
+
+        // If selected, draw an accent glow underneath
+        if (isSel) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(59, 130, 246, 0.45)';
+          ctx.lineWidth   = (item.width || 3) + 8;
+          ctx.lineCap = ctx.lineJoin = 'round';
+          item.points.forEach((pt, i) =>
+            i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+          ctx.stroke();
+          ctx.restore();
+        }
+
         ctx.beginPath();
         ctx.strokeStyle = item.color || '#2563eb';
         ctx.lineWidth   = item.width || 3;
@@ -373,7 +652,7 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
         i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
       ctx.stroke();
     }
-  }, [annotations, currentPage, isDrawing, currentPath, textColor, strokeWidth]);
+  }, [annotations, currentPage, isDrawing, currentPath, textColor, strokeWidth, selectedId]);
 
   useEffect(() => { redrawDraw(); }, [redrawDraw]);
 
@@ -391,8 +670,8 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
           updated[pageNum] = items.filter(item => {
             if (item.id === prevId && item.type === 'text') {
               const txt = (item.text || '').trim();
-              // Remove if empty or still has the default placeholder
-              if (!txt || txt === 'New Text') return false;
+              // Remove ONLY if completely empty (user cleared all text)
+              if (!txt) return false;
             }
             return true;
           });
@@ -402,15 +681,38 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
     }
   }, [selectedId]);
 
-  // ── Global Drag & Resize Listener for Annotations ──────────────────────────
+  // ── Global Drag & Resize & Rotate Listener for Annotations ──────────────────
   useEffect(() => {
-    if (!draggingItem && !resizingItem) return;
+    if (!draggingItem && !resizingItem && !rotatingItem) return;
 
     const handleMouseMove = (e) => {
       const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
 
-      if (draggingItem) {
+      if (rotatingItem) {
+        const dx = clientX - rotatingItem.centerX;
+        const dy = clientY - rotatingItem.centerY;
+        const curAngleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+        let deltaDeg = Math.round(curAngleDeg - rotatingItem.startAngle);
+        let newRot = Math.round((rotatingItem.startRotation + deltaDeg) % 360);
+        if (newRot < 0) newRot += 360;
+
+        // Snap to cardinal angles within 4 degrees
+        const snaps = [0, 45, 90, 135, 180, 225, 270, 315, 360];
+        for (const s of snaps) {
+          if (Math.abs(newRot - s) <= 4) {
+            newRot = s === 360 ? 0 : s;
+            break;
+          }
+        }
+
+        setAnnotations(prev => ({
+          ...prev,
+          [currentPage]: (prev[currentPage] || []).map(it =>
+            it.id === rotatingItem.id ? { ...it, rotation: newRot } : it
+          )
+        }));
+      } else if (draggingItem) {
         if (draggingItem.type === 'pdfImage') {
           // PDF image dragging uses pixel coordinates
           const dx = clientX - draggingItem.startX;
@@ -420,6 +722,23 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
           setImageEdits(prev => ({
             ...prev,
             [draggingItem.id]: { ...prev[draggingItem.id], x: newX, y: newY }
+          }));
+        } else if (draggingItem.type === 'draw') {
+          // Draw stroke dragging: offset all points by dx, dy
+          const dx = clientX - draggingItem.startX;
+          const dy = clientY - draggingItem.startY;
+          setAnnotations(prev => ({
+            ...prev,
+            [currentPage]: (prev[currentPage] || []).map(it => {
+              if (it.id !== draggingItem.id) return it;
+              return {
+                ...it,
+                points: (draggingItem.origPoints || []).map(p => ({
+                  x: Math.round(p.x + dx),
+                  y: Math.round(p.y + dy)
+                }))
+              };
+            })
           }));
         } else {
           // Annotation dragging uses percentage coordinates
@@ -464,13 +783,66 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
             ...prev,
             [resizingItem.id]: { ...prev[resizingItem.id], x: newX, y: newY, w: newW, h: newH }
           }));
+        } else if (resizingItem.type === 'draw') {
+          // Draw stroke scaling
+          const dx = clientX - resizingItem.startX;
+          const startW = resizingItem.startW || 1;
+          const scale = Math.max(0.1, (startW + dx) / startW);
+          setAnnotations(prev => ({
+            ...prev,
+            [currentPage]: (prev[currentPage] || []).map(it => {
+              if (it.id !== resizingItem.id) return it;
+              return {
+                ...it,
+                points: (resizingItem.origPoints || []).map(p => ({
+                  x: Math.round(resizingItem.minX + (p.x - resizingItem.minX) * scale),
+                  y: Math.round(resizingItem.minY + (p.y - resizingItem.minY) * scale)
+                }))
+              };
+            })
+          }));
+        } else if (resizingItem.type === 'stamp') {
+          // Stamp scaling
+          const dx = clientX - resizingItem.startX;
+          const newScale = Math.max(0.4, Math.min(3.0, +(resizingItem.startScale + dx * 0.015).toFixed(2)));
+          setAnnotations(prev => ({
+            ...prev,
+            [currentPage]: (prev[currentPage] || []).map(it =>
+              it.id === resizingItem.id ? { ...it, scale: newScale } : it
+            )
+          }));
+        } else if (resizingItem.type === 'text') {
+          // Text resizing (adjusts fontSize)
+          const dx = clientX - resizingItem.startX;
+          const dy = clientY - resizingItem.startY;
+          const delta = (dx + dy) * 0.5;
+          const newFontSize = Math.max(8, Math.min(72, Math.round(resizingItem.startFontSize + delta * 0.15)));
+          setAnnotations(prev => ({
+            ...prev,
+            [currentPage]: (prev[currentPage] || []).map(it =>
+              it.id === resizingItem.id ? { ...it, fontSize: newFontSize } : it
+            )
+          }));
+        } else if (resizingItem.type === 'watermark') {
+          // Watermark scaling (adjusts fontSize)
+          const dx = clientX - resizingItem.startX;
+          const dy = clientY - resizingItem.startY;
+          const delta = (dx + dy) * 0.5;
+          const newFontSize = Math.max(16, Math.min(130, Math.round(resizingItem.startFontSize + delta * 0.25)));
+          setAnnotations(prev => ({
+            ...prev,
+            [currentPage]: (prev[currentPage] || []).map(it =>
+              it.id === resizingItem.id ? { ...it, fontSize: newFontSize } : it
+            )
+          }));
         } else {
-          // Annotation resizing uses percentage coordinates
+          // shape (whiteout) or image
           const dw = ((clientX - resizingItem.startX) / pageDim.w) * 100;
-          const newW = Math.max(5, Math.min(95, +(resizingItem.startW + dw).toFixed(2)));
+          const dh = ((clientY - resizingItem.startY) / pageDim.h) * 100;
+          const newW = Math.max(1, Math.min(95, +(resizingItem.startW + dw).toFixed(2)));
           const newH = resizingItem.aspectRatio
             ? +((newW / resizingItem.aspectRatio) * (pageDim.w / pageDim.h)).toFixed(2)
-            : Math.max(3, Math.min(95, +(resizingItem.startH + ((clientY - resizingItem.startY) / pageDim.h) * 100).toFixed(2)));
+            : Math.max(0.5, Math.min(95, +(resizingItem.startH + dh).toFixed(2)));
           setAnnotations(prev => ({
             ...prev,
             [currentPage]: (prev[currentPage] || []).map(it =>
@@ -484,6 +856,7 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
     const handleMouseUp = () => {
       setDraggingItem(null);
       setResizingItem(null);
+      setRotatingItem(null);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -497,19 +870,19 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
       window.removeEventListener('touchmove', handleMouseMove);
       window.removeEventListener('touchend', handleMouseUp);
     };
-  }, [draggingItem, resizingItem, pageDim, currentPage]);
+  }, [draggingItem, resizingItem, rotatingItem, pageDim, currentPage]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const curPageTextItems   = pdfTextItems.filter(i => i.pageNum === currentPage);
   const curPageAnnotations = annotations[currentPage] || [];
 
-  const updateAnnotations = (updater) =>
+  const updateAnnotations = useCallback((updater) =>
     setAnnotations(prev => ({
       ...prev,
       [currentPage]: typeof updater === 'function'
         ? updater(prev[currentPage] || [])
         : updater
-    }));
+    })), [currentPage]);
 
   // Selected item references
   const selectedExtractedItem = curPageTextItems.find(i => i.id === selectedId);
@@ -610,7 +983,8 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
             h: Math.min(50, Math.max(6, hPct)),
             src: dataUrl,
             aspectRatio: aspect,
-            name: uploadedFile.name
+            name: uploadedFile.name,
+            rotation: 0
           }
         ]);
         setSelectedId(id);
@@ -620,6 +994,55 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
     };
     reader.readAsDataURL(uploadedFile);
     e.target.value = '';
+  };
+
+  // ── Signature Apply Handler ─────────────────────────────────────────────────
+  const handleApplySignature = (dataUrl, aspect = 2.5) => {
+    const wPct = 26;
+    const safeAspect = aspect && aspect > 0 ? aspect : 2.5;
+    const hPct = +((wPct / safeAspect) * (pageDim.w / pageDim.h)).toFixed(2);
+    const id = 'sig-' + Date.now();
+
+    updateAnnotations(p => [
+      ...p,
+      {
+        id,
+        type: 'image',
+        isSignature: true,
+        x: 37,
+        y: 45,
+        w: wPct,
+        h: Math.min(45, Math.max(5, hPct)),
+        src: dataUrl,
+        aspectRatio: safeAspect,
+        name: 'Signature',
+        rotation: 0
+      }
+    ]);
+    setSelectedId(id);
+    setShowSignModal(false);
+  };
+
+  // ── Watermark Add Handler ───────────────────────────────────────────────────
+  const addWatermark = (customText = 'CONFIDENTIAL') => {
+    const id = 'wm-' + Date.now();
+    updateAnnotations(p => [
+      ...p,
+      {
+        id,
+        type: 'watermark',
+        text: customText,
+        x: 25,
+        y: 40,
+        fontSize: 50,
+        rotation: 45,
+        opacity: 0.35,
+        color: '#ef4444',
+        applyAllPages: true
+      }
+    ]);
+    setSelectedId(id);
+    setActiveTool('watermark');
   };
 
   // ── Edit existing PDF text item ─────────────────────────────────────────────
@@ -637,12 +1060,70 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
     }));
   };
 
-  // ── Delete annotation ───────────────────────────────────────────────────────
-  const deleteAnnotation = () => {
+  // ── Universal Delete for Selected Item ──────────────────────────────────────
+  const deleteSelectedItem = useCallback(() => {
     if (!selectedId) return;
+
+    // 1) Extracted PDF text
+    const textItem = pdfTextItems.find(i => i.id === selectedId && i.pageNum === currentPage);
+    if (textItem) {
+      deletePdfText(textItem);
+      setSelectedId(null);
+      return;
+    }
+
+    // 2) Extracted PDF image
+    const pdfImg = pdfImageItems.find(i => i.id === selectedId && i.pageNum === currentPage);
+    if (pdfImg) {
+      setImageEdits(prev => ({
+        ...prev,
+        [pdfImg.id]: { ...prev[pdfImg.id], deleted: true }
+      }));
+      setSelectedId(null);
+      return;
+    }
+
+    // 3) Annotation item (text, image, shape, stamp, draw)
     updateAnnotations(p => p.filter(i => i.id !== selectedId));
     setSelectedId(null);
-  };
+  }, [selectedId, pdfTextItems, currentPage, pdfImageItems, updateAnnotations]);
+
+  const deleteAnnotation = deleteSelectedItem;
+
+  // ── Global Keyboard Shortcuts (Delete, Backspace, Escape) ──────────────────
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedId(null);
+        return;
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const activeEl = document.activeElement;
+        const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+        if (isInput) {
+          // If typing in an input: delete only if text is empty or fully selected
+          const val = activeEl.value || '';
+          const isAllSelected = activeEl.selectionStart === 0 && activeEl.selectionEnd === val.length;
+          if (!val.trim() || isAllSelected) {
+            e.preventDefault();
+            deleteSelectedItem();
+          }
+          return;
+        }
+
+        // If not typing in an input and an item is selected on the canvas
+        if (selectedId) {
+          e.preventDefault();
+          deleteSelectedItem();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId, deleteSelectedItem]);
 
   const clearPage = () => {
     if (!window.confirm('Clear all modifications on this page?')) return;
@@ -688,6 +1169,8 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
         ...pdfTextItems.map(i => i.pageNum),
         ...pdfImageItems.map(i => i.pageNum)
       ]));
+
+      const processedWatermarks = new Set();
 
       for (const pn of allPageNums) {
         const pg = pages[pn - 1] || pages[0];
@@ -869,16 +1352,41 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
               }
 
               if (embeddedImg) {
-                const xPdf = (item.x / 100) * pW;
+                const angleDeg = item.rotation || 0;
                 const wPdf = (item.w / 100) * pW;
                 const hPdf = (item.h / 100) * pH;
-                const yPdf = pH - ((item.y / 100) * pH) - hPdf;
-                pg.drawImage(embeddedImg, {
-                  x: Math.max(0, xPdf),
-                  y: Math.max(0, yPdf),
-                  width: Math.min(pW - xPdf, wPdf),
-                  height: Math.min(pH - yPdf, hPdf)
-                });
+
+                if (!angleDeg) {
+                  const xPdf = (item.x / 100) * pW;
+                  const yPdf = pH - ((item.y / 100) * pH) - hPdf;
+                  pg.drawImage(embeddedImg, {
+                    x: Math.max(0, xPdf),
+                    y: Math.max(0, yPdf),
+                    width: Math.min(pW - xPdf, wPdf),
+                    height: Math.min(pH - yPdf, hPdf)
+                  });
+                } else {
+                  // In CSS, rotation is clockwise around center by angleDeg:
+                  // Center in PDF coordinates:
+                  const cxPdf = ((item.x / 100) * pW) + (wPdf / 2);
+                  const cyPdf = pH - (((item.y / 100) * pH) + (hPdf / 2));
+
+                  // In PDF coordinates, clockwise in screen is negative angle:
+                  const rad = (-angleDeg * Math.PI) / 180;
+                  const cos = Math.cos(rad);
+                  const sin = Math.sin(rad);
+
+                  const rotBlX = -(wPdf / 2) * cos + (hPdf / 2) * sin;
+                  const rotBlY = -(wPdf / 2) * sin - (hPdf / 2) * cos;
+
+                  pg.drawImage(embeddedImg, {
+                    x: cxPdf + rotBlX,
+                    y: cyPdf + rotBlY,
+                    width: wPdf,
+                    height: hPdf,
+                    rotate: degrees(-angleDeg)
+                  });
+                }
               }
             } catch (imgErr) {
               console.error('Image embedding error:', imgErr);
@@ -911,11 +1419,28 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
               borderWidth: 1
             });
           } else if (item.type === 'stamp') {
+            const scMultiplier = item.scale || 1;
+            const baseW = 130 * scMultiplier;
+            const baseH = 30 * scMultiplier;
             const xPdf = (item.x / 100) * pW;
-            const yPdf = pH - ((item.y / 100) * pH) - 30;
+            const yPdf = pH - ((item.y / 100) * pH) - baseH;
             const sc   = hexToRgbLib(item.color) || rgb(0.1, 0.6, 0.2);
-            pg.drawRectangle({ x: Math.max(0, xPdf), y: Math.max(0, yPdf), width: 130, height: 30, color: rgb(1, 1, 1), borderColor: sc, borderWidth: 2 });
-            pg.drawText(item.stampText || 'APPROVED', { x: Math.max(0, xPdf + 8), y: Math.max(0, yPdf + 8), size: 12, font: fontBold, color: sc });
+            pg.drawRectangle({
+              x: Math.max(0, xPdf),
+              y: Math.max(0, yPdf),
+              width: baseW,
+              height: baseH,
+              color: rgb(1, 1, 1),
+              borderColor: sc,
+              borderWidth: 2 * scMultiplier
+            });
+            pg.drawText(item.stampText || 'APPROVED', {
+              x: Math.max(0, xPdf + 8 * scMultiplier),
+              y: Math.max(0, yPdf + 8 * scMultiplier),
+              size: 12 * scMultiplier,
+              font: fontBold,
+              color: sc
+            });
           } else if (item.type === 'draw' && item.points?.length > 1) {
             const dc = hexToRgbLib(item.color) || rgb(0.1, 0.4, 0.9);
             for (let k = 0; k < item.points.length - 1; k++) {
@@ -926,13 +1451,40 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
                 thickness: item.width || 2, color: dc
               });
             }
+          } else if (item.type === 'watermark') {
+            if (!processedWatermarks.has(item.id)) {
+              processedWatermarks.add(item.id);
+              const rot = item.rotation !== undefined ? item.rotation : 45;
+              const op = item.opacity !== undefined ? item.opacity : 0.35;
+              const col = hexToRgbLib(item.color) || rgb(0.85, 0.15, 0.15);
+              const fs = item.fontSize || 48;
+              const targetPages = item.applyAllPages !== false ? pages : [pg];
+
+              for (const targetPg of targetPages) {
+                const { width: tw, height: th } = targetPg.getSize();
+                const xPdf = (item.x / 100) * tw;
+                const yPdf = th - ((item.y / 100) * th);
+                targetPg.drawText(item.text || 'CONFIDENTIAL', {
+                  x: Math.max(10, xPdf),
+                  y: Math.max(10, yPdf),
+                  size: fs,
+                  font: fontBold,
+                  color: col,
+                  opacity: op,
+                  rotate: degrees(rot)
+                });
+              }
+            }
           }
         }
       }
 
       const bytes = await pdfDoc.save();
       const blob  = new Blob([bytes], { type: 'application/pdf' });
-      const fname = file?.name ? file.name.replace(/\.pdf$/i, '_edited.pdf') : 'edited.pdf';
+      const suffix = mode === 'sign' ? '_signed.pdf' : mode === 'watermark' ? '_watermarked.pdf' : '_edited.pdf';
+      const fname = file?.name 
+        ? file.name.replace(/\.pdf$/i, suffix) 
+        : (mode === 'sign' ? 'signed.pdf' : mode === 'watermark' ? 'watermarked.pdf' : 'edited.pdf');
       onSave(blob, fname);
     } catch (err) {
       alert('Error saving: ' + err.message);
@@ -968,8 +1520,8 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
           </button>
           <div style={{ width:1, height:22, background:'#475569' }}/>
           <FileText size={18} style={{ color:'#ef4444' }}/>
-          <span style={{ fontWeight:700, fontSize:14, maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-            {file?.name || 'document.pdf'}
+          <span style={{ fontWeight:700, fontSize:14, maxWidth:260, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {mode === 'watermark' ? '💧 Watermark PDF — ' : mode === 'sign' ? '✍️ Sign PDF — ' : ''}{file?.name || 'document.pdf'}
           </span>
           {loadError && <span style={{ color:'#f87171', fontSize:12 }}>⚠ {loadError}</span>}
           {!pdfLoaded && !loadError && <span style={{ color:'#94a3b8', fontSize:12, animation:'pulse 1s infinite' }}>Loading PDF…</span>}
@@ -979,26 +1531,34 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
         <div style={{ display:'flex', backgroundColor:'#0f172a', padding:4, borderRadius:10,
           border:'1px solid #334155', gap:3 }}>
           {[
+            ...(mode === 'watermark' ? [{ id:'watermark', label:'Watermark', icon:<Droplets size={15}/> }] : []),
+            ...(mode === 'sign' ? [{ id:'sign', label:'Signature', icon:<PenTool size={15}/> }] : []),
             { id:'text',     label:'Add Text',   icon:<Type size={15}/> },
             { id:'image',    label:'Add Image',  icon:<ImageIcon size={15}/> },
             { id:'draw',     label:'Draw',       icon:<Edit3 size={15}/> },
             { id:'whiteout', label:'Whiteout',   icon:<Square size={15}/> },
             { id:'stamp',    label:'Stamp',      icon:<Stamp size={15}/> },
+            ...(mode !== 'watermark' ? [{ id:'watermark', label:'Watermark', icon:<Droplets size={15}/> }] : []),
+            ...(mode !== 'sign' ? [{ id:'sign', label:'Signature', icon:<PenTool size={15}/> }] : []),
           ].map(t => (
             <button
               key={t.id}
               onClick={() => {
-                if (t.id === 'image') {
+                if (t.id === 'sign') {
+                  setShowSignModal(true);
+                } else if (t.id === 'watermark') {
+                  addWatermark();
+                } else if (t.id === 'image') {
                   imageInputRef.current?.click();
                 } else {
-                  setActiveTool(t.id);
+                  setActiveTool(prev => prev === t.id ? null : t.id);
                   setSelectedId(null);
                 }
               }}
               style={{
                 display:'flex', alignItems:'center', gap:5, padding:'7px 13px', borderRadius:8, border:'none',
-                backgroundColor: activeTool===t.id ? '#ef4444':'transparent',
-                color: activeTool===t.id ? '#fff':'#94a3b8',
+                backgroundColor: (activeTool===t.id || (t.id==='sign' && mode==='sign') || (t.id==='watermark' && mode==='watermark')) ? '#ef4444':'transparent',
+                color: (activeTool===t.id || (t.id==='sign' && mode==='sign') || (t.id==='watermark' && mode==='watermark')) ? '#fff':'#94a3b8',
                 fontWeight:700, fontSize:12, cursor:'pointer', transition:'all .15s'
               }}
             >
@@ -1012,13 +1572,65 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
           color:'#fff', border:'none', padding:'10px 20px', borderRadius:10,
           fontWeight:800, fontSize:14, cursor:'pointer', boxShadow:'0 4px 14px rgba(239,68,68,.35)'
         }}>
-          <Download size={17}/> Apply &amp; Download
+          <Download size={17}/> {mode === 'watermark' ? 'Apply & Download Watermarked PDF' : mode === 'sign' ? 'Sign & Download PDF' : 'Apply & Download'}
         </button>
       </div>
 
       {/* ── Property Bar ────────────────────────────────────────────────── */}
       <div style={{ padding:'8px 20px', backgroundColor:'#1e293b', borderBottom:'1px solid #334155',
         display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', fontSize:12, minHeight: 46 }}>
+
+        {/* State S: Sign Mode Guide Banner when idle */}
+        {mode === 'sign' && !selectedExtractedItem && !selectedAnnotation && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#93c5fd' }}>
+            <PenTool size={15} style={{ color: '#38bdf8' }} />
+            <span style={{ fontWeight: '600', fontSize: '12px' }}>
+              Signing Mode: Click <strong>Signature</strong> to draw, type, or upload your signature, then drag and resize it into position.
+            </span>
+            <button
+              onClick={() => setShowSignModal(true)}
+              style={{
+                backgroundColor: '#2563eb',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                marginLeft: '6px'
+              }}
+            >
+              ✍️ Open Signature Pad
+            </button>
+          </div>
+        )}
+
+        {/* State W: Watermark Mode Guide Banner when idle */}
+        {mode === 'watermark' && !selectedExtractedItem && !selectedAnnotation && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#93c5fd' }}>
+            <Droplets size={15} style={{ color: '#38bdf8' }} />
+            <span style={{ fontWeight: '600', fontSize: '12px' }}>
+              Watermark Mode: Click or drag watermark to reposition, use corner handle to scale, or customize text &amp; opacity.
+            </span>
+            <button
+              onClick={() => addWatermark()}
+              style={{
+                backgroundColor: '#0284c7',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                marginLeft: '6px'
+              }}
+            >
+              + Add Watermark
+            </button>
+          </div>
+        )}
 
         {/* State A: Selected Extracted PDF Text */}
         {selectedExtractedItem && !selectedExtractedEdit?.deleted && (
@@ -1194,16 +1806,16 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
           );
         })()}
 
-        {/* State B: Selected Image Annotation */}
+        {/* State B: Selected Image or Signature Annotation */}
         {selectedAnnotation?.type === 'image' && (
           <>
-            <span style={{ backgroundColor: '#7c3aed', color: '#fff', padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11 }}>
-              Image Selected
+            <span style={{ backgroundColor: selectedAnnotation.isSignature ? '#16a34a' : '#7c3aed', color: '#fff', padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11 }}>
+              {selectedAnnotation.isSignature ? '✍️ Signature Selected' : 'Image Selected'}
             </span>
             <Lbl>Size:</Lbl>
             <input
               type="range"
-              min={10}
+              min={8}
               max={95}
               value={Math.round(selectedAnnotation.w)}
               onChange={(e) => {
@@ -1216,23 +1828,391 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
               style={{ accentColor: '#2563eb', width: 100 }}
             />
             <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{Math.round(selectedAnnotation.w)}%</span>
-            <button
-              onClick={() => imageInputRef.current?.click()}
-              style={{ ...S.miniBtn, backgroundColor: '#0f172a', color: '#93c5fd' }}
-            >
-              Replace Image
-            </button>
+
+            <Lbl>Rotate:</Lbl>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const currentRot = selectedAnnotation.rotation || 0;
+                  const newRot = (currentRot - 90 + 360) % 360;
+                  updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: newRot } : i));
+                }}
+                style={{ ...S.miniBtn, padding: '2px 6px', backgroundColor: '#1e293b', color: '#94a3b8', border: '1px solid #475569', display: 'flex', alignItems: 'center', gap: 3 }}
+                title="Rotate 90° Counter-Clockwise"
+              >
+                <RotateCcw size={11} /> -90°
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const currentRot = selectedAnnotation.rotation || 0;
+                  const newRot = (currentRot + 90) % 360;
+                  updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: newRot } : i));
+                }}
+                style={{ ...S.miniBtn, padding: '2px 6px', backgroundColor: '#1e293b', color: '#a7f3d0', border: '1px solid #059669', display: 'flex', alignItems: 'center', gap: 3 }}
+                title="Rotate 90° Clockwise"
+              >
+                <RotateCw size={11} /> +90°
+              </button>
+
+              {[0, 90, 180, 270].map(deg => (
+                <button
+                  key={deg}
+                  type="button"
+                  onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: deg } : i))}
+                  style={{
+                    backgroundColor: (selectedAnnotation.rotation || 0) === deg ? '#16a34a' : '#0f172a',
+                    color: (selectedAnnotation.rotation || 0) === deg ? '#fff' : '#94a3b8',
+                    border: '1px solid #475569',
+                    borderRadius: 4,
+                    padding: '2px 5px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  title={`Rotate to ${deg}°`}
+                >
+                  {deg}°
+                </button>
+              ))}
+
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={(() => {
+                  let r = selectedAnnotation.rotation || 0;
+                  if (r > 180) r -= 360;
+                  return r;
+                })()}
+                onChange={(e) => {
+                  let val = +e.target.value;
+                  if (val < 0) val += 360;
+                  updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: val } : i));
+                }}
+                style={{ accentColor: '#10b981', width: 65 }}
+                title="Fine-tune rotation angle (-180° to 180°)"
+              />
+              <span style={{ fontWeight: 700, color: '#10b981', fontSize: 11, minWidth: 26, textAlign: 'center' }}>
+                {selectedAnnotation.rotation || 0}°
+              </span>
+
+              {(selectedAnnotation.rotation || 0) !== 0 && (
+                <button
+                  type="button"
+                  onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: 0 } : i))}
+                  style={{ ...S.miniBtn, padding: '2px 5px', fontSize: 10, backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid #334155' }}
+                  title="Reset rotation to 0°"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            {selectedAnnotation.isSignature ? (
+              <button
+                onClick={() => setShowSignModal(true)}
+                style={{ ...S.miniBtn, backgroundColor: '#0f172a', color: '#86efac', border: '1px solid #16a34a' }}
+              >
+                Change Signature
+              </button>
+            ) : (
+              <button
+                onClick={() => imageInputRef.current?.click()}
+                style={{ ...S.miniBtn, backgroundColor: '#0f172a', color: '#93c5fd' }}
+              >
+                Replace Image
+              </button>
+            )}
             <button
               onClick={deleteAnnotation}
               style={{ ...S.miniBtn, backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', display: 'flex', alignItems: 'center', gap: 4 }}
             >
-              <Trash2 size={12} /> Delete Image
+              <Trash2 size={12} /> Delete
+            </button>
+          </>
+        )}
+
+        {/* State B2: Selected Shape / Whiteout */}
+        {selectedAnnotation?.type === 'shape' && (
+          <>
+            <span style={{ backgroundColor: '#475569', color: '#fff', padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11 }}>
+              ⬜ Whiteout Box
+            </span>
+            <Lbl>Size:</Lbl>
+            <span style={{ color: '#94a3b8', fontSize: 11 }}>{Math.round(selectedAnnotation.w)}% × {Math.round(selectedAnnotation.h)}%</span>
+            <Lbl>Border:</Lbl>
+            {['#e2e8f0', '#94a3b8', '#3b82f6', '#ef4444', 'transparent'].map(bc => (
+              <div
+                key={bc}
+                onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, border: bc } : i))}
+                style={{
+                  width: 18, height: 18, borderRadius: 4, backgroundColor: bc === 'transparent' ? '#1e293b' : bc,
+                  border: (selectedAnnotation.border || '#e2e8f0') === bc ? '2px solid #38bdf8' : '1px solid #475569',
+                  cursor: 'pointer'
+                }}
+                title={bc}
+              />
+            ))}
+            <button
+              onClick={deleteSelectedItem}
+              style={{ ...S.miniBtn, backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Trash2 size={12} /> Delete Box
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              style={{ ...S.miniBtn, backgroundColor: '#16a34a', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Check size={12} /> Done
+            </button>
+          </>
+        )}
+
+        {/* State B3: Selected Stamp */}
+        {selectedAnnotation?.type === 'stamp' && (
+          <>
+            <span style={{ backgroundColor: '#16a34a', color: '#fff', padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11 }}>
+              🔖 Stamp: {selectedAnnotation.stampText}
+            </span>
+            <Lbl>Scale:</Lbl>
+            <input
+              type="range"
+              min={50}
+              max={250}
+              value={Math.round((selectedAnnotation.scale || 1) * 100)}
+              onChange={(e) => {
+                const sc = +e.target.value / 100;
+                updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, scale: sc } : i));
+              }}
+              style={{ accentColor: '#2563eb', width: 90 }}
+            />
+            <span style={{ color: '#e2e8f0', fontSize: 11, fontWeight: 700 }}>{Math.round((selectedAnnotation.scale || 1) * 100)}%</span>
+            <button
+              onClick={deleteSelectedItem}
+              style={{ ...S.miniBtn, backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Trash2 size={12} /> Delete Stamp
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              style={{ ...S.miniBtn, backgroundColor: '#16a34a', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Check size={12} /> Done
+            </button>
+          </>
+        )}
+
+        {/* State B4: Selected Draw Stroke */}
+        {selectedAnnotation?.type === 'draw' && (
+          <>
+            <span style={{ backgroundColor: '#2563eb', color: '#fff', padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11 }}>
+              ✏️ Drawing Stroke
+            </span>
+            <Lbl>Thickness:</Lbl>
+            <span style={{ color: '#cbd5e1', fontSize: 11 }}>{selectedAnnotation.width || 3}px</span>
+            <Lbl>Color:</Lbl>
+            {COLORS.map(c => (
+              <Dot
+                key={c}
+                c={c}
+                active={(selectedAnnotation.color || '#2563eb') === c}
+                onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, color: c } : i))}
+              />
+            ))}
+            <button
+              onClick={deleteSelectedItem}
+              style={{ ...S.miniBtn, backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Trash2 size={12} /> Delete Drawing
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              style={{ ...S.miniBtn, backgroundColor: '#16a34a', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Check size={12} /> Done
+            </button>
+          </>
+        )}
+
+        {/* State B5: Selected Text Annotation */}
+        {selectedAnnotation?.type === 'text' && (
+          <>
+            <span style={{ backgroundColor: '#3b82f6', color: '#fff', padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11 }}>
+              🔤 Text Box
+            </span>
+            <Lbl>Size:</Lbl>
+            <select
+              value={selectedAnnotation.fontSize || 14}
+              onChange={e => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, fontSize: +e.target.value } : i))}
+              style={S.sel}
+            >
+              {[10, 12, 14, 16, 18, 20, 24, 28, 32, 40].map(s => <option key={s} value={s}>{s}px</option>)}
+            </select>
+            <Lbl>Color:</Lbl>
+            {COLORS.map(c => (
+              <Dot
+                key={c}
+                c={c}
+                active={(selectedAnnotation.color || '#000000') === c}
+                onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, color: c } : i))}
+              />
+            ))}
+            <button
+              onClick={deleteSelectedItem}
+              style={{ ...S.miniBtn, backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Trash2 size={12} /> Delete Text
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              style={{ ...S.miniBtn, backgroundColor: '#16a34a', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Check size={12} /> Done
+            </button>
+          </>
+        )}
+
+        {/* State B6: Selected Watermark */}
+        {selectedAnnotation?.type === 'watermark' && (
+          <>
+            <span style={{ backgroundColor: '#0284c7', color: '#fff', padding: '3px 9px', borderRadius: 5, fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Droplets size={12} /> Watermark Selected
+            </span>
+
+            <Lbl>Text:</Lbl>
+            <input
+              type="text"
+              value={selectedAnnotation.text || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, text: val } : i));
+              }}
+              style={{ ...S.sel, width: 130, fontWeight: 700 }}
+              placeholder="Watermark text..."
+            />
+
+            {/* Quick preset texts */}
+            <div style={{ display: 'flex', gap: 3 }}>
+              {['CONFIDENTIAL', 'DRAFT', 'DO NOT COPY', 'SAMPLE'].map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, text: preset } : i))}
+                  style={{
+                    backgroundColor: (selectedAnnotation.text === preset) ? '#0284c7' : '#0f172a',
+                    color: (selectedAnnotation.text === preset) ? '#fff' : '#94a3b8',
+                    border: '1px solid #475569',
+                    borderRadius: 4,
+                    padding: '2px 5px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
+            <Lbl>Scale / Size:</Lbl>
+            <input
+              type="range"
+              min={18}
+              max={120}
+              value={selectedAnnotation.fontSize || 48}
+              onChange={(e) => {
+                const val = +e.target.value;
+                updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, fontSize: val } : i));
+              }}
+              style={{ accentColor: '#0284c7', width: 85 }}
+            />
+            <span style={{ fontWeight: 700, color: '#e2e8f0', minWidth: 32 }}>{selectedAnnotation.fontSize || 48}px</span>
+
+            <Lbl>Rotate:</Lbl>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {[
+                { label: '0°', val: 0 },
+                { label: '45°', val: 45 },
+                { label: '-45°', val: -45 },
+                { label: '90°', val: 90 }
+              ].map(r => (
+                <button
+                  key={r.val}
+                  type="button"
+                  onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, rotation: r.val } : i))}
+                  style={{
+                    backgroundColor: (selectedAnnotation.rotation === r.val) ? '#0284c7' : '#0f172a',
+                    color: (selectedAnnotation.rotation === r.val) ? '#fff' : '#94a3b8',
+                    border: '1px solid #475569',
+                    borderRadius: 4,
+                    padding: '2px 6px',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            <Lbl>Opacity:</Lbl>
+            <input
+              type="range"
+              min={10}
+              max={90}
+              value={Math.round((selectedAnnotation.opacity ?? 0.35) * 100)}
+              onChange={(e) => {
+                const val = +(e.target.value / 100).toFixed(2);
+                updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, opacity: val } : i));
+              }}
+              style={{ accentColor: '#0284c7', width: 75 }}
+            />
+            <span style={{ fontWeight: 700, color: '#e2e8f0' }}>{Math.round((selectedAnnotation.opacity ?? 0.35) * 100)}%</span>
+
+            <Lbl>Color:</Lbl>
+            {['#ef4444', '#64748b', '#2563eb', '#0f172a', '#d97706', '#16a34a'].map(c => (
+              <Dot
+                key={c}
+                c={c}
+                active={(selectedAnnotation.color || '#ef4444') === c}
+                onClick={() => updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, color: c } : i))}
+              />
+            ))}
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 11, color: '#e2e8f0', marginLeft: 4 }}>
+              <input
+                type="checkbox"
+                checked={selectedAnnotation.applyAllPages !== false}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  updateAnnotations(prev => prev.map(i => i.id === selectedAnnotation.id ? { ...i, applyAllPages: val } : i));
+                }}
+                style={{ accentColor: '#0284c7' }}
+              />
+              <span>All Pages</span>
+            </label>
+
+            <button
+              onClick={deleteAnnotation}
+              style={{ ...S.miniBtn, backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Trash2 size={12} /> Delete
+            </button>
+            <button
+              onClick={() => setSelectedId(null)}
+              style={{ ...S.miniBtn, backgroundColor: '#16a34a', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Check size={12} /> Done
             </button>
           </>
         )}
 
         {/* State C: Default tool controls when nothing active is selected */}
-        {!selectedExtractedItem && selectedAnnotation?.type !== 'image' && (
+        {!selectedId && (
           <>
             {activeTool === 'text' && <>
               <Lbl>Size:</Lbl>
@@ -1295,13 +2275,14 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
         )}
 
         <div style={{ marginLeft:'auto', display:'flex', gap:8, alignItems: 'center' }}>
-          {selectedId && !selectedExtractedItem && selectedAnnotation?.type !== 'image' && (
-            <button onClick={deleteAnnotation} style={{
-              display:'flex', alignItems:'center', gap:4,
-              backgroundColor:'#7f1d1d', color:'#fca5a5',
-              border:'1px solid #991b1b', padding:'4px 10px',
-              borderRadius:6, cursor:'pointer', fontWeight:600, fontSize:12
-            }}><Trash2 size={13}/> Delete Selected</button>
+          {selectedId && (
+            <button onClick={deleteSelectedItem} style={{
+              display:'flex', alignItems:'center', gap:5,
+              backgroundColor:'#dc2626', color:'#ffffff',
+              border:'none', padding:'5px 12px',
+              borderRadius:6, cursor:'pointer', fontWeight:700, fontSize:12,
+              boxShadow:'0 2px 8px rgba(220, 38, 38, 0.45)'
+            }} title="Delete selected item (Delete / Backspace key)"><Trash2 size={13}/> Delete Selected</button>
           )}
           <button onClick={clearPage} style={{
             backgroundColor:'#334155', color:'#cbd5e1', border:'none',
@@ -1344,10 +2325,61 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
             style={{ position:'absolute', top:0, left:0,
-              zIndex: activeTool==='draw' ? 100 : 10,
+              zIndex: activeTool==='draw' ? 90 : 10,
               touchAction: 'none',
               pointerEvents: activeTool==='draw' ? 'auto':'none' }}
           />
+
+          {/* SVG click-detection & selection layer for drawn strokes */}
+          <svg
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              zIndex: 95
+            }}
+          >
+            {(annotations[currentPage] || []).map(item => {
+              if (item.type !== 'draw' || !item.points || item.points.length < 2) return null;
+              const pathD = item.points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+              const isSel = selectedId === item.id;
+              return (
+                <path
+                  key={'svg-' + item.id}
+                  d={pathD}
+                  fill="none"
+                  stroke={isSel ? 'rgba(59, 130, 246, 0.45)' : 'transparent'}
+                  strokeWidth={Math.max(22, (item.width || 3) + 16)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    pointerEvents: 'stroke',
+                    cursor: isSel ? 'grab' : 'pointer'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                  }}
+                  onMouseDown={(e) => {
+                    if (isSel) {
+                      e.stopPropagation();
+                      setDraggingItem({
+                        id: item.id,
+                        type: 'draw',
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        origPoints: item.points.map(p => ({ ...p }))
+                      });
+                    }
+                  }}
+                />
+              );
+            })}
+          </svg>
 
           {/* Click-through layer (for adding new text/annotations on empty space) */}
           <div
@@ -1802,23 +2834,117 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
             );
           })}
 
-          {/* ── New annotation overlays (Images, Text, Shapes, Stamps) ──────── */}
+          {/* ── New annotation overlays (Images, Text, Shapes, Stamps, Draw) ──── */}
           {curPageAnnotations.map(item => {
             const sel = selectedId === item.id;
             const isDraggingThis = draggingItem?.id === item.id;
+
+            // Draw Stroke Selection Bounding Box & Controls
+            if (item.type === 'draw') {
+              if (!sel || !item.points || item.points.length < 2) return null;
+              const xs = item.points.map(p => p.x);
+              const ys = item.points.map(p => p.y);
+              const minX = Math.min(...xs);
+              const maxX = Math.max(...xs);
+              const minY = Math.min(...ys);
+              const maxY = Math.max(...ys);
+              const pad = 8;
+              const bBoxLeft = Math.max(0, minX - pad);
+              const bBoxTop = Math.max(0, minY - pad);
+              const bBoxWidth = Math.max(30, maxX - minX + pad * 2);
+              const bBoxHeight = Math.max(24, maxY - minY + pad * 2);
+
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    position: 'absolute',
+                    left: bBoxLeft,
+                    top: bBoxTop,
+                    width: bBoxWidth,
+                    height: bBoxHeight,
+                    border: '1.5px dashed #2563eb',
+                    borderRadius: 4,
+                    boxShadow: '0 0 0 2px rgba(37,99,235,0.2)',
+                    zIndex: 120,
+                    cursor: isDraggingThis ? 'grabbing' : 'grab',
+                    pointerEvents: 'auto',
+                    boxSizing: 'border-box'
+                  }}
+                  onMouseDown={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    setDraggingItem({
+                      id: item.id,
+                      type: 'draw',
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      origPoints: item.points.map(p => ({ ...p }))
+                    });
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    const t = e.touches[0];
+                    setDraggingItem({
+                      id: item.id,
+                      type: 'draw',
+                      startX: t.clientX,
+                      startY: t.clientY,
+                      origPoints: item.points.map(p => ({ ...p }))
+                    });
+                  }}
+                >
+                  <FloatingItemControls
+                    label="Drawing"
+                    onDelete={deleteSelectedItem}
+                    onStartMove={(e) => {
+                      setDraggingItem({
+                        id: item.id,
+                        type: 'draw',
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        origPoints: item.points.map(p => ({ ...p }))
+                      });
+                    }}
+                    onStartResize={(e) => {
+                      setResizingItem({
+                        id: item.id,
+                        type: 'draw',
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        startW: bBoxWidth,
+                        startH: bBoxHeight,
+                        minX,
+                        minY,
+                        origPoints: item.points.map(p => ({ ...p }))
+                      });
+                    }}
+                    hasResize={true}
+                    isNearTop={bBoxTop < 36}
+                  />
+                </div>
+              );
+            }
 
             // Image Annotation
             if (item.type === 'image') {
               return (
                 <div
                   key={item.id}
-                  onClick={(e) => { e.stopPropagation(); setSelectedId(item.id); setActiveTool('image'); }}
-                  onMouseDown={(e) => {
+                  onClick={(e) => {
                     e.stopPropagation();
                     setSelectedId(item.id);
-                    setActiveTool('image');
+                    if (activeTool === 'draw') setActiveTool(null);
+                  }}
+                  onMouseDown={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
                     setDraggingItem({
                       id: item.id,
+                      type: 'image',
                       startX: e.clientX,
                       startY: e.clientY,
                       startItemX: item.x,
@@ -1826,12 +2952,14 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
                     });
                   }}
                   onTouchStart={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
                     e.stopPropagation();
                     const t = e.touches[0];
                     setSelectedId(item.id);
-                    setActiveTool('image');
+                    if (activeTool === 'draw') setActiveTool(null);
                     setDraggingItem({
                       id: item.id,
+                      type: 'image',
                       startX: t.clientX,
                       startY: t.clientY,
                       startItemX: item.x,
@@ -1844,6 +2972,8 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
                     top: `${item.y}%`,
                     width: `${item.w}%`,
                     height: `${item.h}%`,
+                    transform: `rotate(${item.rotation || 0}deg)`,
+                    transformOrigin: 'center center',
                     zIndex: sel ? 60 : 25,
                     cursor: isDraggingThis ? 'grabbing' : 'grab',
                     border: sel ? '2px solid #2563eb' : '1px dashed transparent',
@@ -1866,14 +2996,24 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
                       borderRadius: 2
                     }}
                   />
-
-                  {/* Resize handle in bottom-right corner */}
                   {sel && (
-                    <div
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
+                    <FloatingItemControls
+                      label={item.isSignature ? '✍️ Signature' : 'Image'}
+                      onDelete={deleteSelectedItem}
+                      onStartMove={(e) => {
+                        setDraggingItem({
+                          id: item.id,
+                          type: 'image',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startItemX: item.x,
+                          startItemY: item.y
+                        });
+                      }}
+                      onStartResize={(e) => {
                         setResizingItem({
                           id: item.id,
+                          type: 'image',
                           startX: e.clientX,
                           startY: e.clientY,
                           startW: item.w,
@@ -1881,180 +3021,462 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
                           aspectRatio: item.aspectRatio || (item.w / item.h)
                         });
                       }}
-                      onTouchStart={(e) => {
-                        e.stopPropagation();
-                        const t = e.touches[0];
-                        setResizingItem({
+                      hasResize={true}
+                      hasRotate={true}
+                      rotation={item.rotation || 0}
+                      onRotate={(newRot) => {
+                        updateAnnotations(prev => prev.map(i => i.id === item.id ? { ...i, rotation: newRot } : i));
+                      }}
+                      onStartRotate={(e) => {
+                        let cx = e.clientX;
+                        let cy = e.clientY + 40;
+                        if (containerRef.current) {
+                          const rect = containerRef.current.getBoundingClientRect();
+                          cx = rect.left + ((item.x + (item.w / 2)) / 100) * rect.width;
+                          cy = rect.top + ((item.y + (item.h / 2)) / 100) * rect.height;
+                        }
+                        const startAngle = (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI;
+                        setRotatingItem({
                           id: item.id,
-                          startX: t.clientX,
-                          startY: t.clientY,
-                          startW: item.w,
-                          startH: item.h,
-                          aspectRatio: item.aspectRatio || (item.w / item.h)
+                          centerX: cx,
+                          centerY: cy,
+                          startAngle,
+                          startRotation: item.rotation || 0
                         });
                       }}
-                      style={{
-                        position: 'absolute',
-                        right: -6,
-                        bottom: -6,
-                        width: 14,
-                        height: 14,
-                        backgroundColor: '#2563eb',
-                        border: '2px solid #ffffff',
-                        borderRadius: '50%',
-                        cursor: 'nwse-resize',
-                        zIndex: 70,
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                      }}
-                      title="Drag to resize image"
+                      isNearTop={item.y < 8}
                     />
-                  )}
-
-                  {/* Delete button */}
-                  {sel && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteAnnotation(); }}
-                      style={{
-                        position: 'absolute',
-                        top: -24,
-                        right: 0,
-                        backgroundColor: '#ef4444',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 4,
-                        padding: '2px 6px',
-                        fontSize: 10,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        whiteSpace: 'nowrap',
-                        zIndex: 70,
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                      }}
-                    >
-                      <Trash2 size={10} /> Delete Image
-                    </button>
                   )}
                 </div>
               );
             }
 
             // New Text Annotation
-            if (item.type === 'text') return (
-              <div key={item.id}
-                onClick={e => { e.stopPropagation(); setSelectedId(item.id); }}
-                onMouseDown={e => {
-                  if (e.target.tagName !== 'INPUT') {
+            if (item.type === 'text') {
+              return (
+                <div
+                  key={item.id}
+                  onClick={(e) => {
                     e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                  }}
+                  onMouseDown={(e) => {
+                    if (e.target.tagName !== 'INPUT' && !e.target.closest('.no-drag-target')) {
+                      e.stopPropagation();
+                      setSelectedId(item.id);
+                      if (activeTool === 'draw') setActiveTool(null);
+                      setDraggingItem({
+                        id: item.id,
+                        type: 'text',
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        startItemX: item.x,
+                        startItemY: item.y
+                      });
+                    }
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: `${item.x}%`,
+                    top: `${item.y}%`,
+                    zIndex: sel ? 60 : 20,
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    backgroundColor: item.bg || 'transparent',
+                    border: sel ? '1.5px dashed #2563eb' : '1px dashed rgba(37,99,235,0.4)',
+                    cursor: isDraggingThis ? 'grabbing' : 'move'
+                  }}
+                >
+                  <input
+                    type="text"
+                    autoFocus={sel}
+                    value={item.text}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateAnnotations(prev => prev.map(i => i.id === item.id ? { ...i, text: v } : i));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setSelectedId(null);
+                      }
+                      if (e.key === 'Backspace' || e.key === 'Delete') {
+                        const val = e.target.value || '';
+                        const isAllSelected = e.target.selectionStart === 0 && e.target.selectionEnd === val.length;
+                        if (!val.trim() || isAllSelected) {
+                          e.preventDefault();
+                          deleteSelectedItem();
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const val = (e.target.value || '').trim();
+                      if (!val && !draggingItem && !resizingItem) {
+                        deleteSelectedItem();
+                      }
+                    }}
+                    onFocus={(e) => {
+                      if (item.text === 'New Text') e.target.select();
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: item.color || '#000000',
+                      fontSize: `${(item.fontSize || 14) * zoom}px`,
+                      fontWeight: 600,
+                      fontFamily: 'Helvetica,Arial,sans-serif',
+                      minWidth: 70,
+                      width: `${Math.max(70, ((item.text || 'New Text').length + 2) * (item.fontSize || 14) * 0.62 * zoom)}px`,
+                      cursor: 'text'
+                    }}
+                  />
+                  {sel && (
+                    <FloatingItemControls
+                      label="Text"
+                      onDelete={deleteSelectedItem}
+                      onStartMove={(e) => {
+                        setDraggingItem({
+                          id: item.id,
+                          type: 'text',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startItemX: item.x,
+                          startItemY: item.y
+                        });
+                      }}
+                      onStartResize={(e) => {
+                        setResizingItem({
+                          id: item.id,
+                          type: 'text',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startFontSize: item.fontSize || 14
+                        });
+                      }}
+                      hasResize={true}
+                      isNearTop={item.y < 8}
+                    />
+                  )}
+                </div>
+              );
+            }
+
+            // Shape / Whiteout Annotation
+            if (item.type === 'shape') {
+              const isWhiteout = item.isWhiteout || item.color === '#ffffff';
+              return (
+                <div
+                  key={item.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                  }}
+                  onMouseDown={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
                     setDraggingItem({
                       id: item.id,
+                      type: 'shape',
                       startX: e.clientX,
                       startY: e.clientY,
                       startItemX: item.x,
                       startItemY: item.y
                     });
-                  }
-                }}
-                style={{ position:'absolute', left:`${item.x}%`, top:`${item.y}%`,
-                  zIndex: sel ? 45 : 20, padding:'2px 6px', borderRadius:4,
-                  backgroundColor: item.bg || 'transparent',
-                  border: sel ? '1.5px dashed #2563eb' : '1px dashed rgba(37,99,235,.4)',
-                  cursor: isDraggingThis ? 'grabbing' : 'move' }}>
-                <input
-                  type="text"
-                  autoFocus={sel}
-                  value={item.text}
-                  onChange={e => {
-                    const v = e.target.value;
-                    updateAnnotations(prev => prev.map(i => i.id===item.id ? {...i,text:v} : i));
                   }}
-                  onKeyDown={e => {
-                    if (e.key === 'Escape') { e.preventDefault(); setSelectedId(null); }
+                  onTouchStart={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    const t = e.touches[0];
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                    setDraggingItem({
+                      id: item.id,
+                      type: 'shape',
+                      startX: t.clientX,
+                      startY: t.clientY,
+                      startItemX: item.x,
+                      startItemY: item.y
+                    });
                   }}
-                  onFocus={e => {
-                    // Auto-select placeholder text for easy replacement
-                    if (item.text === 'New Text') e.target.select();
+                  style={{
+                    position: 'absolute',
+                    left: `${item.x}%`,
+                    top: `${item.y}%`,
+                    width: `${item.w}%`,
+                    height: `${item.h}%`,
+                    backgroundColor: item.color || '#ffffff',
+                    border: sel ? '2px solid #2563eb' : `1.5px solid ${item.border || '#cbd5e1'}`,
+                    borderRadius: 3,
+                    zIndex: sel ? 60 : 15,
+                    cursor: isDraggingThis ? 'grabbing' : 'grab',
+                    boxShadow: sel
+                      ? '0 0 0 3px rgba(37,99,235,0.35), 0 4px 12px rgba(0,0,0,0.2)'
+                      : '0 1px 3px rgba(0,0,0,0.1)',
+                    userSelect: 'none',
+                    boxSizing: 'border-box'
                   }}
-                  onClick={e => e.stopPropagation()}
-                  style={{ background:'transparent', border:'none', outline:'none',
-                    color: item.color||'#000', fontSize:`${(item.fontSize||14) * zoom}px`,
-                    fontWeight:600, fontFamily:'Helvetica,Arial,sans-serif',
-                    minWidth:60, cursor:'text' }}
-                />
-                {/* Delete button on text box */}
-                {sel && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateAnnotations(prev => prev.filter(i => i.id !== item.id));
-                      setSelectedId(null);
-                    }}
-                    title="Delete text box"
-                    style={{
-                      position: 'absolute', top: -10, right: -10,
-                      width: 20, height: 20,
-                      backgroundColor: '#ef4444', color: '#fff',
-                      border: '2px solid #fff', borderRadius: '50%',
-                      fontSize: 11, fontWeight: 800,
-                      cursor: 'pointer', display: 'flex',
-                      alignItems: 'center', justifyContent: 'center',
-                      padding: 0, lineHeight: 1,
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                      zIndex: 50
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            );
-
-            // Shape / Whiteout Annotation
-            if (item.type === 'shape') return (
-              <div key={item.id}
-                onClick={e => { e.stopPropagation(); setSelectedId(item.id); }}
-                onMouseDown={e => {
-                  e.stopPropagation();
-                  setDraggingItem({
-                    id: item.id,
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    startItemX: item.x,
-                    startItemY: item.y
-                  });
-                }}
-                style={{ position:'absolute', left:`${item.x}%`, top:`${item.y}%`,
-                  width:`${item.w}%`, height:`${item.h}%`,
-                  backgroundColor: item.color, border:`1.5px solid ${item.border||'#e2e8f0'}`,
-                  zIndex: sel ? 45:15, cursor: isDraggingThis ? 'grabbing' : 'move',
-                  boxShadow: sel ? '0 0 0 3px rgba(37,99,235,.4)':'' }}/>
-            );
+                >
+                  {sel && (
+                    <FloatingItemControls
+                      label={isWhiteout ? "Whiteout" : "Box"}
+                      onDelete={deleteSelectedItem}
+                      onStartMove={(e) => {
+                        setDraggingItem({
+                          id: item.id,
+                          type: 'shape',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startItemX: item.x,
+                          startItemY: item.y
+                        });
+                      }}
+                      onStartResize={(e) => {
+                        setResizingItem({
+                          id: item.id,
+                          type: 'shape',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startW: item.w,
+                          startH: item.h
+                        });
+                      }}
+                      hasResize={true}
+                      isNearTop={item.y < 8}
+                    />
+                  )}
+                </div>
+              );
+            }
 
             // Stamp Annotation
-            if (item.type === 'stamp') return (
-              <div key={item.id}
-                onClick={e => { e.stopPropagation(); setSelectedId(item.id); }}
-                onMouseDown={e => {
-                  e.stopPropagation();
-                  setDraggingItem({
-                    id: item.id,
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    startItemX: item.x,
-                    startItemY: item.y
-                  });
-                }}
-                style={{ position:'absolute', left:`${item.x}%`, top:`${item.y}%`,
-                  padding:'5px 12px', border:`3px double ${item.color}`, borderRadius:5,
-                  backgroundColor:'#fff', color:item.color, fontWeight:900, fontSize:12,
-                  letterSpacing:1, zIndex: sel ? 45:25, cursor: isDraggingThis ? 'grabbing' : 'move',
-                  transform:'rotate(-5deg)',
-                  boxShadow: sel ? '0 0 0 3px rgba(37,99,235,.4)':'0 2px 6px rgba(0,0,0,.15)' }}>
-                {item.stampText}
-              </div>
-            );
+            if (item.type === 'stamp') {
+              const stampScale = item.scale || 1;
+              return (
+                <div
+                  key={item.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                  }}
+                  onMouseDown={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                    setDraggingItem({
+                      id: item.id,
+                      type: 'stamp',
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      startItemX: item.x,
+                      startItemY: item.y
+                    });
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    const t = e.touches[0];
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                    setDraggingItem({
+                      id: item.id,
+                      type: 'stamp',
+                      startX: t.clientX,
+                      startY: t.clientY,
+                      startItemX: item.x,
+                      startItemY: item.y
+                    });
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: `${item.x}%`,
+                    top: `${item.y}%`,
+                    padding: `${5 * stampScale}px ${12 * stampScale}px`,
+                    border: `${3 * stampScale}px double ${item.color}`,
+                    borderRadius: 5,
+                    backgroundColor: '#ffffff',
+                    color: item.color,
+                    fontWeight: 900,
+                    fontSize: `${12 * stampScale}px`,
+                    letterSpacing: 1,
+                    zIndex: sel ? 60 : 25,
+                    cursor: isDraggingThis ? 'grabbing' : 'grab',
+                    transform: 'rotate(-5deg)',
+                    transformOrigin: 'top left',
+                    boxShadow: sel
+                      ? '0 0 0 3px rgba(37,99,235,0.4), 0 4px 14px rgba(0,0,0,0.25)'
+                      : '0 2px 6px rgba(0,0,0,0.15)',
+                    userSelect: 'none'
+                  }}
+                >
+                  {item.stampText}
+                  {sel && (
+                    <FloatingItemControls
+                      label="Stamp"
+                      onDelete={deleteSelectedItem}
+                      onStartMove={(e) => {
+                        setDraggingItem({
+                          id: item.id,
+                          type: 'stamp',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startItemX: item.x,
+                          startItemY: item.y
+                        });
+                      }}
+                      onStartResize={(e) => {
+                        setResizingItem({
+                          id: item.id,
+                          type: 'stamp',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startScale: stampScale
+                        });
+                      }}
+                      hasResize={true}
+                      isNearTop={item.y < 8}
+                    />
+                  )}
+                </div>
+              );
+            }
+
+            // Watermark Annotation
+            if (item.type === 'watermark') {
+              const rot = item.rotation !== undefined ? item.rotation : 45;
+              const op = item.opacity !== undefined ? item.opacity : 0.35;
+              const fs = (item.fontSize || 48) * (zoom / 1.3);
+
+              return (
+                <div
+                  key={item.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                  }}
+                  onMouseDown={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                    setDraggingItem({
+                      id: item.id,
+                      type: 'watermark',
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      startItemX: item.x,
+                      startItemY: item.y
+                    });
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.target.closest('.no-drag-target')) return;
+                    e.stopPropagation();
+                    const t = e.touches[0];
+                    setSelectedId(item.id);
+                    if (activeTool === 'draw') setActiveTool(null);
+                    setDraggingItem({
+                      id: item.id,
+                      type: 'watermark',
+                      startX: t.clientX,
+                      startY: t.clientY,
+                      startItemX: item.x,
+                      startItemY: item.y
+                    });
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: `${item.x}%`,
+                    top: `${item.y}%`,
+                    transform: `rotate(${rot}deg)`,
+                    transformOrigin: 'center center',
+                    zIndex: sel ? 60 : 25,
+                    cursor: isDraggingThis ? 'grabbing' : 'grab',
+                    border: sel ? '2px dashed #0284c7' : '1px dashed transparent',
+                    borderRadius: 8,
+                    padding: '6px 16px',
+                    backgroundColor: sel ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
+                    userSelect: 'none',
+                    display: 'inline-block',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: 'Helvetica, Arial, sans-serif',
+                      fontWeight: 900,
+                      fontSize: `${Math.round(fs)}px`,
+                      color: item.color || '#ef4444',
+                      opacity: op,
+                      letterSpacing: 2,
+                      textTransform: 'uppercase',
+                      display: 'block',
+                      pointerEvents: 'none',
+                      lineHeight: 1.1
+                    }}
+                  >
+                    {item.text || 'CONFIDENTIAL'}
+                  </span>
+
+                  {sel && (
+                    <FloatingItemControls
+                      label="💧 Watermark"
+                      onDelete={deleteSelectedItem}
+                      onStartMove={(e) => {
+                        setDraggingItem({
+                          id: item.id,
+                          type: 'watermark',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startItemX: item.x,
+                          startItemY: item.y
+                        });
+                      }}
+                      onStartResize={(e) => {
+                        setResizingItem({
+                          id: item.id,
+                          type: 'watermark',
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          startFontSize: item.fontSize || 48
+                        });
+                      }}
+                      hasResize={true}
+                      hasRotate={true}
+                      rotation={rot}
+                      onRotate={(newRot) => {
+                        updateAnnotations(prev => prev.map(i => i.id === item.id ? { ...i, rotation: newRot } : i));
+                      }}
+                      onStartRotate={(e) => {
+                        let cx = e.clientX;
+                        let cy = e.clientY + 40;
+                        if (containerRef.current) {
+                          const rect = containerRef.current.getBoundingClientRect();
+                          cx = rect.left + (item.x / 100) * rect.width;
+                          cy = rect.top + (item.y / 100) * rect.height;
+                        }
+                        const startAngle = (Math.atan2(e.clientY - cy, e.clientX - cx) * 180) / Math.PI;
+                        setRotatingItem({
+                          id: item.id,
+                          centerX: cx,
+                          centerY: cy,
+                          startAngle,
+                          startRotation: rot
+                        });
+                      }}
+                      isNearTop={item.y < 12}
+                    />
+                  )}
+                </div>
+              );
+            }
 
             return null;
           })}
@@ -2091,6 +3513,14 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel }) {
           </button>
         </div>
       </div>
+
+      {/* ── Signature Modal ── */}
+      <SignatureModal
+        isOpen={showSignModal}
+        onClose={() => setShowSignModal(false)}
+        onApplySignature={handleApplySignature}
+        initialName="Alex Johnson"
+      />
     </div>
   );
 }

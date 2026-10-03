@@ -292,6 +292,7 @@ class PdfController {
                     $pdf->AddPage($orientation, [$h, $w]);
                     $pdf->rotate($curAngle, $h / 2, $w / 2);
                     $pdf->useTemplate($tpl, ($h - $w) / 2, ($w - $h) / 2);
+                    $pdf->rotate(0);
                 } else {
                     $orientation = ($w > $h) ? 'L' : 'P';
                     $pdf->AddPage($orientation, [$w, $h]);
@@ -299,6 +300,7 @@ class PdfController {
                         $pdf->rotate(180, $w / 2, $h / 2);
                     }
                     $pdf->useTemplate($tpl);
+                    $pdf->rotate(0);
                 }
             }
 
@@ -355,26 +357,19 @@ class PdfController {
             if (empty($files)) Response::error('Please upload a PDF file.', 400);
 
             $file = $files[0];
-            $password = $_POST['password'] ?? '123456';
+            $password = trim($_POST['password'] ?? '');
+            if (empty($password)) {
+                Response::error('Please provide a password to protect the PDF.', 400);
+            }
             $tempOut = tempnam(sys_get_temp_dir(), 'prot_') . '.pdf';
 
-            $gsArgs = [
-                '-sDEVICE=pdfwrite',
-                '-dCompatibilityLevel=1.4',
-                '-dNOPAUSE',
-                '-dQUIET',
-                '-dBATCH',
-                "-sOwnerPassword={$password}",
-                "-sUserPassword={$password}",
-                "-sOutputFile={$tempOut}",
-                $file['tmp_name']
-            ];
-
-            if (PdfHelper::runGhostscript($gsArgs) && file_exists($tempOut)) {
-                Response::file($tempOut, 'protected_document.pdf');
+            if (PdfHelper::encryptPdf($file['tmp_name'], $tempOut, $password) && file_exists($tempOut) && filesize($tempOut) > 0) {
+                $origName = pathinfo($file['name'] ?? 'document', PATHINFO_FILENAME);
+                $outputName = $origName . '_protected.pdf';
+                Response::file($tempOut, $outputName);
             }
 
-            Response::file($file['tmp_name'], 'protected_document.pdf');
+            Response::error('Failed to encrypt PDF with password. Please try again.', 500);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }
@@ -387,25 +382,19 @@ class PdfController {
             if (empty($files)) Response::error('Please upload a PDF file.', 400);
 
             $file = $files[0];
-            $password = $_POST['password'] ?? '';
+            $password = trim($_POST['password'] ?? '');
             $tempOut = tempnam(sys_get_temp_dir(), 'unlk_') . '.pdf';
 
-            $gsArgs = [
-                '-sDEVICE=pdfwrite',
-                '-dCompatibilityLevel=1.4',
-                '-dNOPAUSE',
-                '-dQUIET',
-                '-dBATCH',
-                "-sPDFPassword={$password}",
-                "-sOutputFile={$tempOut}",
-                $file['tmp_name']
-            ];
+            $result = PdfHelper::decryptPdf($file['tmp_name'], $tempOut, $password);
 
-            if (PdfHelper::runGhostscript($gsArgs) && file_exists($tempOut)) {
-                Response::file($tempOut, 'unlocked_document.pdf');
+            if (!empty($result['success']) && file_exists($tempOut) && filesize($tempOut) > 0) {
+                $origName = pathinfo($file['name'] ?? 'document', PATHINFO_FILENAME);
+                $origName = preg_replace('/_protected$/i', '', $origName);
+                $outputName = $origName . '_unlocked.pdf';
+                Response::file($tempOut, $outputName);
             }
 
-            Response::file($file['tmp_name'], 'unlocked_document.pdf');
+            Response::error($result['error'] ?? 'Incorrect password or unable to unlock this PDF.', 400);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }
@@ -1000,9 +989,66 @@ class PdfController {
     // 23. HTML to PDF
     public static function htmlToPdf(): void {
         try {
-            $html = trim($_POST['html'] ?? '<h1>Document</h1><p>Converted via azPDF</p>');
-            $cleanText = strip_tags(str_replace(['<br>', '<p>', '</h1>', '</h2>'], ["\n", "\n\n", "\n\n", "\n\n"], $html));
+            $files = self::getUploadedFiles();
+            $html = '';
 
+            // 1. Check if user sent raw or pasted HTML
+            if (!empty($_POST['html']) && trim($_POST['html']) !== '') {
+                $html = trim($_POST['html']);
+            }
+            // 2. Or check uploaded file
+            else if (!empty($files) && file_exists($files[0]['tmp_name'])) {
+                $html = file_get_contents($files[0]['tmp_name']);
+            }
+            // 3. Or check URL
+            else if (!empty($_POST['url']) && trim($_POST['url']) !== '') {
+                $url = trim($_POST['url']);
+                if (!preg_match('/^https?:\/\//i', $url)) {
+                    $url = 'https://' . $url;
+                }
+                $ctx = stream_context_create([
+                    'http' => [
+                        'timeout' => 8,
+                        'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) azPDF/2.0'
+                    ]
+                ]);
+                $html = @file_get_contents($url, false, $ctx);
+                if ($html === false) {
+                    $html = "<html><body><h1>URL: $url</h1><p>Could not load external URL.</p></body></html>";
+                }
+            }
+
+            if (empty(trim($html))) {
+                $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>HTML Document</title></head><body><h1>Document</h1><p>Converted via azPDF HTML Engine</p></body></html>';
+            }
+
+            $orientation = (isset($_POST['orientation']) && strtolower($_POST['orientation']) === 'landscape') ? 'landscape' : 'portrait';
+            $pageStyle = "<style>@page { size: A4 " . $orientation . "; margin: 12mm; }</style>";
+            if (stripos($html, '</head>') !== false) {
+                $html = str_ireplace('</head>', $pageStyle . '</head>', $html);
+            } else {
+                $html = $pageStyle . $html;
+            }
+
+            // High-fidelity conversion using headless Chrome
+            $tempHtml = tempnam('/tmp', 'html_') . '.html';
+            file_put_contents($tempHtml, $html);
+            $tempPdf = tempnam('/tmp', 'htmlpdf_') . '.pdf';
+            @unlink($tempPdf);
+
+            $chromeCmd = 'google-chrome --headless --disable-gpu --no-sandbox --print-to-pdf=' . escapeshellarg($tempPdf) . ' ' . escapeshellarg($tempHtml) . ' 2>&1';
+            exec($chromeCmd, $out, $code);
+
+            @unlink($tempHtml);
+
+            $outName = (!empty($files) && !empty($files[0]['name'])) ? pathinfo($files[0]['name'], PATHINFO_FILENAME) . '_converted.pdf' : 'converted_document.pdf';
+
+            if ($code === 0 && file_exists($tempPdf) && filesize($tempPdf) > 0) {
+                Response::file($tempPdf, $outName);
+            }
+
+            // Fallback to FPDF if chrome is unavailable
+            $cleanText = strip_tags(str_replace(['<br>', '<p>', '</h1>', '</h2>', '</h3>'], ["\n", "\n\n", "\n\n", "\n\n", "\n\n"], $html));
             $pdf = PdfHelper::createPdf();
             $pdf->AddPage();
             $pdf->SetFont('Arial', 'B', 16);
@@ -1013,7 +1059,7 @@ class PdfController {
             $pdf->SetTextColor(30, 30, 30);
             $pdf->MultiCell(0, 6, iconv('UTF-8', 'ISO-8859-1//TRANSLIT', $cleanText));
 
-            Response::buffer($pdf->Output('S'), 'webpage.pdf');
+            Response::buffer($pdf->Output('S'), 'converted_webpage.pdf');
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }
@@ -1082,8 +1128,44 @@ class PdfController {
             if (empty($files)) Response::error('Please upload a PDF file.', 400);
 
             $file = $files[0];
+            $position = $_POST['position'] ?? 'bottom-center';
+            $format = $_POST['format'] ?? 'page-of-total';
+            $startFrom = max(1, intval($_POST['startFrom'] ?? 1));
+            $skipFirst = !empty($_POST['skipFirst']) && ($_POST['skipFirst'] === '1' || $_POST['skipFirst'] === 'true');
+            $withBadge = !isset($_POST['withBadge']) || ($_POST['withBadge'] === '1' || $_POST['withBadge'] === 'true');
+            $fontSize = max(7, min(18, floatval($_POST['fontSize'] ?? 10)));
+            $margin = max(4, min(35, floatval($_POST['margin'] ?? 10)));
+
+            $tempFile = $file['tmp_name'];
             $pdf = PdfHelper::createPdf();
-            $pageCount = $pdf->setSourceFile($file['tmp_name']);
+            $pdf->SetAutoPageBreak(false);
+
+            try {
+                $pageCount = $pdf->setSourceFile($tempFile);
+            } catch (\Throwable $e) {
+                // If FPDI fails due to cross-reference streams or compression, repair/standardize with Ghostscript into /tmp
+                $repaired = tempnam('/tmp', 'gs_clean_') . '.pdf';
+                $gsArgs = [
+                    '-sDEVICE=pdfwrite',
+                    '-dCompatibilityLevel=1.4',
+                    '-dPDFSETTINGS=/default',
+                    '-dNOPAUSE',
+                    '-dQUIET',
+                    '-dBATCH',
+                    '-sOutputFile=' . $repaired,
+                    $tempFile
+                ];
+                if (PdfHelper::runGhostscript($gsArgs) && file_exists($repaired) && filesize($repaired) > 0) {
+                    $pdf = PdfHelper::createPdf();
+                    $pdf->SetAutoPageBreak(false);
+                    $pageCount = $pdf->setSourceFile($repaired);
+                    $tempFile = $repaired;
+                } else {
+                    throw $e;
+                }
+            }
+
+            $totalNumbered = $skipFirst ? max(1, $pageCount - 1) : $pageCount;
 
             for ($p = 1; $p <= $pageCount; $p++) {
                 $tpl = $pdf->importPage($p);
@@ -1092,15 +1174,78 @@ class PdfController {
                 $pdf->AddPage($orientation, [$size['width'], $size['height']]);
                 $pdf->useTemplate($tpl);
 
-                // Bottom center page number
-                $pdf->SetFont('Arial', '', 10);
-                $pdf->SetTextColor(120, 120, 120);
-                $label = "Page {$p} of {$pageCount}";
-                $w = $pdf->GetStringWidth($label);
-                $pdf->Text(($size['width'] - $w) / 2, $size['height'] - 10, $label);
+                // If skip first page is enabled and this is page 1, skip numbering
+                if ($skipFirst && $p === 1) {
+                    continue;
+                }
+
+                $currentNum = $startFrom + ($skipFirst ? ($p - 2) : ($p - 1));
+
+                switch ($format) {
+                    case 'n-of-total':
+                        $label = "{$currentNum} of {$totalNumbered}";
+                        break;
+                    case 'page-n':
+                        $label = "Page {$currentNum}";
+                        break;
+                    case 'n':
+                        $label = "{$currentNum}";
+                        break;
+                    case '-n-':
+                        $label = "- {$currentNum} -";
+                        break;
+                    case 'bracket':
+                    case 'brackets':
+                        $label = "[{$currentNum}]";
+                        break;
+                    case 'page-of-total':
+                    default:
+                        $label = "Page {$currentNum} of {$totalNumbered}";
+                        break;
+                }
+
+                $pageW = $size['width'];
+                $pageH = $size['height'];
+
+                $pdf->SetFont('Arial', '', $fontSize);
+                $textW = $pdf->GetStringWidth($label);
+                $textH = $fontSize * 0.3527; // height in mm
+
+                // Calculate X coordinate
+                if (strpos($position, 'left') !== false) {
+                    $x = $margin;
+                } else if (strpos($position, 'right') !== false) {
+                    $x = $pageW - $margin - $textW;
+                } else {
+                    $x = ($pageW - $textW) / 2;
+                }
+
+                // Calculate Y coordinate (baseline in FPDF)
+                if (strpos($position, 'top') !== false) {
+                    $y = $margin + $textH;
+                } else {
+                    $y = $pageH - $margin;
+                }
+
+                // Clean background badge for maximum contrast
+                if ($withBadge) {
+                    $padX = 3;
+                    $padY = 1.5;
+                    $rectX = $x - $padX;
+                    $rectY = $y - $textH - $padY;
+                    $rectW = $textW + ($padX * 2);
+                    $rectH = $textH + ($padY * 2) + 0.8;
+                    $pdf->SetFillColor(255, 255, 255);
+                    $pdf->SetDrawColor(226, 232, 240);
+                    $pdf->Rect($rectX, $rectY, $rectW, $rectH, 'DF');
+                }
+
+                $pdf->SetTextColor(71, 85, 105); // Slate 600
+                $pdf->Text($x, $y, $label);
             }
 
-            Response::buffer($pdf->Output('S'), 'numbered_document.pdf');
+            $outName = !empty($file['name']) ? pathinfo($file['name'], PATHINFO_FILENAME) . '_numbered.pdf' : 'numbered_document.pdf';
+            Response::buffer($pdf->Output('S'), $outName);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }

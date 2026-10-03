@@ -248,9 +248,124 @@ class PdfHelper {
     }
 
     public static function runGhostscript(array $args): bool {
-        $cmd = 'gs ' . implode(' ', array_map('escapeshellarg', $args)) . ' 2>&1';
+        $tempCopies = [];
+        $sanitizedArgs = [];
+
+        foreach ($args as $arg) {
+            // Any positional input file outside /tmp needs to be mirrored to /tmp so Ghostscript sandbox can read it
+            if (is_string($arg) && !str_starts_with($arg, '-') && file_exists($arg)) {
+                $real = realpath($arg) ?: $arg;
+                if (!str_starts_with($real, '/tmp')) {
+                    $tmpIn = tempnam('/tmp', 'gsin_') . '.pdf';
+                    if (copy($real, $tmpIn)) {
+                        $tempCopies[] = $tmpIn;
+                        $sanitizedArgs[] = $tmpIn;
+                        continue;
+                    }
+                }
+            }
+            $sanitizedArgs[] = $arg;
+        }
+
+        $cmd = 'gs ' . implode(' ', array_map('escapeshellarg', $sanitizedArgs)) . ' 2>&1';
         exec($cmd, $out, $code);
+
+        foreach ($tempCopies as $tmp) {
+            @unlink($tmp);
+        }
+
+        $outStr = implode("\n", $out);
+        if (str_contains($outStr, '**** Error:') || str_contains($outStr, 'Cannot decrypt') || str_contains($outStr, 'Password did not work') || str_contains($outStr, 'No pages will be processed')) {
+            return false;
+        }
+
         return $code === 0;
+    }
+
+    public static function encryptPdf(string $inputFile, string $outputFile, string $password): bool {
+        // 1. Try Python3 with pypdf (Industry standard AES-256 encryption)
+        $pyCode = 'import sys; from pypdf import PdfReader, PdfWriter;
+in_f, out_f, pw = sys.argv[1], sys.argv[2], sys.argv[3];
+r = PdfReader(in_f);
+w = PdfWriter();
+for p in r.pages: w.add_page(p);
+w.encrypt(user_password=pw, owner_password=pw + "_azowner", algorithm="AES-256");
+with open(out_f, "wb") as f: w.write(f);
+';
+        $cmd = 'python3 -c ' . escapeshellarg($pyCode) . ' '
+            . escapeshellarg($inputFile) . ' '
+            . escapeshellarg($outputFile) . ' '
+            . escapeshellarg($password) . ' 2>&1';
+        
+        exec($cmd, $out, $code);
+        if ($code === 0 && file_exists($outputFile) && filesize($outputFile) > 0) {
+            return true;
+        }
+
+        // 2. Fallback to Ghostscript with 128-bit key (Revision 3)
+        $ownerPw = hash('sha256', $password . '_azpdf_owner_key');
+        $gsArgs = [
+            '-sDEVICE=pdfwrite',
+            '-dCompatibilityLevel=1.7',
+            '-dEncryptionR=3',
+            '-dKeyLength=128',
+            '-dNOPAUSE',
+            '-dQUIET',
+            '-dBATCH',
+            "-sUserPassword={$password}",
+            "-sOwnerPassword={$ownerPw}",
+            "-sOutputFile={$outputFile}",
+            $inputFile
+        ];
+
+        return self::runGhostscript($gsArgs) && file_exists($outputFile) && filesize($outputFile) > 0;
+    }
+
+    public static function decryptPdf(string $inputFile, string $outputFile, string $password): array {
+        // 1. Try Python3 with pypdf (Handles AES-256, AES-128, RC4)
+        $pyCode = 'import sys; from pypdf import PdfReader, PdfWriter;
+in_f, out_f, pw = sys.argv[1], sys.argv[2], sys.argv[3];
+r = PdfReader(in_f);
+if r.is_encrypted:
+    res = r.decrypt(pw);
+    if res == 0:
+        print("INCORRECT_PASSWORD");
+        sys.exit(2);
+w = PdfWriter();
+for p in r.pages: w.add_page(p);
+with open(out_f, "wb") as f: w.write(f);
+';
+        $cmd = 'python3 -c ' . escapeshellarg($pyCode) . ' '
+            . escapeshellarg($inputFile) . ' '
+            . escapeshellarg($outputFile) . ' '
+            . escapeshellarg($password) . ' 2>&1';
+        
+        exec($cmd, $out, $code);
+        $outStr = implode("\n", $out);
+        if ($code === 2 || str_contains($outStr, 'INCORRECT_PASSWORD')) {
+            return ['success' => false, 'error' => 'Incorrect password. Please verify and try again.'];
+        }
+        if ($code === 0 && file_exists($outputFile) && filesize($outputFile) > 0) {
+            return ['success' => true];
+        }
+
+        // 2. Fallback to Ghostscript
+        $gsArgs = [
+            '-sDEVICE=pdfwrite',
+            '-dCompatibilityLevel=1.7',
+            '-dNOPAUSE',
+            '-dQUIET',
+            '-dBATCH',
+            "-sPDFPassword={$password}",
+            "-sOutputFile={$outputFile}",
+            $inputFile
+        ];
+
+        if (self::runGhostscript($gsArgs) && file_exists($outputFile) && filesize($outputFile) > 0) {
+            return ['success' => true];
+        }
+
+        return ['success' => false, 'error' => 'Incorrect password or unable to unlock this PDF.'];
     }
 
     public static function createDocxFromText(string $text, string $title = 'Converted Document'): string {

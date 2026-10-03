@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft, Upload, FileText, CheckCircle2, Download, 
   Trash2, RefreshCw, ExternalLink, Settings, ShieldCheck,
-  FileType, Sparkles, Layers, RotateCw, Lock, Eye, Edit3, Globe,
-  Camera, ChevronLeft, ChevronRight, X
+  FileType, Sparkles, Layers, RotateCw, RotateCcw, Lock, Eye, EyeOff, Edit3, Globe,
+  Camera, ChevronLeft, ChevronRight, X, Code, FileCode, ArrowUpDown, Undo2
 } from 'lucide-react';
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import PdfInteractiveEditor from './PdfInteractiveEditor';
@@ -12,6 +12,61 @@ import PdfResultViewer from './PdfResultViewer';
 import RightSidePreviewSheet from './RightSidePreviewSheet';
 import { getToolInfo } from '../data/toolInformation';
 import { useAppContext } from '../App';
+
+// ─── Sample HTML Invoice Template for Fast Testing ─────────────────────────
+const SAMPLE_HTML_TEMPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 40px; color: #1e293b; background: #fff; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; }
+    .title { font-size: 24px; font-weight: 800; color: #e52424; margin: 0; }
+    .subtitle { color: #64748b; font-size: 13px; margin-top: 4px; }
+    .badge { background: #e52424; color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: bold; }
+    .table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    .table th { background: #f8fafc; text-align: left; padding: 10px; font-size: 12px; color: #475569; border-bottom: 2px solid #cbd5e1; }
+    .table td { padding: 10px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+    .total { text-align: right; font-size: 16px; font-weight: bold; margin-top: 20px; color: #0f172a; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1 class="title">INVOICE #AZ-2026</h1>
+      <p class="subtitle">azPDF Document Cloud Services</p>
+    </div>
+    <div>
+      <span class="badge">PAID</span>
+    </div>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Qty</th>
+        <th>Price</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>azPDF Professional Annual License</td>
+        <td>1</td>
+        <td>$59.00</td>
+        <td>$59.00</td>
+      </tr>
+      <tr>
+        <td>Cloud Storage & OCR Addon</td>
+        <td>1</td>
+        <td>$19.00</td>
+        <td>$19.00</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="total">Total: $78.00</div>
+</body>
+</html>`;
 
 // ─── Desktop Side Banner Ad Component (160x600) ─────────────────────────────
 function SideBannerAd({ position = 'left' }) {
@@ -64,20 +119,316 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   // Interactive options for queued tools
   const [splitPagesRange, setSplitPagesRange] = useState('1-2');
   const [rotateAngle, setRotateAngle] = useState(90);
-  const [watermarkText, setWatermarkText] = useState('CONFIDENTIAL');
-  const [protectPassword, setProtectPassword] = useState('123456');
-  const [unlockPassword, setUnlockPassword] = useState('123456');
+  const [protectPassword, setProtectPassword] = useState('');
+  const [confirmProtectPassword, setConfirmProtectPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [showProtectPassword, setShowProtectPassword] = useState(false);
+  const [showUnlockPassword, setShowUnlockPassword] = useState(false);
   const [compressionLevel, setCompressionLevel] = useState('recommended');
   const [pageNumberPosition, setPageNumberPosition] = useState('bottom-center');
+  const [pageNumberFormat, setPageNumberFormat] = useState('page-of-total'); // 'page-of-total', 'n-of-total', 'page-n', 'n', '-n-', 'bracket'
+  const [pageNumberStart, setPageNumberStart] = useState('1');
+  const [pageNumberSkipFirst, setPageNumberSkipFirst] = useState(false);
+  const [pageNumberBadge, setPageNumberBadge] = useState(true);
+  const [pageNumberFontSize, setPageNumberFontSize] = useState('10');
+  const [pageNumberMargin, setPageNumberMargin] = useState('12');
   const [signatureName, setSignatureName] = useState('Alex Johnson');
   const [targetLanguage, setTargetLanguage] = useState('Urdu');
   const [editAnnotationText, setEditAnnotationText] = useState('Approved & Verified Document');
   const [htmlInputUrl, setHtmlInputUrl] = useState('https://example.com');
-  const [redactKeywords, setRedactKeywords] = useState('confidential, secret, password');
+  const [htmlInputMode, setHtmlInputMode] = useState('upload'); // 'upload' or 'paste'
+  const [pastedHtmlContent, setPastedHtmlContent] = useState('');
+  const [htmlActiveTab, setHtmlActiveTab] = useState('code'); // 'code' or 'preview'
+  const [htmlOrientation, setHtmlOrientation] = useState('portrait'); // 'portrait' or 'landscape'
+
+  const handleProceedWithPastedHtml = () => {
+    const content = (pastedHtmlContent && pastedHtmlContent.trim()) ? pastedHtmlContent : SAMPLE_HTML_TEMPLATE;
+    const htmlBlob = new Blob([content], { type: 'text/html' });
+    const virtualFile = {
+      name: 'pasted_document.html',
+      size: (htmlBlob.size / 1024).toFixed(1) + ' KB',
+      type: 'text/html',
+      rawFile: htmlBlob
+    };
+    setPastedHtmlContent(content);
+    addFiles([virtualFile]);
+  };
+
   const [organizePageOrder, setOrganizePageOrder] = useState('1, 2, 3');
+  const [organizePdfPages, setOrganizePdfPages] = useState([]);
+  const [deletedOrganizePages, setDeletedOrganizePages] = useState([]);
+  const [organizeLoadingPages, setOrganizeLoadingPages] = useState(false);
+  const [draggedOrganizeIdx, setDraggedOrganizeIdx] = useState(null);
+  const lastLoadedOrganizeFileRef = useRef(null);
+
+  const moveOrganizePage = (fromIndex, toIndex) => {
+    if (toIndex < 0 || toIndex >= organizePdfPages.length || fromIndex === toIndex) return;
+    const updated = [...organizePdfPages];
+    const [movedItem] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, movedItem);
+    setOrganizePdfPages(updated);
+    setOrganizePageOrder(updated.map(p => p.originalPageNum).join(', '));
+  };
+
+  const deleteOrganizePage = (index) => {
+    if (organizePdfPages.length <= 1) {
+      alert('A document must have at least one page. You cannot delete all pages.');
+      return;
+    }
+    const pageToDelete = organizePdfPages[index];
+    const updated = organizePdfPages.filter((_, i) => i !== index);
+    setOrganizePdfPages(updated);
+    setDeletedOrganizePages(prev => [...prev, pageToDelete]);
+    setOrganizePageOrder(updated.map(p => p.originalPageNum).join(', '));
+  };
+
+  const restoreOrganizePage = (pageObj) => {
+    setDeletedOrganizePages(prev => prev.filter(p => p.originalPageNum !== pageObj.originalPageNum));
+    const updated = [...organizePdfPages, pageObj].sort((a, b) => a.originalPageNum - b.originalPageNum);
+    setOrganizePdfPages(updated);
+    setOrganizePageOrder(updated.map(p => p.originalPageNum).join(', '));
+  };
+
+  const restoreAllDeletedPages = () => {
+    const combined = [...organizePdfPages, ...deletedOrganizePages].sort((a, b) => a.originalPageNum - b.originalPageNum);
+    setOrganizePdfPages(combined);
+    setDeletedOrganizePages([]);
+    setOrganizePageOrder(combined.map(p => p.originalPageNum).join(', '));
+  };
+
+  const reverseOrganizePages = () => {
+    const updated = [...organizePdfPages].reverse();
+    setOrganizePdfPages(updated);
+    setOrganizePageOrder(updated.map(p => p.originalPageNum).join(', '));
+  };
+
+  const resetOrganizePages = () => {
+    const combined = [...organizePdfPages, ...deletedOrganizePages].sort((a, b) => a.originalPageNum - b.originalPageNum);
+    setOrganizePdfPages(combined);
+    setDeletedOrganizePages([]);
+    setOrganizePageOrder(combined.map(p => p.originalPageNum).join(', '));
+  };
+
+  const handleOrganizeDragStart = (e, index) => {
+    setDraggedOrganizeIdx(index);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', index);
+    }
+  };
+
+  const handleOrganizeDragOver = (e) => {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+  };
+
+  const handleOrganizeDrop = (e, dropIndex) => {
+    e.preventDefault();
+    if (draggedOrganizeIdx === null || draggedOrganizeIdx === dropIndex) return;
+    moveOrganizePage(draggedOrganizeIdx, dropIndex);
+    setDraggedOrganizeIdx(null);
+  };
   const [cropMargin, setCropMargin] = useState('40');
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [selectedScanPreview, setSelectedScanPreview] = useState(null);
+
+  // Rotate PDF interactive states
+  const [rotatePdfPages, setRotatePdfPages] = useState([]);
+  const [pageRotations, setPageRotations] = useState({});
+  const [rotateLoadingPages, setRotateLoadingPages] = useState(false);
+
+  const rotateSinglePage = (pageNum, direction) => {
+    setPageRotations(prev => {
+      const cur = prev[pageNum] || 0;
+      const delta = direction === 'left' ? -90 : 90;
+      const nextAngle = ((cur + delta) % 360 + 360) % 360;
+      return { ...prev, [pageNum]: nextAngle };
+    });
+  };
+
+  const rotateAllPages = (delta) => {
+    setPageRotations(prev => {
+      const next = {};
+      rotatePdfPages.forEach(p => {
+        const cur = prev[p.pageNum] || 0;
+        next[p.pageNum] = ((cur + delta) % 360 + 360) % 360;
+      });
+      return next;
+    });
+  };
+
+  const resetAllRotations = () => {
+    setPageRotations({});
+    setRotateAngle(90);
+  };
+
+  const applyGlobalAngle = (deg) => {
+    setRotateAngle(deg);
+    const next = {};
+    rotatePdfPages.forEach(p => {
+      next[p.pageNum] = deg % 360;
+    });
+    setPageRotations(next);
+  };
+
+  // Live visual PDF page loader for Rotate PDF
+  useEffect(() => {
+    let isMounted = true;
+    if (!tool.id.includes('rotate') || files.length === 0 || status !== 'queued') {
+      return;
+    }
+
+    const loadPagesForRotation = async () => {
+      setRotateLoadingPages(true);
+      try {
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url
+        ).toString();
+
+        let pdfData = null;
+        const targetFile = files[0];
+        if (targetFile?.rawFile && typeof targetFile.rawFile.arrayBuffer === 'function') {
+          pdfData = await targetFile.rawFile.arrayBuffer();
+        } else if (targetFile?.rawFile) {
+          pdfData = await (await fetch(URL.createObjectURL(targetFile.rawFile))).arrayBuffer();
+        }
+
+        if (!pdfData) {
+          if (isMounted) setRotateLoadingPages(false);
+          return;
+        }
+
+        const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+        const pagesList = [];
+
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          if (!isMounted) return;
+          const page = await pdfDoc.getPage(i);
+          const viewport = page.getViewport({ scale: 0.45 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const thumbUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+          pagesList.push({
+            pageNum: i,
+            width: viewport.width,
+            height: viewport.height,
+            thumbUrl,
+            nativeRotation: page.rotate || 0
+          });
+        }
+
+        if (isMounted) {
+          setRotatePdfPages(pagesList);
+          setPageRotations({});
+        }
+      } catch (err) {
+        console.warn('Failed to load PDF pages for rotation:', err);
+      } finally {
+        if (isMounted) {
+          setRotateLoadingPages(false);
+        }
+      }
+    };
+
+    loadPagesForRotation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [files, tool.id, status]);
+
+  // Load PDF pages for Organize PDF visual grid
+  useEffect(() => {
+    let isMounted = true;
+    if (!tool.id.includes('organize') || files.length === 0) {
+      if (!tool.id.includes('organize')) {
+        setOrganizePdfPages([]);
+        setDeletedOrganizePages([]);
+        lastLoadedOrganizeFileRef.current = null;
+      }
+      return;
+    }
+
+    const currentFile = files[0];
+    // If we already loaded this exact file and have pages (e.g. returning from success screen via onReorganize), keep current order!
+    if (lastLoadedOrganizeFileRef.current === currentFile && organizePdfPages.length > 0) {
+      return;
+    }
+
+    const loadPagesForOrganize = async () => {
+      setOrganizeLoadingPages(true);
+      try {
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url
+        ).toString();
+
+        let pdfData = null;
+        if (currentFile?.rawFile && typeof currentFile.rawFile.arrayBuffer === 'function') {
+          pdfData = await currentFile.rawFile.arrayBuffer();
+        } else if (currentFile?.rawFile) {
+          pdfData = await (await fetch(URL.createObjectURL(currentFile.rawFile))).arrayBuffer();
+        }
+
+        if (!pdfData) {
+          if (isMounted) setOrganizeLoadingPages(false);
+          return;
+        }
+
+        const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+        const pagesList = [];
+
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          if (!isMounted) return;
+          const page = await pdfDoc.getPage(i);
+          const viewport = page.getViewport({ scale: 0.45 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const thumbUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+          pagesList.push({
+            id: `orig-p-${i}`,
+            originalPageNum: i,
+            width: viewport.width,
+            height: viewport.height,
+            thumbUrl
+          });
+        }
+
+        if (isMounted) {
+          setOrganizePdfPages(pagesList);
+          setDeletedOrganizePages([]);
+          setOrganizePageOrder(pagesList.map(p => p.originalPageNum).join(', '));
+          lastLoadedOrganizeFileRef.current = currentFile;
+        }
+      } catch (err) {
+        console.warn('Failed to load PDF pages for organize:', err);
+      } finally {
+        if (isMounted) {
+          setOrganizeLoadingPages(false);
+        }
+      }
+    };
+
+    loadPagesForOrganize();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [files, tool.id, status]);
 
   const fileInputRef = useRef(null);
 
@@ -182,21 +533,32 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     }
 
     const parsedFiles = newFiles.map(file => {
-      const isReal = file instanceof File || file instanceof Blob;
+      const isFileOrBlob = file instanceof File || file instanceof Blob;
+      const isReal = isFileOrBlob || Boolean(file.rawFile);
+      const actualRaw = isFileOrBlob ? file : file.rawFile;
       let previewUrl = file.previewUrl || null;
       if (!previewUrl && isReal && (file.type?.startsWith('image/') || file.name?.match(/\.(jpg|jpeg|png|webp|bmp)$/i))) {
         try {
-          previewUrl = URL.createObjectURL(file);
+          previewUrl = URL.createObjectURL(actualRaw);
         } catch (e) {}
       }
       return {
-        rawFile: isReal ? file : getValidPdfBlob(file.name || 'document.pdf'),
-        name: file.name || 'scanned_page.jpg',
-        size: file.size ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : '1.45 MB',
-        type: file.type || 'image/jpeg',
+        rawFile: isReal ? actualRaw : getValidPdfBlob(file.name || 'document.pdf'),
+        name: file.name || 'document.html',
+        size: typeof file.size === 'string' ? file.size : (file.size ? (file.size / (1024 * 1024)).toFixed(2) + ' MB' : '1.45 MB'),
+        type: file.type || 'text/html',
         previewUrl: previewUrl
       };
     });
+
+    if (tool.id.includes('htmltopdf') && parsedFiles.length > 0 && parsedFiles[0].rawFile) {
+      const r = new FileReader();
+      r.onload = (e) => {
+        if (e.target?.result) setPastedHtmlContent(e.target.result);
+      };
+      r.readAsText(parsedFiles[0].rawFile);
+    }
+
     setFiles(prev => {
       const updated = [...prev, ...parsedFiles];
       setMergeOrder(updated.map((_, i) => i));
@@ -336,6 +698,8 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     if (toolId.includes('forms')) return `${baseName}_form.pdf`;
     if (toolId.includes('compare')) return `comparison_report.pdf`;
     if (toolId.includes('ocr')) return `${baseName}_ocr.txt`;
+    if (toolId.includes('pagenumber')) return `${baseName}_numbered.pdf`;
+    if (toolId.includes('htmltopdf')) return `${baseName}_converted.pdf`;
     if (toolId.includes('scan')) return `${baseName}_scanned.pdf`;
     return `${baseName}_processed.pdf`;
   };
@@ -348,6 +712,26 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     if (tool.id.includes('compare') && files.length < 2) {
       alert('Please upload 2 PDF files to run side-by-side comparison.');
       return;
+    }
+    if (tool.id.includes('protect')) {
+      if (!protectPassword || !protectPassword.trim()) {
+        alert('Please enter a password to protect your PDF.');
+        return;
+      }
+      if (confirmProtectPassword !== undefined && protectPassword !== confirmProtectPassword) {
+        alert('Passwords do not match. Please verify your confirmation password.');
+        return;
+      }
+      if (protectPassword.trim().length < 3) {
+        alert('Password should be at least 3 characters.');
+        return;
+      }
+    }
+    if (tool.id.includes('unlock')) {
+      if (!unlockPassword || !unlockPassword.trim()) {
+        alert('Please enter the current document password to unlock your PDF.');
+        return;
+      }
     }
 
     setStatus('processing');
@@ -371,13 +755,22 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     formData.append('angle', rotateAngle);
     formData.append('text', watermarkText);
     formData.append('watermark', watermarkText);
-    formData.append('password', protectPassword);
+    const passwordToSend = tool.id.includes('unlock') ? unlockPassword.trim() : protectPassword.trim();
+    formData.append('password', passwordToSend);
     formData.append('compression', compressionLevel);
     formData.append('position', pageNumberPosition);
+    formData.append('format', pageNumberFormat);
+    formData.append('startFrom', pageNumberStart);
+    formData.append('skipFirst', pageNumberSkipFirst ? '1' : '0');
+    formData.append('withBadge', pageNumberBadge ? '1' : '0');
+    formData.append('fontSize', pageNumberFontSize);
+    formData.append('margin', pageNumberMargin);
     formData.append('signer', signatureName);
     formData.append('language', targetLanguage);
     formData.append('annotation', editAnnotationText);
     formData.append('url', htmlInputUrl);
+    formData.append('html', pastedHtmlContent || '');
+    formData.append('orientation', htmlOrientation);
     formData.append('terms', redactKeywords);
     formData.append('keywords', redactKeywords);
     formData.append('pageOrder', organizePageOrder);
@@ -440,6 +833,17 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       } catch (jpgErr) {
         console.warn('High-res client rendering error:', jpgErr);
       }
+    } else if (tool.id.includes('rotate')) {
+      setProgress(50);
+      setActiveStepText('Applying lossless page rotations with PDF engine...');
+      try {
+        resultBlob = await processClientSideTool();
+        backendSuccess = true;
+        finalFilename = targetFilename;
+        setDownloadFilename(finalFilename);
+      } catch (rotateErr) {
+        console.warn('Client-side rotation error, falling back:', rotateErr);
+      }
     } else {
       try {
         setProgress(45);
@@ -451,24 +855,37 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
         });
 
         if (response.ok) {
-        setProgress(85);
-        setActiveStepText('Finalizing processed output...');
-        resultBlob = await response.blob();
-        backendSuccess = true;
+          setProgress(85);
+          setActiveStepText('Finalizing processed output...');
+          resultBlob = await response.blob();
+          backendSuccess = true;
 
-        const disposition = response.headers.get('Content-Disposition');
-        if (disposition && disposition.includes('filename=')) {
-          const match = disposition.match(/filename="?([^"]+)"?/);
-          if (match && match[1]) {
-            finalFilename = match[1];
+          const disposition = response.headers.get('Content-Disposition');
+          if (disposition && disposition.includes('filename=')) {
+            const match = disposition.match(/filename="?([^"]+)"?/);
+            if (match && match[1]) {
+              finalFilename = match[1];
+            }
+          }
+          setDownloadFilename(finalFilename);
+        } else {
+          const errData = await response.json().catch(() => null);
+          const errMsg = errData?.error || 'Server error while processing document.';
+          if (tool.id.includes('protect') || tool.id.includes('unlock')) {
+            alert(errMsg);
+            setStatus('queued');
+            return;
           }
         }
-        setDownloadFilename(finalFilename);
+      } catch (err) {
+        console.warn('Backend server offline or failed, activating high-precision client fallback:', err.message);
+        if (tool.id.includes('protect') || tool.id.includes('unlock')) {
+          alert('Could not connect to encryption engine: ' + err.message);
+          setStatus('queued');
+          return;
+        }
       }
-    } catch (err) {
-      console.warn('Backend server offline or failed, activating high-precision client fallback:', err.message);
     }
-  }
 
     // Client fallback if backend is offline or failed
     if (!backendSuccess || !resultBlob) {
@@ -566,9 +983,18 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     // 4. Rotate PDF
     if (toolId.includes('rotate')) {
       const pages = sourcePdfDoc.getPages();
-      pages.forEach(p => {
+      const hasIndividualRotations = Object.keys(pageRotations).length > 0;
+      pages.forEach((p, idx) => {
+        const pageNum = idx + 1;
+        let addedRot = 0;
+        if (hasIndividualRotations) {
+          addedRot = pageRotations[pageNum] !== undefined ? pageRotations[pageNum] : 0;
+        } else {
+          addedRot = parseInt(rotateAngle, 10) || 0;
+        }
         const currentRot = p.getRotation().angle;
-        p.setRotation(degrees((currentRot + parseInt(rotateAngle, 10)) % 360));
+        const finalRot = ((currentRot + addedRot) % 360 + 360) % 360;
+        p.setRotation(degrees(finalRot));
       });
       const bytes = await sourcePdfDoc.save();
       return new Blob([bytes], { type: 'application/pdf' });
@@ -678,21 +1104,98 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       const font = await sourcePdfDoc.embedFont(StandardFonts.Helvetica);
       const pages = sourcePdfDoc.getPages();
       const total = pages.length;
-      pages.forEach((p, idx) => {
-        const { width, height } = p.getSize();
-        const pageStr = `Page ${idx + 1} of ${total}`;
-        const textWidth = font.widthOfTextAtSize(pageStr, 10);
-        let posX = (width - textWidth) / 2;
-        let posY = 20;
+      const totalNumbered = pageNumberSkipFirst ? Math.max(1, total - 1) : total;
+      const startNum = parseInt(pageNumberStart, 10) || 1;
+      const fontSize = parseFloat(pageNumberFontSize) || 10;
+      const margin = parseFloat(pageNumberMargin) || 16;
 
-        if (pageNumberPosition === 'bottom-right') posX = width - textWidth - 30;
-        if (pageNumberPosition === 'top-right') {
-          posX = width - textWidth - 30;
-          posY = height - 30;
+      pages.forEach((p, idx) => {
+        const pageIndex = idx + 1;
+        if (pageNumberSkipFirst && pageIndex === 1) return;
+
+        const currentNum = startNum + (pageNumberSkipFirst ? (pageIndex - 2) : (pageIndex - 1));
+
+        let label = `Page ${currentNum} of ${totalNumbered}`;
+        if (pageNumberFormat === 'n-of-total') label = `${currentNum} of ${totalNumbered}`;
+        if (pageNumberFormat === 'page-n') label = `Page ${currentNum}`;
+        if (pageNumberFormat === 'n') label = `${currentNum}`;
+        if (pageNumberFormat === '-n-') label = `- ${currentNum} -`;
+        if (pageNumberFormat === 'bracket') label = `[${currentNum}]`;
+
+        const { width, height } = p.getSize();
+        const rot = p.getRotation().angle; // 0, 90, 180, 270
+        const isRotated90or270 = rot === 90 || rot === 270;
+        const visualWidth = isRotated90or270 ? height : width;
+        const visualHeight = isRotated90or270 ? width : height;
+
+        const textWidth = font.widthOfTextAtSize(label, fontSize);
+
+        // Visual coordinates (vx: 0 = left edge, vy: 0 = bottom edge)
+        let vx = (visualWidth - textWidth) / 2;
+        let vy = margin;
+
+        if (pageNumberPosition.includes('left')) vx = margin;
+        if (pageNumberPosition.includes('right')) vx = visualWidth - textWidth - margin;
+        if (pageNumberPosition.includes('top')) vy = visualHeight - margin - fontSize;
+
+        // Transform visual (vx, vy) into native PDF page coordinates according to rot
+        let px = vx;
+        let py = vy;
+        if (rot === 90) {
+          px = width - vy - fontSize;
+          py = vx;
+        } else if (rot === 180) {
+          px = width - vx - textWidth;
+          py = height - vy - fontSize;
+        } else if (rot === 270) {
+          px = vy;
+          py = height - vx - textWidth;
         }
 
-        p.drawText(pageStr, { x: posX, y: posY, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
+        // Draw contrast pill badge
+        if (pageNumberBadge) {
+          const padX = 4;
+          const padY = 2;
+          const rx = vx - padX;
+          const ry = vy - padY;
+          const rw = textWidth + (padX * 2);
+          const rh = fontSize + (padY * 2);
+
+          let prx = rx;
+          let pry = ry;
+          if (rot === 90) {
+            prx = width - ry - rh;
+            pry = rx;
+          } else if (rot === 180) {
+            prx = width - rx - rw;
+            pry = height - ry - rh;
+          } else if (rot === 270) {
+            prx = ry;
+            pry = height - rx - rw;
+          }
+
+          p.drawRectangle({
+            x: prx,
+            y: pry,
+            width: isRotated90or270 ? rh : rw,
+            height: isRotated90or270 ? rw : rh,
+            color: rgb(1, 1, 1),
+            borderColor: rgb(0.88, 0.91, 0.94),
+            borderWidth: 0.8,
+            opacity: 0.95
+          });
+        }
+
+        p.drawText(label, {
+          x: px,
+          y: py,
+          size: fontSize,
+          font,
+          color: rgb(0.28, 0.33, 0.41),
+          rotate: degrees(rot)
+        });
       });
+
       const bytes = await sourcePdfDoc.save();
       return new Blob([bytes], { type: 'application/pdf' });
     }
@@ -1227,8 +1730,37 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       return new Blob([mdContent], { type: 'text/markdown;charset=utf-8' });
     }
 
-    // 20. PDF to PDF/A, Repair, OCR, Redact, Crop, Forms, Compare, HTML to PDF
-    if (toolId.includes('pdfa') || toolId.includes('repair') || toolId.includes('ocr') || toolId.includes('redact') || toolId.includes('crop') || toolId.includes('forms') || toolId.includes('compare') || toolId.includes('htmltopdf')) {
+    // 20. HTML to PDF client fallback
+    if (toolId.includes('htmltopdf')) {
+      const htmlString = pastedHtmlContent || '<h1>azPDF HTML Document</h1><p>Converted from HTML</p>';
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlString, 'text/html');
+      const title = doc.querySelector('title')?.textContent || doc.querySelector('h1')?.textContent || 'HTML Document';
+      
+      const pdfDoc = await PDFDocument.create();
+      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const fontReg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      
+      const page = pdfDoc.addPage([612, 792]);
+      page.drawRectangle({ x: 0, y: 792 - 60, width: 612, height: 60, color: rgb(0.89, 0.14, 0.14) });
+      page.drawText('azPDF - HTML to PDF', { x: 40, y: 792 - 38, size: 18, font: fontBold, color: rgb(1, 1, 1) });
+      page.drawText(title.substring(0, 50), { x: 40, y: 700, size: 18, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
+
+      let curY = 660;
+      const paragraphs = Array.from(doc.querySelectorAll('h1, h2, h3, p, li, td')).map(el => el.textContent.trim()).filter(Boolean);
+      for (const text of paragraphs) {
+        if (curY < 60) break;
+        const clean = text.substring(0, 85);
+        page.drawText(clean, { x: 40, y: curY, size: 11, font: fontReg, color: rgb(0.2, 0.2, 0.2) });
+        curY -= 22;
+      }
+      
+      const bytes = await pdfDoc.save();
+      return new Blob([bytes], { type: 'application/pdf' });
+    }
+
+    // 21. PDF to PDF/A, Repair, OCR, Redact, Crop, Forms, Compare
+    if (toolId.includes('pdfa') || toolId.includes('repair') || toolId.includes('ocr') || toolId.includes('redact') || toolId.includes('crop') || toolId.includes('forms') || toolId.includes('compare')) {
       const fontBold = await sourcePdfDoc.embedFont(StandardFonts.HelveticaBold);
       const pages = sourcePdfDoc.getPages();
       const firstP = pages[0];
@@ -1274,6 +1806,25 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       return new Blob([bytes], { type: 'application/pdf' });
     }
 
+    // Organize PDF client fallback
+    if (toolId.includes('organize')) {
+      const organizedPdf = await PDFDocument.create();
+      const totalPages = sourcePdfDoc.getPageCount();
+      const order = [];
+      const parts = (organizePageOrder || '').split(/[,\s]+/);
+      for (const p of parts) {
+        const num = parseInt(p, 10);
+        if (!isNaN(num) && num >= 1 && num <= totalPages) {
+          order.push(num - 1);
+        }
+      }
+      const indicesToCopy = order.length > 0 ? order : Array.from({ length: totalPages }, (_, i) => i);
+      const copied = await organizedPdf.copyPages(sourcePdfDoc, indicesToCopy);
+      copied.forEach(p => organizedPdf.addPage(p));
+      const bytes = await organizedPdf.save();
+      return new Blob([bytes], { type: 'application/pdf' });
+    }
+
     // Default Fallback PDF
     const bytes = await sourcePdfDoc.save();
     return new Blob([bytes], { type: 'application/pdf' });
@@ -1284,6 +1835,15 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     setProgress(0);
     setStatus('upload');
     setDownloadBlob(null);
+    setRotatePdfPages([]);
+    setPageRotations({});
+    setOrganizePdfPages([]);
+    setDeletedOrganizePages([]);
+    setOrganizePageOrder('1, 2, 3');
+    lastLoadedOrganizeFileRef.current = null;
+    setPastedHtmlContent('');
+    setHtmlInputMode('upload');
+    setHtmlActiveTab('code');
   };
 
   const triggerDownload = (blob, filename) => {
@@ -1596,31 +2156,193 @@ startxref
               {customInfo?.desc || tool.desc}
             </p>
 
-            {/* Dashed Dropzone Card matching image */}
-            <div 
-              onDragEnter={handleDragEnter}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={tool.id.includes('scan') ? () => setShowCameraScanner(true) : selectFilesClick}
-              style={{
+            {/* HTML to PDF: Tab switch between Uploading file and Pasting HTML code */}
+            {tool.id.includes('htmltopdf') && (
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '20px',
+                backgroundColor: 'var(--bg-card)',
+                padding: '6px',
+                borderRadius: '12px',
+                border: '1px solid var(--border-light)',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setHtmlInputMode('upload')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    backgroundColor: htmlInputMode === 'upload' ? 'var(--primary-red)' : 'transparent',
+                    color: htmlInputMode === 'upload' ? '#ffffff' : 'var(--text-dark)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Upload size={15} /> Upload HTML File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHtmlInputMode('paste')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    backgroundColor: htmlInputMode === 'paste' ? 'var(--primary-red)' : 'transparent',
+                    color: htmlInputMode === 'paste' ? '#ffffff' : 'var(--text-dark)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Code size={15} /> Paste HTML Code
+                </button>
+              </div>
+            )}
+
+            {/* If HTML to PDF and Paste mode is active */}
+            {tool.id.includes('htmltopdf') && htmlInputMode === 'paste' ? (
+              <div style={{
                 width: '100%',
                 maxWidth: '780px',
-                border: '2px dashed var(--border-light)',
+                backgroundColor: 'var(--bg-card)',
+                border: '1.5px solid var(--border-light)',
                 borderRadius: '16px',
-                padding: 'clamp(28px, 5vw, 48px) 24px',
-                backgroundColor: dragActive ? 'rgba(229, 36, 36, 0.05)' : 'var(--bg-card)',
-                borderColor: dragActive ? 'var(--primary-red)' : 'var(--border-light)',
+                padding: '24px',
+                boxShadow: 'var(--shadow-sm)',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: 'var(--shadow-sm)',
-                transition: 'all 0.2s ease',
-                marginBottom: '24px',
-                cursor: 'pointer'
-              }}
-            >
+                textAlign: 'left',
+                marginBottom: '24px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Code size={20} style={{ color: 'var(--primary-red)' }} />
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)' }}>
+                      Paste Your HTML Code
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPastedHtmlContent(SAMPLE_HTML_TEMPLATE)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-light)',
+                        color: 'var(--text-dark)',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <Sparkles size={12} style={{ display: 'inline', marginRight: '4px' }} /> Sample Invoice Template
+                    </button>
+                    {pastedHtmlContent && (
+                      <button
+                        type="button"
+                        onClick={() => setPastedHtmlContent('')}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'transparent',
+                          color: 'var(--text-gray)',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <textarea
+                  value={pastedHtmlContent}
+                  onChange={(e) => setPastedHtmlContent(e.target.value)}
+                  placeholder={`Paste your HTML code here...\n\nExample:\n<!DOCTYPE html>\n<html>\n<head>\n  <style>body { font-family: Arial; padding: 20px; }</style>\n</head>\n<body>\n  <h1>Document Title</h1>\n  <p>Your content here...</p>\n</body>\n</html>`}
+                  rows={12}
+                  style={{
+                    width: '100%',
+                    fontFamily: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    fontSize: '13px',
+                    lineHeight: '1.5',
+                    padding: '14px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-light)',
+                    color: 'var(--text-dark)',
+                    resize: 'vertical',
+                    marginBottom: '16px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-gray)' }}>
+                    {pastedHtmlContent.length} characters {pastedHtmlContent ? `(${pastedHtmlContent.split('\n').length} lines)` : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleProceedWithPastedHtml}
+                    style={{
+                      backgroundColor: 'var(--primary-red)',
+                      color: '#fff',
+                      padding: '11px 24px',
+                      borderRadius: '8px',
+                      fontWeight: '700',
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <FileCode size={16} /> Convert HTML to PDF
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Dashed Dropzone Card matching image */
+              <div 
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={tool.id.includes('scan') ? () => setShowCameraScanner(true) : selectFilesClick}
+                style={{
+                  width: '100%',
+                  maxWidth: '780px',
+                  border: '2px dashed var(--border-light)',
+                  borderRadius: '16px',
+                  padding: 'clamp(28px, 5vw, 48px) 24px',
+                  backgroundColor: dragActive ? 'rgba(229, 36, 36, 0.05)' : 'var(--bg-card)',
+                  borderColor: dragActive ? 'var(--primary-red)' : 'var(--border-light)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all 0.2s ease',
+                  marginBottom: '24px',
+                  cursor: 'pointer'
+                }}
+              >
               {/* Document Icon */}
               <div style={{ color: 'var(--text-light-gray)', marginBottom: '18px', opacity: 0.85 }}>
                 {tool.id.includes('scan') ? (
@@ -1719,6 +2441,7 @@ startxref
                 {tool.id.includes('scan') ? 'or click upload icon to select files from device' : 'or Drag files here'}
               </p>
             </div>
+          )}
 
             <CameraScannerModal 
               isOpen={showCameraScanner}
@@ -1803,9 +2526,10 @@ startxref
         )}
 
         {/* State 2: Queued File List & Interactive Tool Controls */}
-        {status === 'queued' && tool.id.includes('edit') && files.length > 0 ? (
+        {status === 'queued' && (tool.id.includes('edit') || tool.id.includes('sign') || tool.id.includes('watermark')) && files.length > 0 ? (
           <PdfInteractiveEditor 
             file={files[0]} 
+            mode={tool.id.includes('sign') ? 'sign' : tool.id.includes('watermark') ? 'watermark' : 'edit'}
             onSave={(editedBlob, filename) => {
               setDownloadBlob(editedBlob);
               setDownloadFilename(filename);
@@ -2144,6 +2868,639 @@ startxref
                   </div>
                 </div>
               </div>
+            ) : tool.id.includes('rotate') ? (
+              <div style={{ marginBottom: '28px' }}>
+                {/* Rotate Header Toolbar */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <RotateCw size={19} style={{ color: 'var(--primary-red)' }} />
+                      Rotate PDF Pages ({rotatePdfPages.length || files.length} pages)
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-gray)' }}>
+                      Click Left or Right arrows on any page, or rotate all pages together.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => rotateAllPages(-90)}
+                      title="Rotate all pages 90° Left"
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-dark)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <RotateCcw size={15} /> Rotate All Left
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => rotateAllPages(90)}
+                      title="Rotate all pages 90° Right"
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(229, 36, 36, 0.08)',
+                        color: 'var(--primary-red)',
+                        border: '1px solid rgba(229, 36, 36, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <RotateCw size={15} /> Rotate All Right
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={resetAllRotations}
+                      title="Reset all rotations to original 0°"
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-gray)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <RefreshCw size={13} /> Reset
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pages Grid or Loading State */}
+                {rotateLoadingPages ? (
+                  <div style={{
+                    padding: '48px 24px',
+                    textAlign: 'center',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '14px',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '12px'
+                  }}>
+                    <RefreshCw size={28} style={{ color: 'var(--primary-red)', animation: 'spin 1s linear infinite' }} />
+                    <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                      Rendering Document Pages for Visual Rotation...
+                    </span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>
+                      Please wait while page previews are prepared.
+                    </span>
+                  </div>
+                ) : rotatePdfPages.length > 0 ? (
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: '18px'
+                  }}>
+                    {rotatePdfPages.map((page) => {
+                      const angle = pageRotations[page.pageNum] || 0;
+                      return (
+                        <div
+                          key={page.pageNum}
+                          style={{
+                            backgroundColor: 'var(--bg-card)',
+                            border: angle !== 0 ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+                            borderRadius: '12px',
+                            padding: '12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            boxShadow: angle !== 0 ? '0 4px 14px rgba(229, 36, 36, 0.12)' : 'var(--shadow-sm)',
+                            transition: 'all 0.2s ease',
+                            position: 'relative'
+                          }}
+                        >
+                          {/* Header inside card */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-dark)' }}>
+                              Page {page.pageNum}
+                            </span>
+                            {angle !== 0 ? (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                color: 'var(--primary-red)',
+                                backgroundColor: 'rgba(229, 36, 36, 0.1)',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}>
+                                <RotateCw size={11} /> +{angle}°
+                              </span>
+                            ) : (
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: 'var(--text-gray)',
+                                backgroundColor: 'var(--bg-light)',
+                                padding: '2px 6px',
+                                borderRadius: '8px'
+                              }}>
+                                0°
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Preview Container with animated rotation */}
+                          <div style={{
+                            height: '210px',
+                            backgroundColor: 'rgba(0,0,0,0.02)',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            overflow: 'hidden',
+                            padding: '8px',
+                            marginBottom: '10px'
+                          }}>
+                            <img
+                              src={page.thumbUrl}
+                              alt={`Page ${page.pageNum}`}
+                              style={{
+                                maxWidth: '100%',
+                                maxHeight: '100%',
+                                objectFit: 'contain',
+                                borderRadius: '4px',
+                                boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                                transform: `rotate(${angle}deg)`,
+                                transition: 'transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                              }}
+                            />
+                          </div>
+
+                          {/* Rotate action buttons on card */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => rotateSinglePage(page.pageNum, 'left')}
+                              title={`Rotate Page ${page.pageNum} 90° Left`}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                padding: '7px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-light)',
+                                color: 'var(--text-dark)',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--bg-card)';
+                                e.currentTarget.style.borderColor = 'var(--text-dark)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--bg-light)';
+                                e.currentTarget.style.borderColor = 'var(--border-light)';
+                              }}
+                            >
+                              <RotateCcw size={13} /> Left
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => rotateSinglePage(page.pageNum, 'right')}
+                              title={`Rotate Page ${page.pageNum} 90° Right`}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                padding: '7px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(229, 36, 36, 0.3)',
+                                backgroundColor: 'rgba(229, 36, 36, 0.06)',
+                                color: 'var(--primary-red)',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--primary-red)';
+                                e.currentTarget.style.color = '#fff';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(229, 36, 36, 0.06)';
+                                e.currentTarget.style.color = 'var(--primary-red)';
+                              }}
+                            >
+                              <RotateCw size={13} /> Right
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Fallback row in case thumbnails could not be rendered */
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <FileText size={24} style={{ color: 'var(--primary-red)' }} />
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '15px', color: 'var(--text-dark)' }}>{files[0]?.name}</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>{files[0]?.size}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => rotateAllPages(-90)}
+                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '700' }}
+                      >
+                        <RotateCcw size={14} /> Left 90°
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => rotateAllPages(90)}
+                        style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'rgba(229,36,36,0.08)', color: 'var(--primary-red)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '700' }}
+                      >
+                        <RotateCw size={14} /> Right 90°
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : tool.id.includes('organize') ? (
+              <div style={{ marginBottom: '28px', width: '100%', maxWidth: '980px' }}>
+                {/* Organize Header Toolbar */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '18px',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  padding: '14px 18px',
+                  backgroundColor: 'var(--bg-card)',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Layers size={20} style={{ color: '#EE6C4D' }} />
+                      Organize PDF Pages ({organizePdfPages.length} Active{deletedOrganizePages.length > 0 ? `, ${deletedOrganizePages.length} Deleted` : ''})
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-gray)' }}>
+                      Drag or click arrows to reorder pages. Click trash to delete any page.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={reverseOrganizePages}
+                      title="Reverse the entire page order"
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-light)',
+                        color: 'var(--text-dark)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <ArrowUpDown size={15} /> Reverse Order
+                    </button>
+
+                    {deletedOrganizePages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={restoreAllDeletedPages}
+                        title="Restore all deleted pages"
+                        style={{
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                          color: '#059669',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <Undo2 size={15} /> Restore All ({deletedOrganizePages.length})
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={resetOrganizePages}
+                      title="Reset to original sequential order"
+                      style={{
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-light)',
+                        color: 'var(--text-gray)',
+                        border: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <RefreshCw size={13} /> Reset Order
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pages Grid or Loading State */}
+                {organizeLoadingPages ? (
+                  <div style={{
+                    padding: '50px 24px',
+                    textAlign: 'center',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '14px',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '12px'
+                  }}>
+                    <RefreshCw size={30} style={{ color: '#EE6C4D', animation: 'spin 1s linear infinite' }} />
+                    <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                      Rendering Document Pages for Visual Organization...
+                    </span>
+                    <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>
+                      Please wait while all page thumbnails are prepared.
+                    </span>
+                  </div>
+                ) : organizePdfPages.length > 0 ? (
+                  <>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                      gap: '18px'
+                    }}>
+                      {organizePdfPages.map((page, idx) => {
+                        return (
+                          <div
+                            key={page.id}
+                            draggable
+                            onDragStart={(e) => handleOrganizeDragStart(e, idx)}
+                            onDragOver={handleOrganizeDragOver}
+                            onDrop={(e) => handleOrganizeDrop(e, idx)}
+                            style={{
+                              backgroundColor: 'var(--bg-card)',
+                              border: draggedOrganizeIdx === idx ? '2px dashed #EE6C4D' : '1px solid var(--border-light)',
+                              borderRadius: '12px',
+                              padding: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              boxShadow: 'var(--shadow-sm)',
+                              transition: 'all 0.2s ease',
+                              position: 'relative',
+                              cursor: 'grab',
+                              opacity: draggedOrganizeIdx === idx ? 0.5 : 1
+                            }}
+                          >
+                            {/* Header inside card */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: '800',
+                                  color: '#ffffff',
+                                  backgroundColor: '#EE6C4D',
+                                  padding: '3px 8px',
+                                  borderRadius: '6px'
+                                }}>
+                                  #{idx + 1}
+                                </span>
+                                <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-gray)' }}>
+                                  Orig: P.{page.originalPageNum}
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); deleteOrganizePage(idx); }}
+                                title={`Delete Page ${page.originalPageNum}`}
+                                style={{
+                                  border: 'none',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                  color: '#ef4444',
+                                  width: '28px',
+                                  height: '28px',
+                                  borderRadius: '6px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = '#ef4444';
+                                  e.currentTarget.style.color = '#ffffff';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+                                  e.currentTarget.style.color = '#ef4444';
+                                }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+
+                            {/* Preview Thumbnail Container */}
+                            <div style={{
+                              height: '210px',
+                              backgroundColor: 'rgba(0,0,0,0.02)',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              padding: '8px',
+                              marginBottom: '10px'
+                            }}>
+                              <img
+                                src={page.thumbUrl}
+                                alt={`Page ${page.originalPageNum}`}
+                                style={{
+                                  maxWidth: '100%',
+                                  maxHeight: '100%',
+                                  objectFit: 'contain',
+                                  borderRadius: '4px',
+                                  boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+                                }}
+                              />
+                            </div>
+
+                            {/* Card Bottom Controls (Move Left / Move Right) */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); moveOrganizePage(idx, idx - 1); }}
+                                disabled={idx === 0}
+                                title="Move Page Left"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                  padding: '7px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: idx === 0 ? 'var(--bg-light)' : 'var(--bg-card)',
+                                  color: idx === 0 ? '#94a3b8' : 'var(--text-dark)',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <ChevronLeft size={14} /> Move Left
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); moveOrganizePage(idx, idx + 1); }}
+                                disabled={idx === organizePdfPages.length - 1}
+                                title="Move Page Right"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px',
+                                  padding: '7px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: idx === organizePdfPages.length - 1 ? 'var(--bg-light)' : 'var(--bg-card)',
+                                  color: idx === organizePdfPages.length - 1 ? '#94a3b8' : 'var(--text-dark)',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: idx === organizePdfPages.length - 1 ? 'not-allowed' : 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                Move Right <ChevronRight size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Deleted Pages Ribbon */}
+                    {deletedOrganizePages.length > 0 && (
+                      <div style={{
+                        marginTop: '18px',
+                        padding: '14px 18px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+                        border: '1px dashed rgba(239, 68, 68, 0.3)',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '12px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Trash2 size={16} style={{ color: '#ef4444' }} />
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#991b1b' }}>
+                            Deleted Pages ({deletedOrganizePages.length}):
+                          </span>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            {deletedOrganizePages.map((dp) => (
+                              <button
+                                key={dp.id}
+                                type="button"
+                                onClick={() => restoreOrganizePage(dp)}
+                                title="Click to restore this page"
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#ffffff',
+                                  color: '#ef4444',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <Undo2 size={11} /> Page {dp.originalPageNum}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={restoreAllDeletedPages}
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            color: '#059669',
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            textDecoration: 'underline'
+                          }}
+                        >
+                          Restore All Pages
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
             ) : (
               <div className="file-list-container" style={{ marginBottom: '24px' }}>
                 {files.map((file, idx) => (
@@ -2299,14 +3656,14 @@ startxref
               {tool.id.includes('rotate') && (
                 <div>
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '12px' }}>
-                    Choose the rotation angle for all pages:
+                    Quick rotation presets for all pages:
                   </p>
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                     {[90, 180, 270].map((deg) => (
                       <button 
                         key={deg}
                         type="button"
-                        onClick={() => setRotateAngle(deg)}
+                        onClick={() => applyGlobalAngle(deg)}
                         style={{ 
                           padding: '10px 20px', borderRadius: '8px', 
                           border: '1px solid var(--border-light)',
@@ -2316,9 +3673,23 @@ startxref
                           display: 'flex', alignItems: 'center', gap: '6px'
                         }}
                       >
-                        <RotateCw size={16} /> Rotate {deg}°
+                        <RotateCw size={16} /> Rotate All {deg}°
                       </button>
                     ))}
+                    <button 
+                      type="button"
+                      onClick={resetAllRotations}
+                      style={{ 
+                        padding: '10px 20px', borderRadius: '8px', 
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-light)',
+                        color: 'var(--text-gray)',
+                        fontWeight: '700', fontSize: '14px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '6px'
+                      }}
+                    >
+                      <RefreshCw size={16} /> Reset All
+                    </button>
                   </div>
                 </div>
               )}
@@ -2346,24 +3717,110 @@ startxref
 
               {/* Protect PDF controls */}
               {tool.id.includes('protect') && (
-                <div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
-                    Set password encryption for your PDF document:
+                <div style={{ maxWidth: '600px' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '12px' }}>
+                    Set a secure password to encrypt and protect your PDF document:
                   </p>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input 
-                      type="password" 
-                      value={protectPassword} 
-                      onChange={(e) => setProtectPassword(e.target.value)}
-                      placeholder="Set Password..." 
-                      style={{ 
-                        padding: '10px 14px', borderRadius: '8px', 
-                        border: '1px solid var(--border-light)', fontSize: '14px', 
-                        width: '220px', fontWeight: '600',
-                        backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
-                      }}
-                    />
-                    <span style={{ fontSize: '12px', color: 'var(--text-gray)' }}>256-bit AES Standard Encryption</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px', marginBottom: '12px' }}>
+                    {/* Password input */}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', display: 'block', marginBottom: '6px' }}>
+                        Choose Password
+                      </label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input 
+                          type={showProtectPassword ? "text" : "password"} 
+                          value={protectPassword} 
+                          onChange={(e) => setProtectPassword(e.target.value)}
+                          placeholder="Enter secure password..." 
+                          style={{ 
+                            padding: '10px 42px 10px 14px', borderRadius: '8px', 
+                            border: '1px solid var(--border-light)', fontSize: '14px', 
+                            width: '100%', fontWeight: '600',
+                            backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowProtectPassword(!showProtectPassword)}
+                          title={showProtectPassword ? "Hide password" : "Show password"}
+                          style={{
+                            position: 'absolute', right: '10px',
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--text-gray)', padding: '4px',
+                            display: 'flex', alignItems: 'center'
+                          }}
+                        >
+                          {showProtectPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Confirm Password input */}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', display: 'block', marginBottom: '6px' }}>
+                        Confirm Password
+                      </label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input 
+                          type={showConfirmPassword ? "text" : "password"} 
+                          value={confirmProtectPassword} 
+                          onChange={(e) => setConfirmProtectPassword(e.target.value)}
+                          placeholder="Re-type password..." 
+                          style={{ 
+                            padding: '10px 42px 10px 14px', borderRadius: '8px', 
+                            border: `1px solid ${
+                              !confirmProtectPassword 
+                                ? 'var(--border-light)' 
+                                : protectPassword === confirmProtectPassword 
+                                  ? '#10b981' 
+                                  : '#ef4444'
+                            }`, 
+                            fontSize: '14px', 
+                            width: '100%', fontWeight: '600',
+                            backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          title={showConfirmPassword ? "Hide password" : "Show password"}
+                          style={{
+                            position: 'absolute', right: '10px',
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--text-gray)', padding: '4px',
+                            display: 'flex', alignItems: 'center'
+                          }}
+                        >
+                          {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status / Match indicator */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ fontSize: '12px' }}>
+                      {protectPassword && confirmProtectPassword ? (
+                        protectPassword === confirmProtectPassword ? (
+                          <span style={{ color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            ✓ Passwords match
+                          </span>
+                        ) : (
+                          <span style={{ color: '#ef4444', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            ⚠️ Passwords do not match
+                          </span>
+                        )
+                      ) : (
+                        <span style={{ color: 'var(--text-gray)' }}>
+                          Please enter and confirm your password
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <ShieldCheck size={16} style={{ color: 'var(--primary-red)' }} />
+                      Military-Grade 256-bit AES Encryption
+                    </span>
                   </div>
                 </div>
               )}
@@ -2372,20 +3829,40 @@ startxref
               {tool.id.includes('unlock') && (
                 <div>
                   <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
-                    Enter current password (if encrypted) or proceed to unlock:
+                    Enter current document password to remove encryption:
                   </p>
-                  <input 
-                    type="password" 
-                    value={unlockPassword} 
-                    onChange={(e) => setUnlockPassword(e.target.value)}
-                    placeholder="Password..." 
-                    style={{ 
-                      padding: '10px 14px', borderRadius: '8px', 
-                      border: '1px solid var(--border-light)', fontSize: '14px', 
-                      width: '220px', fontWeight: '600',
-                      backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
-                    }}
-                  />
+                  <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                      <input 
+                        type={showUnlockPassword ? "text" : "password"} 
+                        value={unlockPassword} 
+                        onChange={(e) => setUnlockPassword(e.target.value)}
+                        placeholder="Current document password..." 
+                        style={{ 
+                          padding: '10px 42px 10px 14px', borderRadius: '8px', 
+                          border: '1px solid var(--border-light)', fontSize: '14px', 
+                          width: '260px', fontWeight: '600',
+                          backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowUnlockPassword(!showUnlockPassword)}
+                        title={showUnlockPassword ? "Hide password" : "Show password"}
+                        style={{
+                          position: 'absolute', right: '10px',
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: 'var(--text-gray)', padding: '4px',
+                          display: 'flex', alignItems: 'center'
+                        }}
+                      >
+                        {showUnlockPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-gray)' }}>
+                      Removes password restrictions and outputs unlocked PDF
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -2422,31 +3899,269 @@ startxref
 
               {/* Page Numbers controls */}
               {tool.id.includes('pagenumber') && (
-                <div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
-                    Page number position on document:
-                  </p>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    {[
-                      { id: 'bottom-center', label: 'Bottom Center' },
-                      { id: 'bottom-right', label: 'Bottom Right' },
-                      { id: 'top-right', label: 'Top Right' }
-                    ].map((pos) => (
-                      <button 
-                        key={pos.id}
-                        type="button"
-                        onClick={() => setPageNumberPosition(pos.id)}
-                        style={{ 
-                          padding: '8px 16px', borderRadius: '8px', 
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: pageNumberPosition === pos.id ? 'var(--primary-red)' : 'var(--bg-light)',
-                          color: pageNumberPosition === pos.id ? '#fff' : 'var(--text-dark)',
-                          fontWeight: '600', fontSize: '13px', cursor: 'pointer'
-                        }}
-                      >
-                        {pos.label}
-                      </button>
-                    ))}
+                <div style={{ width: '100%', maxWidth: '820px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Top: 2-column layout (Left: Interactive Visual Page Mockup, Right: Position & Format selectors) */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(220px, 260px) 1fr',
+                    gap: '24px',
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1.5px solid var(--border-light)',
+                    borderRadius: '16px',
+                    padding: '22px',
+                    boxShadow: 'var(--shadow-sm)'
+                  }}>
+                    {/* Left: Interactive Visual Page Mockup with 6 placement hotspots */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px' }}>
+                        Click to Position on Page
+                      </span>
+                      <div style={{
+                        width: '180px',
+                        height: '254px',
+                        backgroundColor: '#ffffff',
+                        border: '2px solid #cbd5e1',
+                        borderRadius: '8px',
+                        boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                        position: 'relative',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxSizing: 'border-box'
+                      }}>
+                        {/* Top row hotspots */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', zIndex: 2 }}>
+                          {['top-left', 'top-center', 'top-right'].map(posId => (
+                            <button
+                              key={posId}
+                              type="button"
+                              onClick={() => setPageNumberPosition(posId)}
+                              title={`Position: ${posId.replace('-', ' ')}`}
+                              style={{
+                                width: pageNumberPosition === posId ? 'auto' : '32px',
+                                minWidth: '32px',
+                                height: '26px',
+                                padding: pageNumberPosition === posId ? '0 6px' : '0',
+                                borderRadius: '4px',
+                                border: pageNumberPosition === posId ? '2px solid #e52424' : '1px dashed #94a3b8',
+                                backgroundColor: pageNumberPosition === posId ? '#e52424' : 'rgba(241, 245, 249, 0.8)',
+                                color: pageNumberPosition === posId ? '#ffffff' : '#64748b',
+                                fontSize: '10px',
+                                fontWeight: '800',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {pageNumberPosition === posId ? (
+                                pageNumberFormat === 'page-of-total' ? 'P.1' : '1'
+                              ) : (
+                                ''
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Faint document lines representing text */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '0 8px', opacity: 0.25 }}>
+                          <div style={{ width: '45%', height: '8px', backgroundColor: '#475569', borderRadius: '3px' }} />
+                          <div style={{ width: '100%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                          <div style={{ width: '92%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                          <div style={{ width: '85%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                          <div style={{ width: '96%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                          <div style={{ width: '70%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                          <div style={{ width: '100%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                          <div style={{ width: '88%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                          <div style={{ width: '60%', height: '5px', backgroundColor: '#94a3b8', borderRadius: '2px' }} />
+                        </div>
+
+                        {/* Bottom row hotspots */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', zIndex: 2 }}>
+                          {['bottom-left', 'bottom-center', 'bottom-right'].map(posId => (
+                            <button
+                              key={posId}
+                              type="button"
+                              onClick={() => setPageNumberPosition(posId)}
+                              title={`Position: ${posId.replace('-', ' ')}`}
+                              style={{
+                                width: pageNumberPosition === posId ? 'auto' : '32px',
+                                minWidth: '32px',
+                                height: '26px',
+                                padding: pageNumberPosition === posId ? '0 6px' : '0',
+                                borderRadius: '4px',
+                                border: pageNumberPosition === posId ? '2px solid #e52424' : '1px dashed #94a3b8',
+                                backgroundColor: pageNumberPosition === posId ? '#e52424' : 'rgba(241, 245, 249, 0.8)',
+                                color: pageNumberPosition === posId ? '#ffffff' : '#64748b',
+                                fontSize: '10px',
+                                fontWeight: '800',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {pageNumberPosition === posId ? (
+                                pageNumberFormat === 'page-of-total' ? 'P.1' : '1'
+                              ) : (
+                                ''
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--text-gray)', marginTop: '8px' }}>
+                        Active: <strong style={{ color: 'var(--primary-red)' }}>{pageNumberPosition.replace('-', ' ').toUpperCase()}</strong>
+                      </span>
+                    </div>
+
+                    {/* Right: Format, Quick Position buttons, and Numbering options */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {/* Numbering Format */}
+                      <div>
+                        <label style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px', display: 'block' }}>
+                          Numbering Format:
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                          {[
+                            { id: 'page-of-total', label: 'Page 1 of 12' },
+                            { id: 'n-of-total', label: '1 of 12' },
+                            { id: 'page-n', label: 'Page 1' },
+                            { id: 'n', label: '1' },
+                            { id: '-n-', label: '- 1 -' },
+                            { id: 'bracket', label: '[1]' }
+                          ].map(fmt => (
+                            <button
+                              key={fmt.id}
+                              type="button"
+                              onClick={() => setPageNumberFormat(fmt.id)}
+                              style={{
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                border: pageNumberFormat === fmt.id ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+                                backgroundColor: pageNumberFormat === fmt.id ? 'rgba(229, 36, 36, 0.08)' : 'var(--bg-light)',
+                                color: pageNumberFormat === fmt.id ? 'var(--primary-red)' : 'var(--text-dark)',
+                                fontWeight: pageNumberFormat === fmt.id ? '800' : '600',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {fmt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Position Quick Selection Pills */}
+                      <div>
+                        <label style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px', display: 'block' }}>
+                          Placement:
+                        </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {[
+                            { id: 'bottom-center', label: 'Bottom Center' },
+                            { id: 'bottom-right', label: 'Bottom Right' },
+                            { id: 'bottom-left', label: 'Bottom Left' },
+                            { id: 'top-right', label: 'Top Right' },
+                            { id: 'top-center', label: 'Top Center' },
+                            { id: 'top-left', label: 'Top Left' }
+                          ].map(pos => (
+                            <button
+                              key={pos.id}
+                              type="button"
+                              onClick={() => setPageNumberPosition(pos.id)}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                border: pageNumberPosition === pos.id ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+                                backgroundColor: pageNumberPosition === pos.id ? 'var(--primary-red)' : 'var(--bg-light)',
+                                color: pageNumberPosition === pos.id ? '#ffffff' : 'var(--text-dark)',
+                                fontSize: '12px',
+                                fontWeight: pageNumberPosition === pos.id ? '700' : '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              {pos.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Checkboxes: Skip Cover Page & Contrast Badge */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '600' }}>
+                          <input
+                            type="checkbox"
+                            checked={pageNumberSkipFirst}
+                            onChange={(e) => setPageNumberSkipFirst(e.target.checked)}
+                            style={{ accentColor: 'var(--primary-red)', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          Do not number first page (Cover Page)
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '600' }}>
+                          <input
+                            type="checkbox"
+                            checked={pageNumberBadge}
+                            onChange={(e) => setPageNumberBadge(e.target.checked)}
+                            style={{ accentColor: 'var(--primary-red)', width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          Add contrast pill background (Ensures page numbers stay visible over images & dark footers)
+                        </label>
+                      </div>
+
+                      {/* Start number & font size & margin row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', paddingTop: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '600' }}>Start at:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="9999"
+                            value={pageNumberStart}
+                            onChange={(e) => setPageNumberStart(e.target.value)}
+                            style={{
+                              width: '65px',
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '12px',
+                              fontWeight: '700'
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '600' }}>Font size:</span>
+                          <select
+                            value={pageNumberFontSize}
+                            onChange={(e) => setPageNumberFontSize(e.target.value)}
+                            style={{
+                              padding: '5px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value="8">Small (8pt)</option>
+                            <option value="10">Normal (10pt)</option>
+                            <option value="12">Large (12pt)</option>
+                            <option value="14">Extra Large (14pt)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2521,22 +4236,119 @@ startxref
 
               {/* HTML to PDF controls */}
               {tool.id.includes('htmltopdf') && (
-                <div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '10px' }}>
-                    Website URL or HTML source code to convert:
-                  </p>
-                  <input 
-                    type="text" 
-                    value={htmlInputUrl} 
-                    onChange={(e) => setHtmlInputUrl(e.target.value)}
-                    placeholder="https://..." 
-                    style={{ 
-                      padding: '10px 14px', borderRadius: '8px', 
-                      border: '1px solid var(--border-light)', fontSize: '14px', 
-                      width: '100%', maxWidth: '400px', fontWeight: '600',
-                      backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
-                    }}
-                  />
+                <div style={{ width: '100%', maxWidth: '780px' }}>
+                  {/* Top Bar for Code / Live Preview toggle & orientation */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '14px',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setHtmlActiveTab('code')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '7px 16px',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: htmlActiveTab === 'code' ? 'var(--primary-red)' : 'var(--bg-card)',
+                          color: htmlActiveTab === 'code' ? '#ffffff' : 'var(--text-dark)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Code size={15} /> HTML Source Code
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHtmlActiveTab('preview')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '7px 16px',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: htmlActiveTab === 'preview' ? 'var(--primary-red)' : 'var(--bg-card)',
+                          color: htmlActiveTab === 'preview' ? '#ffffff' : 'var(--text-dark)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Eye size={15} /> Live Webpage Preview
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>Page Layout:</span>
+                      <select
+                        value={htmlOrientation}
+                        onChange={(e) => setHtmlOrientation(e.target.value)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-light)',
+                          color: 'var(--text-dark)',
+                          fontSize: '13px',
+                          fontWeight: '700',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="portrait">Portrait (A4)</option>
+                        <option value="landscape">Landscape (A4)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {htmlActiveTab === 'code' ? (
+                    <div>
+                      <textarea
+                        value={pastedHtmlContent}
+                        onChange={(e) => setPastedHtmlContent(e.target.value)}
+                        placeholder="Paste or edit HTML source code here..."
+                        rows={12}
+                        style={{
+                          width: '100%',
+                          fontFamily: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                          fontSize: '13px',
+                          lineHeight: '1.5',
+                          padding: '14px',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-light)',
+                          color: 'var(--text-dark)',
+                          boxSizing: 'border-box',
+                          resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: '100%',
+                      height: '320px',
+                      borderRadius: '10px',
+                      border: '1.5px solid var(--border-light)',
+                      overflow: 'hidden',
+                      backgroundColor: '#ffffff',
+                      boxShadow: 'var(--shadow-sm)'
+                    }}>
+                      <iframe
+                        srcDoc={pastedHtmlContent || '<div style="padding:40px;font-family:sans-serif;color:#64748b;text-align:center;">No HTML content available to preview yet. Switch to "HTML Source Code" to paste or write HTML.</div>'}
+                        title="HTML Live Preview"
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        sandbox="allow-same-origin"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2566,22 +4378,53 @@ startxref
 
               {/* Organize PDF controls */}
               {tool.id.includes('organize') && (
-                <div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '8px' }}>
-                    Page order or deletion (e.g. "3,1,2" or "reverse" or "delete:2"):
-                  </p>
-                  <input 
-                    type="text" 
-                    value={organizePageOrder} 
-                    onChange={(e) => setOrganizePageOrder(e.target.value)}
-                    placeholder="e.g. 1, 2, 3 or reverse" 
-                    style={{ 
-                      padding: '10px 14px', borderRadius: '8px', 
-                      border: '1px solid var(--border-light)', fontSize: '14px', 
-                      width: '100%', maxWidth: '320px', fontWeight: '600',
-                      backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
-                    }}
-                  />
+                <div style={{ width: '100%', maxWidth: '780px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '12px',
+                    padding: '12px 18px',
+                    backgroundColor: 'var(--bg-card)',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Layers size={18} style={{ color: '#EE6C4D' }} />
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                        Active Export Sequence ({organizePdfPages.length} pages):
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: '800', color: 'var(--primary-red)' }}>
+                        {organizePageOrder || 'None'}
+                      </span>
+                    </div>
+                    {deletedOrganizePages.length > 0 && (
+                      <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: '700', backgroundColor: 'rgba(239, 68, 68, 0.08)', padding: '3px 10px', borderRadius: '6px' }}>
+                        {deletedOrganizePages.length} page{deletedOrganizePages.length === 1 ? '' : 's'} removed
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '600' }}>
+                      Page order string:
+                    </span>
+                    <input 
+                      type="text" 
+                      value={organizePageOrder} 
+                      onChange={(e) => setOrganizePageOrder(e.target.value)}
+                      placeholder="e.g. 1, 3, 2" 
+                      style={{ 
+                        padding: '6px 12px', borderRadius: '6px', 
+                        border: '1px solid var(--border-light)', fontSize: '13px', 
+                        width: '160px', fontWeight: '700',
+                        backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                      }}
+                    />
+                    <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>
+                      (Synchronized with your visual drag, move, and delete actions above)
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -2743,6 +4586,7 @@ startxref
             onDownload={downloadMockFile}
             onStartOver={resetWorkspace}
             onBack={onBack}
+            onReorganize={tool.id.includes('organize') ? () => setStatus('queued') : undefined}
           />
         )}
       </div>
