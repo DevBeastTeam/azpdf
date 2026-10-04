@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Zap, Shield, Sparkles, Building2, HelpCircle } from 'lucide-react';
+import { Check, Zap, Shield, Sparkles, HelpCircle, Star } from 'lucide-react';
 
 export default function Pricing({ onContactSales, onGetStarted, onGoPremium, siteContent }) {
   const [isYearly, setIsYearly] = useState(true);
@@ -306,7 +306,7 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
             </button>
           </div>
 
-          {/* Card 3: Business Plan */}
+          {/* Card 3: Basic Plan */}
           <div style={{
             backgroundColor: 'var(--bg-card)',
             border: '1px solid var(--border-light)',
@@ -320,61 +320,61 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
           }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                <div style={{ padding: '8px', backgroundColor: '#eff6ff', borderRadius: '10px' }}>
-                  <Building2 size={20} color="#2563eb" />
+                <div style={{ padding: '8px', backgroundColor: '#f0fdf4', borderRadius: '10px' }}>
+                  <Star size={20} color="#16a34a" />
                 </div>
-                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>{siteContent?.businessPlanTitle || 'Business'}</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)' }}>{siteContent?.basicPlanTitle || 'Basic'}</h3>
               </div>
 
               <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '24px', minHeight: '40px' }}>
-                {siteContent?.businessPlanDesc || 'Custom workflow tools and team license management.'}
+                {siteContent?.basicPlanDesc || 'Higher limits, faster processing, and no daily file caps.'}
               </p>
 
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '28px' }}>
                 <span style={{ fontSize: '42px', fontWeight: '800', color: 'var(--text-dark)' }}>
-                  ${isYearly ? '8' : '10'}
+                  ${isYearly ? '3' : '4'}
                 </span>
-                <span style={{ fontSize: '14px', color: 'var(--text-light-gray)' }}>/ user / mo</span>
+                <span style={{ fontSize: '14px', color: 'var(--text-light-gray)' }}>/ month</span>
               </div>
 
               <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', marginBottom: '24px' }} />
 
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
-                  <Check size={18} color="#2563eb" /> Everything in Premium
+                  <Check size={18} color="#16a34a" /> Unlimited file conversions
                 </li>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
-                  <Check size={18} color="#2563eb" /> Multi-user team management
+                  <Check size={18} color="#16a34a" /> Up to 500 MB file size limit
                 </li>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
-                  <Check size={18} color="#2563eb" /> Single Sign-On (SAML SSO)
+                  <Check size={18} color="#16a34a" /> Batch process up to 20 files
                 </li>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
-                  <Check size={18} color="#2563eb" /> Dedicated account manager
+                  <Check size={18} color="#16a34a" /> Standard OCR text recognition
                 </li>
                 <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: 'var(--text-gray)' }}>
-                  <Check size={18} color="#2563eb" /> 24/7 VIP priority support
+                  <Check size={18} color="#16a34a" /> Ad-free experience
                 </li>
               </ul>
             </div>
 
             <button 
-              onClick={onContactSales}
+              onClick={handleGoPremium}
               style={{
                 marginTop: '36px',
                 padding: '14px',
                 width: '100%',
                 borderRadius: '12px',
-                border: '1px solid var(--border-light)',
+                border: '1.5px solid #16a34a',
                 backgroundColor: 'var(--bg-card)',
-                color: 'var(--text-gray)',
+                color: '#16a34a',
                 fontWeight: '700',
                 fontSize: '15px',
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
             >
-              Contact Sales
+              Get Basic Plan
             </button>
           </div>
 

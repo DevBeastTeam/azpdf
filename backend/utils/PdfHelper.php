@@ -601,4 +601,350 @@ with open(out_f, "wb") as f: w.write(f);
         }
         return '';
     }
+
+    public static function cropPdf(string $inputFile, string $outputFile, float $top, float $bottom, float $left, float $right, string $scope = 'all'): bool {
+        if (!file_exists($inputFile) || filesize($inputFile) < 10) return false;
+        
+        $top = max(0, min($top, 250));
+        $bottom = max(0, min($bottom, 250));
+        $left = max(0, min($left, 250));
+        $right = max(0, min($right, 250));
+
+        // 1. Try Python3 with pypdf (Lossless, perfect precision for all PDF versions)
+        $pyCode = 'import sys; from pypdf import PdfReader, PdfWriter;
+in_f, out_f = sys.argv[1], sys.argv[2];
+top, bottom, left, right = float(sys.argv[3]), float(sys.argv[4]), float(sys.argv[5]), float(sys.argv[6]);
+scope = sys.argv[7] if len(sys.argv) > 7 else "all";
+r = PdfReader(in_f);
+w = PdfWriter();
+for idx, p in enumerate(r.pages):
+    if scope == "first" and idx > 0:
+        w.add_page(p);
+        continue;
+    w_pt = float(p.mediabox.width);
+    h_pt = float(p.mediabox.height);
+    eff_l = min(left, max(0.0, (w_pt - 20.0) / 2.0));
+    eff_r = min(right, max(0.0, (w_pt - 20.0) / 2.0));
+    eff_t = min(top, max(0.0, (h_pt - 20.0) / 2.0));
+    eff_b = min(bottom, max(0.0, (h_pt - 20.0) / 2.0));
+    p.mediabox.left += eff_l;
+    p.mediabox.bottom += eff_b;
+    p.mediabox.right -= eff_r;
+    p.mediabox.top -= eff_t;
+    p.cropbox.left = p.mediabox.left;
+    p.cropbox.bottom = p.mediabox.bottom;
+    p.cropbox.right = p.mediabox.right;
+    p.cropbox.top = p.mediabox.top;
+    w.add_page(p);
+with open(out_f, "wb") as f: w.write(f);
+';
+        $cmd = 'python3 -c ' . escapeshellarg($pyCode) . ' '
+            . escapeshellarg($inputFile) . ' '
+            . escapeshellarg($outputFile) . ' '
+            . escapeshellarg((string) $top) . ' '
+            . escapeshellarg((string) $bottom) . ' '
+            . escapeshellarg((string) $left) . ' '
+            . escapeshellarg((string) $right) . ' '
+            . escapeshellarg($scope) . ' 2>&1';
+        
+        exec($cmd, $out, $code);
+        if ($code === 0 && file_exists($outputFile) && filesize($outputFile) > 50) {
+            return true;
+        }
+
+        // 2. Fallback to Ghostscript normalization + FPDI
+        try {
+            $repaired = tempnam('/tmp', 'crop_norm_') . '.pdf';
+            $gsArgs = [
+                '-sDEVICE=pdfwrite',
+                '-dCompatibilityLevel=1.4',
+                '-dNOPAUSE',
+                '-dQUIET',
+                '-dBATCH',
+                "-sOutputFile={$repaired}",
+                $inputFile
+            ];
+            $hasNorm = self::runGhostscript($gsArgs) && file_exists($repaired) && filesize($repaired) > 0;
+            $src = $hasNorm ? $repaired : $inputFile;
+
+            $pdf = self::createPdf();
+            $pageCount = $pdf->setSourceFile($src);
+            for ($p = 1; $p <= $pageCount; $p++) {
+                $tpl = $pdf->importPage($p);
+                $size = $pdf->getTemplateSize($tpl);
+                $cw = $size['width'];
+                $ch = $size['height'];
+                if ($scope === 'first' && $p > 1) {
+                    $pdf->AddPage(($cw >= $ch) ? 'L' : 'P', [$cw, $ch]);
+                    $pdf->useTemplate($tpl);
+                } else {
+                    $effLeft = min($left, max(0.0, ($cw - 20) / 2));
+                    $effRight = min($right, max(0.0, ($cw - 20) / 2));
+                    $effTop = min($top, max(0.0, ($ch - 20) / 2));
+                    $effBottom = min($bottom, max(0.0, ($ch - 20) / 2));
+                    $newW = max(20, $cw - ($effLeft + $effRight));
+                    $newH = max(20, $ch - ($effTop + $effBottom));
+                    $orientation = ($newW >= $newH) ? 'L' : 'P';
+                    $pdf->AddPage($orientation, [$newW, $newH]);
+                    $pdf->useTemplate($tpl, -$effLeft, -$effTop, $cw, $ch);
+                }
+            }
+            $pdf->Output('F', $outputFile);
+            if ($hasNorm) @unlink($repaired);
+            return file_exists($outputFile) && filesize($outputFile) > 50;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    public static function generatePdfForm(string $inputFile, string $outputFile, array $options = []): bool {
+        if (!file_exists($inputFile) || filesize($inputFile) < 10) return false;
+
+        $preset = $options['preset'] ?? 'contact';
+        $placement = $options['placement'] ?? 'append';
+        $title = !empty($options['title']) ? $options['title'] : 'Fillable Form Document';
+        $incSig = $options['includeSignature'] ?? true;
+        $incCb = $options['includeCheckbox'] ?? true;
+        $incDate = $options['includeDate'] ?? true;
+        $incEmail = $options['includeEmail'] ?? true;
+        $incPhone = $options['includePhone'] ?? true;
+
+        try {
+            $repaired = tempnam('/tmp', 'form_norm_') . '.pdf';
+            $gsArgs = [
+                '-sDEVICE=pdfwrite',
+                '-dCompatibilityLevel=1.4',
+                '-dNOPAUSE',
+                '-dQUIET',
+                '-dBATCH',
+                "-sOutputFile={$repaired}",
+                $inputFile
+            ];
+            $hasNorm = self::runGhostscript($gsArgs) && file_exists($repaired) && filesize($repaired) > 0;
+            $src = $hasNorm ? $repaired : $inputFile;
+
+            $pdf = self::createPdf();
+            $pageCount = $pdf->setSourceFile($src);
+
+            if ($placement === 'overlay_first') {
+                for ($p = 1; $p <= $pageCount; $p++) {
+                    $tpl = $pdf->importPage($p);
+                    $size = $pdf->getTemplateSize($tpl);
+                    $pdf->AddPage(($size['width'] >= $size['height']) ? 'L' : 'P', [$size['width'], $size['height']]);
+                    $pdf->useTemplate($tpl);
+                    if ($p === 1) {
+                        self::renderFormBlock($pdf, $title, $preset, $incSig, $incCb, $incDate, $incEmail, $incPhone, 15, max(15, $size['height'] - 80), $size['width'] - 30);
+                    }
+                }
+            } elseif ($placement === 'overlay_last') {
+                for ($p = 1; $p <= $pageCount; $p++) {
+                    $tpl = $pdf->importPage($p);
+                    $size = $pdf->getTemplateSize($tpl);
+                    $pdf->AddPage(($size['width'] >= $size['height']) ? 'L' : 'P', [$size['width'], $size['height']]);
+                    $pdf->useTemplate($tpl);
+                    if ($p === $pageCount) {
+                        self::renderFormBlock($pdf, $title, $preset, $incSig, $incCb, $incDate, $incEmail, $incPhone, 15, max(15, $size['height'] - 80), $size['width'] - 30);
+                    }
+                }
+            } else {
+                // Default: 'append' as a dedicated pristine form sheet
+                for ($p = 1; $p <= $pageCount; $p++) {
+                    $tpl = $pdf->importPage($p);
+                    $size = $pdf->getTemplateSize($tpl);
+                    $pdf->AddPage(($size['width'] >= $size['height']) ? 'L' : 'P', [$size['width'], $size['height']]);
+                    $pdf->useTemplate($tpl);
+                }
+
+                // Add dedicated full-page form sheet
+                $pdf->AddPage('P', 'A4');
+                self::renderDedicatedFormPage($pdf, $title, $preset, $incSig, $incCb, $incDate, $incEmail, $incPhone);
+            }
+
+            $pdf->Output('F', $outputFile);
+            if ($hasNorm) @unlink($repaired);
+            return file_exists($outputFile) && filesize($outputFile) > 50;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    public static function renderDedicatedFormPage($pdf, string $title, string $preset, bool $incSig, bool $incCb, bool $incDate, bool $incEmail, bool $incPhone): void {
+        $pdf->SetAutoPageBreak(false);
+        $w = 210;
+        
+        // Header Banner
+        $pdf->SetFillColor(248, 250, 252);
+        $pdf->Rect(0, 0, $w, 36, 'F');
+        
+        $pdf->SetFillColor(229, 36, 36);
+        $pdf->Rect(0, 36, $w, 2, 'F');
+
+        $pdf->SetXY(20, 10);
+        $pdf->SetFont('Helvetica', 'B', 15);
+        $pdf->SetTextColor(30, 41, 59);
+        $safeTitle = iconv('UTF-8', 'windows-1252//TRANSLIT', $title) ?: 'Fillable Information & Form Fields';
+        $pdf->Cell(170, 8, $safeTitle, 0, 1, 'L');
+
+        $pdf->SetXY(20, 19);
+        $pdf->SetFont('Helvetica', '', 8.5);
+        $pdf->SetTextColor(100, 116, 139);
+        $subtitle = 'Please fill out the information fields below accurately. Retain a signed copy for your documentation.';
+        $pdf->Cell(170, 6, $subtitle, 0, 1, 'L');
+
+        $y = 48;
+
+        // Build list of fields based on preset & flags
+        $fields = [];
+        if ($preset === 'approval') {
+            $fields[] = ['Approver Full Name', 'e.g. John Doe, Lead Auditor'];
+            $fields[] = ['Department / Division', 'e.g. Operations & Compliance'];
+            if ($incEmail) $fields[] = ['Official Email', 'name@organization.com'];
+            if ($incDate) $fields[] = ['Approval Date', 'YYYY-MM-DD'];
+            $fields[] = ['Reference Code / PO #', 'Optional internal identifier'];
+        } elseif ($preset === 'agreement') {
+            $fields[] = ['Authorized Representative', 'Full legal name'];
+            $fields[] = ['Company / Entity Name', 'Registered legal entity'];
+            if ($incEmail) $fields[] = ['Business Email', 'partner@domain.com'];
+            if ($incPhone) $fields[] = ['Telephone Number', '+1 (555) 000-0000'];
+            if ($incDate) $fields[] = ['Effective Date', 'YYYY-MM-DD'];
+        } else {
+            // Default contact / registration
+            $fields[] = ['Full Name', 'Enter applicant / recipient legal name'];
+            if ($incEmail) $fields[] = ['Email Address', 'user@example.com'];
+            if ($incPhone) $fields[] = ['Phone Number', '+1 (555) 000-0000'];
+            $fields[] = ['Company / Organization', 'Company or Institute'];
+            if ($incDate) $fields[] = ['Submission Date', 'YYYY-MM-DD'];
+        }
+
+        foreach ($fields as $f) {
+            [$label, $placeholder] = $f;
+            $pdf->SetFont('Helvetica', 'B', 8.5);
+            $pdf->SetTextColor(51, 65, 85);
+            $pdf->SetXY(20, $y);
+            $pdf->Cell(170, 5, $label, 0, 1);
+            $y += 5.5;
+
+            // Box for field input
+            $pdf->SetFillColor(255, 255, 255);
+            $pdf->SetDrawColor(203, 213, 225);
+            $pdf->SetLineWidth(0.3);
+            $pdf->Rect(20, $y, 170, 9, 'DF');
+
+            // Placeholder hint in light gray
+            $pdf->SetFont('Helvetica', 'I', 7.5);
+            $pdf->SetTextColor(160, 174, 192);
+            $pdf->SetXY(23, $y + 1.8);
+            $pdf->Cell(164, 5, $placeholder, 0, 0);
+
+            $y += 13;
+        }
+
+        // Checkbox Section
+        if ($incCb) {
+            $y += 2;
+            $pdf->SetFillColor(255, 255, 255);
+            $pdf->SetDrawColor(148, 163, 184);
+            $pdf->SetLineWidth(0.4);
+            $pdf->Rect(20, $y + 0.5, 4.5, 4.5, 'D');
+
+            $pdf->SetFont('Helvetica', '', 8);
+            $pdf->SetTextColor(71, 85, 105);
+            $pdf->SetXY(27, $y);
+            $cbText = ($preset === 'approval') 
+                ? 'I have reviewed the attached document and confirm this submission is formally approved.'
+                : 'I hereby confirm that the information provided in this document is authentic and accurate.';
+            $pdf->MultiCell(163, 4.5, $cbText, 0, 'L');
+            $y += 12;
+        }
+
+        // Signature and Date Box
+        if ($incSig && $y < 235) {
+            $y += 4;
+            $pdf->SetFillColor(250, 250, 252);
+            $pdf->SetDrawColor(226, 232, 240);
+            $pdf->SetLineWidth(0.4);
+            $pdf->Rect(20, $y, 170, 34, 'DF');
+
+            $pdf->SetDrawColor(229, 36, 36);
+            $pdf->SetLineWidth(0.8);
+            $pdf->Line(20, $y, 20, $y + 34);
+
+            $pdf->SetFont('Helvetica', 'B', 8.5);
+            $pdf->SetTextColor(30, 41, 59);
+            $pdf->SetXY(25, $y + 4);
+            $pdf->Cell(80, 5, 'Authorized Signature', 0, 0);
+            $pdf->SetXY(115, $y + 4);
+            $pdf->Cell(70, 5, 'Date Signed', 0, 1);
+
+            $pdf->SetDrawColor(180, 190, 205);
+            $pdf->SetLineWidth(0.3);
+            $pdf->Line(25, $y + 24, 105, $y + 24);
+            $pdf->Line(115, $y + 24, 185, $y + 24);
+
+            $pdf->SetFont('Helvetica', 'I', 7);
+            $pdf->SetTextColor(148, 163, 184);
+            $pdf->SetXY(25, $y + 26);
+            $pdf->Cell(80, 4, 'Sign above the line (digital or physical sign-off)', 0, 0);
+            $pdf->SetXY(115, $y + 26);
+            $pdf->Cell(70, 4, 'YYYY-MM-DD', 0, 0);
+        }
+    }
+
+    public static function renderFormBlock($pdf, string $title, string $preset, bool $incSig, bool $incCb, bool $incDate, bool $incEmail, bool $incPhone, float $x, float $y, float $width): void {
+        $pdf->SetFillColor(255, 255, 255);
+        $pdf->SetDrawColor(220, 226, 235);
+        $pdf->SetLineWidth(0.4);
+        $cardH = 65;
+        $pdf->Rect($x, $y, $width, $cardH, 'DF');
+
+        // Top accent
+        $pdf->SetFillColor(229, 36, 36);
+        $pdf->Rect($x, $y, $width, 1.5, 'F');
+
+        $pdf->SetXY($x + 5, $y + 4);
+        $pdf->SetFont('Helvetica', 'B', 10);
+        $pdf->SetTextColor(30, 41, 59);
+        $safeTitle = iconv('UTF-8', 'windows-1252//TRANSLIT', $title) ?: 'Fillable Information & Form Fields';
+        $pdf->Cell($width - 10, 5, $safeTitle, 0, 1);
+
+        $colW = ($width - 15) / 2;
+        $curY = $y + 12;
+
+        $pdf->SetFont('Helvetica', 'B', 7.5);
+        $pdf->SetTextColor(71, 85, 105);
+
+        // Row 1
+        $pdf->SetXY($x + 5, $curY);
+        $pdf->Cell($colW, 4, 'Full Name:', 0, 0);
+        $pdf->SetDrawColor(203, 213, 225);
+        $pdf->Line($x + 24, $curY + 3.5, $x + 5 + $colW, $curY + 3.5);
+
+        $pdf->SetXY($x + 10 + $colW, $curY);
+        $pdf->Cell($colW, 4, 'Email / Phone:', 0, 0);
+        $pdf->Line($x + 10 + $colW + 24, $curY + 3.5, $x + 10 + ($colW * 2), $curY + 3.5);
+
+        // Row 2
+        $curY += 10;
+        $pdf->SetXY($x + 5, $curY);
+        $pdf->Cell($colW, 4, 'Organization:', 0, 0);
+        $pdf->Line($x + 26, $curY + 3.5, $x + 5 + $colW, $curY + 3.5);
+
+        $pdf->SetXY($x + 10 + $colW, $curY);
+        $pdf->Cell($colW, 4, 'Date:', 0, 0);
+        $pdf->Line($x + 10 + $colW + 14, $curY + 3.5, $x + 10 + ($colW * 2), $curY + 3.5);
+
+        // Row 3: Signature
+        $curY += 10;
+        $pdf->SetXY($x + 5, $curY);
+        $pdf->Cell($colW, 4, 'Signature:', 0, 0);
+        $pdf->Line($x + 24, $curY + 12, $x + 5 + $colW, $curY + 12);
+
+        if ($incCb) {
+            $pdf->Rect($x + 10 + $colW, $curY + 1, 3.5, 3.5, 'D');
+            $pdf->SetFont('Helvetica', '', 7);
+            $pdf->SetXY($x + 15 + $colW, $curY);
+            $pdf->Cell($colW - 5, 5, 'Verified & Confirmed True', 0, 0);
+        }
+    }
 }
+

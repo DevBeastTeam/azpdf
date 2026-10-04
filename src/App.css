@@ -1680,21 +1680,30 @@
 
 /* App launcher popup styles */
 .app-launcher-item {
-  transition: all 0.18s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
 }
 .app-launcher-item:hover {
-  background-color: var(--bg-light);
-  transform: translateX(2px);
+  background-color: var(--bg-light) !important;
 }
-.app-launcher-item:hover div:first-child {
-  transform: scale(1.04);
+.app-launcher-item .item-arrow {
+  color: var(--text-gray);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.app-launcher-item:hover .item-arrow {
+  opacity: 1;
+  transform: translateX(0);
+  color: var(--primary-red);
 }
 .app-launcher-link {
-  transition: all 0.18s ease;
+  transition: all 0.15s ease;
+  text-decoration: none;
 }
 .app-launcher-link:hover {
   color: var(--primary-red) !important;
-  transform: translateX(2px);
+  background-color: var(--bg-light);
 }
 .app-launcher-link:hover svg {
   color: var(--primary-red) !important;

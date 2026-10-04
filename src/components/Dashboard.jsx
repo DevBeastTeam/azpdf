@@ -1,12 +1,80 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, FileText, UploadCloud, Clock, HardDrive, ShieldCheck, 
   Settings, Star, Download, Trash2, Share2, Sparkles, Plus, Search, 
   ArrowUpRight, CheckCircle2, User, Zap, CreditCard, DollarSign,
-  Camera, Bell, Lock, Globe, Phone, Mail, AlertTriangle, Save, Eye, EyeOff, Building2
+  Camera, Bell, Lock, Globe, Phone, Mail, AlertTriangle, Save, Eye, EyeOff, Building2, Check
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
+
+export const PLAN_TIERS = [
+  {
+    id: 'FREE',
+    level: 0,
+    name: 'Free Plan',
+    badge: 'Starter',
+    priceMonth: 0,
+    priceTotal: 0,
+    period: 'Free Forever',
+    billingCycle: 'Free',
+    description: 'Essential PDF tools for everyday individual tasks and quick edits.',
+    features: [
+      'Access to standard PDF tools',
+      'Process up to 5 files / day',
+      'Max 25 MB file size limit',
+      'Web browser access',
+      'Community support'
+    ]
+  },
+  {
+    id: 'BASIC',
+    level: 1,
+    name: 'Basic Plan',
+    badge: 'Student Choice',
+    priceMonth: 3,
+    priceTotal: 18,
+    period: '$18 billed every 6 months ($3/mo)',
+    billingCycle: '6 Months',
+    description: 'Higher limits, faster processing, and no daily file caps.',
+    features: [
+      'Unlimited file conversions',
+      'Up to 50 MB per file',
+      'Batch conversion (up to 10 files)',
+      'Ad-free experience',
+      'Standard OCR text recognition',
+      'Standard email support'
+    ]
+  },
+  {
+    id: 'PREMIUM',
+    level: 2,
+    name: 'Premium Plan',
+    badge: 'Most Popular',
+    priceMonth: 4,
+    priceTotal: 48,
+    period: '$48 billed yearly ($4/mo)',
+    billingCycle: 'Yearly',
+    popular: true,
+    description: 'Complete PDF power suite for professionals, researchers, and creators.',
+    features: [
+      'Unlimited all tools & no size limits',
+      'Advanced OCR in 30+ languages',
+      'Digital signatures & certifications',
+      '2 GB Secure Cloud Storage',
+      'High-speed parallel cloud processing',
+      'Priority VIP customer support'
+    ]
+  }
+];
+
+export const normalizePlanId = (plan) => {
+  if (!plan) return 'FREE';
+  const p = plan.toString().toUpperCase();
+  if (p.includes('PREMIUM')) return 'PREMIUM';
+  if (p.includes('BASIC') || p.includes('6M') || p.includes('6 MONTH') || p.includes('6-MONTH')) return 'BASIC';
+  return 'FREE';
+};
 
 export default function Dashboard({ 
   currentUser,
@@ -17,32 +85,25 @@ export default function Dashboard({
 }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
+  const [showAllTools, setShowAllTools] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [toolFilter, setToolFilter] = useState('all');
+
+  // Plans section ref
+  const plansSectionRef = useRef(null);
 
   // Billing state
-  const [billingPlan, setBillingPlan] = useState('PREMIUM');
+  const [billingPlan, setBillingPlan] = useState(() => {
+    const u = currentUser || (() => {
+      try {
+        const saved = sessionStorage.getItem('azpdf_user_session') || sessionStorage.getItem('azpdf_active_user');
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) { return null; }
+    })();
+    return normalizePlanId(u?.plan || 'FREE');
+  });
   const [invoices, setInvoices] = useState([]);
   const [billingMsg, setBillingMsg] = useState('');
-
-  // Payment Card state
-  const [paymentCard, setPaymentCard] = useState({
-    cardType: 'Visa',
-    cardNumber: '4242424242424242',
-    cardHolder: 'Alex Johnson',
-    expiryMonth: '12',
-    expiryYear: '2028',
-    cvv: '123'
-  });
-  const [isEditingCard, setIsEditingCard] = useState(false);
-  const [cardMsg, setCardMsg] = useState('');
-  const [cardForm, setCardForm] = useState({
-    cardType: 'Visa',
-    cardNumber: '4242424242424242',
-    cardHolder: 'Alex Johnson',
-    expiryMonth: '12',
-    expiryYear: '2028',
-    cvv: '123'
-  });
 
   useEffect(() => {
     fetch('/api/user/invoices')
@@ -53,47 +114,15 @@ export default function Dashboard({
       .catch(err => console.error('Error fetching invoices:', err));
   }, []);
 
-  const handleUpgradePlan = async (newPlan) => {
-    try {
-      const res = await fetch('/api/user/billing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: 1, 
-          plan: newPlan, 
-          billingCycle: 'yearly', 
-          paymentMethod: `${paymentCard.cardType} ending in ${paymentCard.cardNumber.replace(/\s+/g, '').slice(-4) || '4242'}` 
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setBillingPlan(newPlan);
-        setBillingMsg(`✅ ${data.message}`);
-        setTimeout(() => setBillingMsg(''), 4000);
-      }
-    } catch (err) {
-      console.error('Billing update error:', err);
-    }
-  };
+  // Tier calculations
+  const currentNormalized = normalizePlanId(billingPlan);
+  const currentTierIndex = Math.max(0, PLAN_TIERS.findIndex(p => p.id === currentNormalized));
+  const currentTier = PLAN_TIERS[currentTierIndex] || PLAN_TIERS[0];
+  const nextTier = currentTierIndex < PLAN_TIERS.length - 1 ? PLAN_TIERS[currentTierIndex + 1] : null;
 
-  const handleSaveCard = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('/api/user/payment-method', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cardForm)
-      });
-      const data = await res.json();
-      setPaymentCard(cardForm);
-      setCardMsg(`✅ ${data.message || 'Payment card updated successfully!'}`);
-      setIsEditingCard(false);
-      setTimeout(() => setCardMsg(''), 4000);
-    } catch (err) {
-      setPaymentCard(cardForm);
-      setCardMsg('✅ Payment card updated successfully!');
-      setIsEditingCard(false);
-      setTimeout(() => setCardMsg(''), 4000);
+  const handleScrollToPlans = () => {
+    if (plansSectionRef.current) {
+      plansSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
@@ -243,11 +272,16 @@ export default function Dashboard({
 
 
 
-  const filteredFiles = recentFiles.filter(f => 
-    f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    f.tool.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredFiles = recentFiles.filter(f =>
+    (f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    f.tool.toLowerCase().includes(searchQuery.toLowerCase())) &&
+    (toolFilter === 'all' || f.tool === toolFilter)
   );
-
+  const [filesPage, setFilesPage] = useState(1);
+  const filesPerPage = 8;
+  const totalFilePages = Math.max(1, Math.ceil(filteredFiles.length / filesPerPage));
+  const currentFilesPage = Math.min(filesPage, totalFilePages);
+  const paginatedFiles = filteredFiles.slice((currentFilesPage - 1) * filesPerPage, currentFilesPage * filesPerPage);
 
 
   return (
@@ -273,7 +307,7 @@ export default function Dashboard({
       }}>
         <div className="dashboard-sidebar-top">
           {/* User Account Info */}
-          <div className="dashboard-user-info" style={{
+          <div className="dashboard-user-info" onClick={() => setActiveTab('settings')} style={{
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
@@ -281,7 +315,8 @@ export default function Dashboard({
             backgroundColor: 'var(--bg-light)',
             borderRadius: '12px',
             marginBottom: '28px',
-            border: '1px solid var(--border-light)'
+            border: '1px solid var(--border-light)',
+            cursor: 'pointer'
           }}>
             <div style={{
               width: '40px',
@@ -300,9 +335,6 @@ export default function Dashboard({
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                 {profile.firstName} {profile.lastName}
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Sparkles size={11} color="var(--primary-red)" /> {billingPlan} Account
               </div>
             </div>
           </div>
@@ -399,26 +431,6 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Cloud Storage Usage */}
-        <div className="dashboard-storage-card" style={{
-          backgroundColor: 'var(--bg-light)',
-          borderRadius: '14px',
-          padding: '16px',
-          border: '1px solid var(--border-light)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '8px' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><HardDrive size={14} /> Cloud Storage</span>
-            <span>2.4 GB / 50 GB</span>
-          </div>
-          
-          <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--border-light)', borderRadius: '4px', overflow: 'hidden' }}>
-            <div style={{ width: '5%', height: '100%', backgroundColor: 'var(--primary-red)' }} />
-          </div>
-
-          <div style={{ fontSize: '11px', color: 'var(--text-light-gray)', marginTop: '8px' }}>
-            Auto-cleanup: Files deleted after 2 hours
-          </div>
-        </div>
       </aside>
 
       {/* Main Dashboard Content */}
@@ -469,8 +481,19 @@ export default function Dashboard({
               
               <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>Total Processed</span>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>Plan</span>
                   <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)' }}>
+                    <Star size={18} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{billingPlan}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>Current subscription plan</div>
+              </div>
+
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>Total Processes</span>
+                  <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#2563eb' }}>
                     <FileText size={18} />
                   </div>
                 </div>
@@ -480,19 +503,19 @@ export default function Dashboard({
 
               <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>Time Saved</span>
-                  <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#2563eb' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>Scan PDFs</span>
+                  <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#16a34a' }}>
                     <Clock size={18} />
                   </div>
                 </div>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>14.2 hrs</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>Estimated work time saved</div>
+                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>12</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>Scanned documents total</div>
               </div>
 
               <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>OCR Conversions</span>
-                  <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#16a34a' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>OCR PDFs</span>
+                  <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#ca8a04' }}>
                     <Zap size={18} />
                   </div>
                 </div>
@@ -500,31 +523,28 @@ export default function Dashboard({
                 <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: '600' }}>High-accuracy OCR active</div>
               </div>
 
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)' }}>Security Status</span>
-                  <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#ca8a04' }}>
-                    <ShieldCheck size={18} />
-                  </div>
-                </div>
-                <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>256-Bit SSL</div>
-                <div style={{ fontSize: '12px', color: '#10b981', fontWeight: '600' }}>✓ Auto-Encrypted & Safe</div>
-              </div>
-
             </div>
 
-            {/* Favorite Tools Quick Launcher */}
+            {/* Quick Action Tools Grid */}
             <div style={{ marginBottom: '36px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>
-                Quick Action Tools
-              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                  Quick Action Tools
+                </h3>
+                <button
+                  onClick={() => setShowAllTools(v => !v)}
+                  style={{ border: 'none', backgroundColor: 'var(--border-light)', color: 'var(--text-dark)', borderRadius: '8px', padding: '6px 16px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  {showAllTools ? 'Less' : 'All'}
+                </button>
+              </div>
 
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: '16px'
               }}>
-                <div 
+                <div
                   onClick={() => navigate('/tool/merge')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
@@ -547,7 +567,7 @@ export default function Dashboard({
                   <ArrowUpRight size={16} color="var(--text-light-gray)" />
                 </div>
 
-                <div 
+                <div
                   onClick={() => navigate('/tool/split')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
@@ -570,7 +590,7 @@ export default function Dashboard({
                   <ArrowUpRight size={16} color="var(--text-light-gray)" />
                 </div>
 
-                <div 
+                <div
                   onClick={() => navigate('/tool/compress')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
@@ -593,7 +613,7 @@ export default function Dashboard({
                   <ArrowUpRight size={16} color="var(--text-light-gray)" />
                 </div>
 
-                <div 
+                <div
                   onClick={() => navigate('/tool/pdftoword')}
                   style={{
                     backgroundColor: 'var(--bg-card)',
@@ -615,10 +635,700 @@ export default function Dashboard({
                   </div>
                   <ArrowUpRight size={16} color="var(--text-light-gray)" />
                 </div>
+
+                <div
+                  onClick={() => navigate('/tool/pdftopowerpoint')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#ea580c', fontWeight: '800' }}>
+                      PPT
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>PDF to PowerPoint</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/pdftoexcel')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#16a34a', fontWeight: '800' }}>
+                      XLS
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>PDF to Excel</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/wordtopdf')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#2563eb', fontWeight: '800' }}>
+                      DOC
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Word to PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                {!showAllTools && (
+                  <div
+                    onClick={() => setShowAllTools(true)}
+                    style={{
+                      backgroundColor: 'transparent',
+                      border: '1.5px solid var(--border-light)',
+                      borderRadius: '14px',
+                      padding: '16px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <span style={{ fontWeight: '800', fontSize: '14px', color: 'var(--text-dark)' }}>See All →</span>
+                  </div>
+                )}
+
+                {showAllTools && (
+                  <>
+                <div
+                  onClick={() => navigate('/tool/powerpointtopdf')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#ea580c', fontWeight: '800' }}>
+                      PPT
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>PowerPoint to PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+                <div
+                  onClick={() => navigate('/tool/exceltopdf')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#16a34a', fontWeight: '800' }}>
+                      XLS
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Excel to PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/organize')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Organize PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/protect')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Protect PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/unlock')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Unlock PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/aisummarizer')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#7c3aed', fontWeight: '800' }}>
+                      AI
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>AI Summarizer</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/translate')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Translate PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/markdown')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#475569', fontWeight: '800' }}>
+                      MD
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>PDF to Markdown</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/pdftojpg')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#ca8a04', fontWeight: '800' }}>
+                      JPG
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>PDF to JPG</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/jpgtopdf')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#ca8a04', fontWeight: '800' }}>
+                      JPG
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>JPG to PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/htmltopdf')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: '#0891b2', fontWeight: '800' }}>
+                      HTML
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>HTML to PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/pdfa')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>PDF to PDF/A</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/edit')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Edit PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/sign')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Sign PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/watermark')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Watermark</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/rotate')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Rotate PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/repair')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Repair PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/pagenumber')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Page Numbers</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/scan')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Scan to PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/ocr')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>OCR PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/compare')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Compare PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/redact')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Redact PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/crop')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Crop PDF</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/forms')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>PDF Forms</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/remove')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Remove Pages</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                <div
+                  onClick={() => navigate('/tool/extract')}
+                  style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--border-light)', borderRadius: '8px', color: 'var(--primary-red)', fontWeight: '800' }}>
+                      PDF
+                    </div>
+                    <span style={{ fontWeight: '700', fontSize: '14px', color: 'var(--text-dark)' }}>Extract Pages</span>
+                  </div>
+                  <ArrowUpRight size={16} color="var(--text-light-gray)" />
+                </div>
+
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Recent Files Table Preview */}
+                        {/* Recent Files Table Preview */}
             <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)' }}>
@@ -686,6 +1396,26 @@ export default function Dashboard({
                 </p>
               </div>
 
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <select
+                value={toolFilter}
+                onChange={(e) => { setToolFilter(e.target.value); setFilesPage(1); }}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--border-light)',
+                  backgroundColor: 'var(--bg-card)',
+                  color: 'var(--text-dark)',
+                  fontSize: '14px',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="all">All Tools</option>
+                {[...new Set(recentFiles.map(f => f.tool))].map(tool => (
+                  <option key={tool} value={tool}>{tool}</option>
+                ))}
+              </select>
               {/* Search Bar */}
               <div style={{ position: 'relative', width: '280px' }}>
                 <Search size={16} color="var(--text-light-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -693,7 +1423,7 @@ export default function Dashboard({
                   type="text"
                   placeholder="Search file name or tool..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => { setSearchQuery(e.target.value); setFilesPage(1); }}
                   style={{
                     width: '100%',
                     padding: '10px 14px 10px 36px',
@@ -705,6 +1435,7 @@ export default function Dashboard({
                     outline: 'none'
                   }}
                 />
+              </div>
               </div>
             </div>
 
@@ -725,7 +1456,7 @@ export default function Dashboard({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredFiles.map(file => (
+                    {paginatedFiles.map(file => (
                       <tr key={file.id} style={{ borderBottom: '1px solid var(--border-light)', fontSize: '14px', color: 'var(--text-gray)' }}>
                         <td style={{ padding: '16px', fontWeight: '700', color: 'var(--text-dark)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -759,19 +1490,51 @@ export default function Dashboard({
                   </tbody>
                 </table>
               )}
+              {filteredFiles.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>
+                    Page {currentFilesPage} of {totalFilePages} ({filteredFiles.length} files)
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      onClick={() => setFilesPage(p => Math.max(1, p - 1))}
+                      disabled={currentFilesPage === 1}
+                      style={{ border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', borderRadius: '8px', padding: '6px 14px', fontWeight: '700', fontSize: '13px', color: currentFilesPage === 1 ? 'var(--text-light-gray)' : 'var(--text-dark)', cursor: currentFilesPage === 1 ? 'not-allowed' : 'pointer' }}
+                    >
+                      Prev
+                    </button>
+                    {Array.from({ length: totalFilePages }, (_, i) => i + 1).map(n => (
+                      <button
+                        key={n}
+                        onClick={() => setFilesPage(n)}
+                        style={{ border: '1px solid var(--border-light)', backgroundColor: n === currentFilesPage ? 'var(--primary-red)' : 'var(--bg-card)', color: n === currentFilesPage ? '#fff' : 'var(--text-dark)', borderRadius: '8px', padding: '6px 12px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setFilesPage(p => Math.min(totalFilePages, p + 1))}
+                      disabled={currentFilesPage === totalFilePages}
+                      style={{ border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', borderRadius: '8px', padding: '6px 14px', fontWeight: '700', fontSize: '13px', color: currentFilesPage === totalFilePages ? 'var(--text-light-gray)' : 'var(--text-dark)', cursor: currentFilesPage === totalFilePages ? 'not-allowed' : 'pointer' }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Billing & Subscription Tab */}
         {activeTab === 'billing' && (
-          <div style={{ maxWidth: '850px' }}>
+          <div>
             <div style={{ marginBottom: '28px' }}>
               <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
                 Billing & Subscription
               </h1>
               <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
-                Manage your active plan, payment methods, and download invoice history.
+                Manage your active subscription plan and download invoice history.
               </p>
             </div>
 
@@ -781,25 +1544,27 @@ export default function Dashboard({
               </div>
             )}
 
-            {/* Current Active Plan Card */}
+            {/* Section 1: Current Active Plan Card */}
             <div style={{ backgroundColor: 'var(--bg-card)', border: '2px solid var(--primary-red)', borderRadius: '20px', padding: '30px', marginBottom: '32px', boxShadow: '0 10px 30px rgba(229, 36, 36, 0.08)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
                   <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--primary-red)', backgroundColor: 'rgba(229, 36, 36, 0.1)', padding: '4px 12px', borderRadius: '20px', textTransform: 'uppercase' }}>
                     Active Plan
                   </span>
-                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', marginTop: '10px', marginBottom: '4px' }}>
-                    {billingPlan} Plan
+                  <h2 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', marginTop: '10px', marginBottom: '4px' }}>
+                    {currentTier.name}
                   </h2>
                   <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
-                    Billed Yearly — Next renewal on August 14, 2027
+                    {currentTier.period} — Next renewal on {new Date(Date.now() + 365*24*60*60*1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                   </p>
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)' }}>
-                    {billingPlan === 'BUSINESS' ? '$8' : billingPlan === 'PREMIUM' ? '$4' : '$0'}
-                    <span style={{ fontSize: '14px', color: 'var(--text-gray)', fontWeight: '500' }}> / month</span>
+                  <div style={{ fontSize: '34px', fontWeight: '900', color: 'var(--text-dark)' }}>
+                    {currentTier.priceMonth === 0 ? 'Free' : `$${currentTier.priceMonth}`}
+                    {currentTier.priceMonth > 0 && (
+                      <span style={{ fontSize: '14px', color: 'var(--text-gray)', fontWeight: '500' }}> / month</span>
+                    )}
                   </div>
                   <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: '700', marginTop: '4px' }}>
                     ✓ Auto-Renewal Active
@@ -809,217 +1574,250 @@ export default function Dashboard({
 
               <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', margin: '24px 0' }} />
 
-              <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => handleUpgradePlan('PREMIUM')}
-                  style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid var(--border-light)', backgroundColor: billingPlan === 'PREMIUM' ? 'var(--primary-red)' : 'var(--bg-card)', color: billingPlan === 'PREMIUM' ? '#ffffff' : 'var(--text-dark)', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                  {billingPlan === 'PREMIUM' ? '✓ Current Plan (Premium)' : 'Switch to Premium ($4/mo)'}
-                </button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                <div>
+                  {nextTier ? (
+                    <button
+                      onClick={handleScrollToPlans}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '12px 24px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #e52424 0%, #b91c1c 100%)',
+                        color: '#ffffff',
+                        fontWeight: '800',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(229, 36, 36, 0.35)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <Sparkles size={16} />
+                      Upgrade to {nextTier.name} (${nextTier.priceMonth}/mo)
+                    </button>
+                  ) : (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 20px',
+                      borderRadius: '12px',
+                      backgroundColor: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      color: '#15803d',
+                      fontWeight: '700',
+                      fontSize: '14px'
+                    }}>
+                      <CheckCircle2 size={18} />
+                      You are on our highest tier ({currentTier.name})!
+                    </div>
+                  )}
+                </div>
 
                 <button
-                  onClick={() => handleUpgradePlan('BUSINESS')}
-                  style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid var(--border-light)', backgroundColor: billingPlan === 'BUSINESS' ? 'var(--primary-red)' : 'var(--bg-card)', color: billingPlan === 'BUSINESS' ? '#ffffff' : 'var(--text-dark)', fontWeight: '700', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}
+                  onClick={handleScrollToPlans}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '12px 18px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-light)',
+                    color: 'var(--text-dark)',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
                 >
-                  {billingPlan === 'BUSINESS' ? '✓ Current Plan (Business)' : 'Upgrade to Business ($8/mo)'}
+                  View All Plans ↓
                 </button>
               </div>
             </div>
 
-            {/* Payment Method Card */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '28px', marginBottom: '32px', boxShadow: 'var(--shadow-sm)' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <CreditCard size={20} color="var(--primary-red)" /> Primary Payment Method
-              </h3>
+            {/* Section 2: Available Subscription Plans */}
+            <div ref={plansSectionRef} style={{ marginBottom: '36px', scrollMarginTop: '20px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '20px', fontWeight: '900', color: 'var(--text-dark)', marginBottom: '4px' }}>
+                  Available Subscription Plans
+                </h3>
+                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
+                  Choose the plan that best fits your workflow. Flexible options tailored for personal and business use.
+                </p>
+              </div>
 
-              {cardMsg && (
-                <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: '#dcfce7', border: '1px solid #86efac', color: '#15803d', fontWeight: '700', fontSize: '14px', marginBottom: '16px' }}>
-                  {cardMsg}
-                </div>
-              )}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                gap: '20px'
+              }}>
+                {PLAN_TIERS.map((tier) => {
+                  const isCurrent = tier.id === currentNormalized;
+                  const isUpgrade = tier.level > currentTier.level;
 
-              {!isEditingCard ? (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', backgroundColor: 'var(--bg-light)', borderRadius: '14px', border: '1px solid var(--border-light)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{
-                      padding: '10px 14px',
-                      backgroundColor: paymentCard.cardType === 'MasterCard' ? '#dc2626' : paymentCard.cardType === 'American Express' ? '#0284c7' : '#1d4ed8',
-                      color: '#ffffff',
-                      borderRadius: '8px',
-                      fontWeight: '900',
-                      fontSize: '13px',
-                      letterSpacing: '0.5px'
-                    }}>
-                      {paymentCard.cardType === 'American Express' ? 'EXPRESS' : paymentCard.cardType.toUpperCase()}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-dark)' }}>
-                        {paymentCard.cardType} ending in {paymentCard.cardNumber.replace(/\s+/g, '').slice(-4) || '4242'}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>
-                        Expires {paymentCard.expiryMonth} / {paymentCard.expiryYear} — {paymentCard.cardHolder} (Default Payment)
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setCardForm({ ...paymentCard });
-                      setIsEditingCard(true);
-                    }}
-                    style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
-                  >
-                    Edit Card
-                  </button>
-                </div>
-              ) : (
-                <form onSubmit={handleSaveCard} style={{ backgroundColor: 'var(--bg-light)', padding: '20px', borderRadius: '14px', border: '1px solid var(--border-light)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
-                    
-                    {/* Card Type Dropdown */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
-                        CARD TYPE (SELECT)
-                      </label>
-                      <select
-                        value={cardForm.cardType}
-                        onChange={(e) => setCardForm({ ...cardForm, cardType: e.target.value })}
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', fontWeight: '700' }}
-                      >
-                        <option value="Visa">Visa Card</option>
-                        <option value="MasterCard">MasterCard</option>
-                        <option value="American Express">American Express (Express)</option>
-                      </select>
-                    </div>
-
-                    {/* Cardholder Name */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
-                        CARDHOLDER NAME
-                      </label>
-                      <input
-                        type="text"
-                        value={cardForm.cardHolder}
-                        onChange={(e) => setCardForm({ ...cardForm, cardHolder: e.target.value })}
-                        placeholder="Alex Johnson"
-                        required
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px' }}
-                      />
-                    </div>
-
-                    {/* Card Number */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
-                        CARD NUMBER
-                      </label>
-                      <input
-                        type="text"
-                        value={cardForm.cardNumber}
-                        onChange={(e) => setCardForm({ ...cardForm, cardNumber: e.target.value })}
-                        placeholder="4242 4242 4242 4242"
-                        required
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', fontFamily: 'monospace' }}
-                      />
-                    </div>
-
-                    {/* Expiration Date & CVV */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>MONTH</label>
-                        <select
-                          value={cardForm.expiryMonth}
-                          onChange={(e) => setCardForm({ ...cardForm, expiryMonth: e.target.value })}
-                          style={{ width: '100%', padding: '10px 6px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
-                        >
-                          {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(m => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>YEAR</label>
-                        <select
-                          value={cardForm.expiryYear}
-                          onChange={(e) => setCardForm({ ...cardForm, expiryYear: e.target.value })}
-                          style={{ width: '100%', padding: '10px 6px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
-                        >
-                          {['2025', '2026', '2027', '2028', '2029', '2030'].map(y => (
-                            <option key={y} value={y}>{y}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>CVV</label>
-                        <input
-                          type="password"
-                          maxLength={4}
-                          value={cardForm.cvv}
-                          onChange={(e) => setCardForm({ ...cardForm, cvv: e.target.value })}
-                          placeholder="123"
-                          required
-                          style={{ width: '100%', padding: '10px 8px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
-                        />
-                      </div>
-                    </div>
-
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingCard(false)}
-                      style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'transparent', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  return (
+                    <div
+                      key={tier.id}
+                      style={{
+                        backgroundColor: 'var(--bg-card)',
+                        borderRadius: '18px',
+                        border: isCurrent 
+                          ? '2px solid #16a34a' 
+                          : tier.popular 
+                            ? '2px solid var(--primary-red)' 
+                            : '1px solid var(--border-light)',
+                        padding: '24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        position: 'relative',
+                        boxShadow: tier.popular ? '0 10px 25px rgba(229, 36, 36, 0.12)' : 'var(--shadow-sm)',
+                        transition: 'transform 0.2s, box-shadow 0.2s'
+                      }}
                     >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      style={{ padding: '8px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
-                    >
-                      Save Card Details
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
+                      {tier.popular && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-12px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          backgroundColor: 'var(--primary-red)',
+                          color: '#ffffff',
+                          fontSize: '11px',
+                          fontWeight: '900',
+                          letterSpacing: '0.5px',
+                          padding: '4px 14px',
+                          borderRadius: '12px',
+                          boxShadow: '0 2px 8px rgba(229, 36, 36, 0.3)'
+                        }}>
+                          MOST POPULAR
+                        </div>
+                      )}
 
-            {/* Billing Information & Tax ID Card */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '28px', marginBottom: '32px', boxShadow: 'var(--shadow-sm)' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Building2 size={20} color="var(--primary-red)" /> Billing Information & Tax Details
-              </h3>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: '800',
+                            color: isCurrent ? '#16a34a' : tier.popular ? 'var(--primary-red)' : 'var(--text-gray)',
+                            textTransform: 'uppercase'
+                          }}>
+                            {tier.badge}
+                          </span>
+                          {isCurrent && (
+                            <span style={{ fontSize: '11px', fontWeight: '800', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>
+                              ✓ Current
+                            </span>
+                          )}
+                        </div>
 
-              <form onSubmit={(e) => { e.preventDefault(); alert('✅ Billing information updated successfully!'); }} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>COMPANY / BILLING NAME</label>
-                  <input type="text" defaultValue="Alex Johnson Inc." style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>VAT / TAX ID NUMBER</label>
-                  <input type="text" defaultValue="US987654321" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>BILLING EMAIL ADDRESS</label>
-                  <input type="email" defaultValue="alex@example.com" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>COUNTRY / REGION</label>
-                  <select defaultValue="United States" style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }}>
-                    <option>United States</option>
-                    <option>United Kingdom</option>
-                    <option>Canada</option>
-                    <option>Germany</option>
-                    <option>Pakistan</option>
-                  </select>
-                </div>
-                <div style={{ gridColumn: 'span 2', textAlign: 'right', marginTop: '10px' }}>
-                  <button type="submit" style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#ffffff', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>
-                    Save Billing Info
-                  </button>
-                </div>
-              </form>
+                        <h4 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
+                          {tier.name}
+                        </h4>
+                        <p style={{ fontSize: '12px', color: 'var(--text-gray)', marginBottom: '16px', minHeight: '34px' }}>
+                          {tier.description}
+                        </p>
+
+                        <div style={{ marginBottom: '18px', paddingBottom: '16px', borderBottom: '1px solid var(--border-light)' }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                            <span style={{ fontSize: '30px', fontWeight: '900', color: 'var(--text-dark)' }}>
+                              {tier.priceMonth === 0 ? '$0' : `$${tier.priceMonth}`}
+                            </span>
+                            <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '500' }}>
+                              / month
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>
+                            {tier.period}
+                          </div>
+                        </div>
+
+                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {tier.features.map((feat, idx) => (
+                            <li key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: 'var(--text-dark)' }}>
+                              <CheckCircle2 size={16} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }} />
+                              <span>{feat}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div>
+                        {isCurrent ? (
+                          <button
+                            disabled
+                            style={{
+                              width: '100%',
+                              padding: '12px',
+                              borderRadius: '10px',
+                              border: '1px solid #bbf7d0',
+                              backgroundColor: '#f0fdf4',
+                              color: '#15803d',
+                              fontWeight: '800',
+                              fontSize: '13px',
+                              cursor: 'default',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <CheckCircle2 size={16} /> Active Plan
+                          </button>
+                        ) : isUpgrade ? (
+                          <button
+                            onClick={() => {
+                              setBillingMsg(`Selected plan: ${tier.name}.`);
+                              setTimeout(() => setBillingMsg(''), 4000);
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '12px',
+                              borderRadius: '10px',
+                              border: 'none',
+                              background: tier.popular 
+                                ? 'linear-gradient(135deg, #e52424 0%, #b91c1c 100%)' 
+                                : 'var(--primary-red)',
+                              color: '#ffffff',
+                              fontWeight: '800',
+                              fontSize: '13px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px',
+                              boxShadow: '0 4px 12px rgba(229, 36, 36, 0.25)',
+                              transition: 'opacity 0.2s'
+                            }}
+                          >
+                            <Sparkles size={15} /> Upgrade to {tier.name}
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            style={{
+                              width: '100%',
+                              padding: '12px',
+                              borderRadius: '10px',
+                              border: '1px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-gray)',
+                              fontWeight: '700',
+                              fontSize: '13px',
+                              cursor: 'default'
+                            }}
+                          >
+                            Included in Your Plan
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Invoices & Payment History */}
@@ -1066,7 +1864,7 @@ export default function Dashboard({
 
         {/* Account Settings / Profile Tab */}
         {activeTab === 'settings' && (
-          <div style={{ maxWidth: '720px' }}>
+          <div>
             <h1 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>My Profile</h1>
             <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginBottom: '32px' }}>Manage your personal information, password, and notification preferences.</p>
 
@@ -1095,7 +1893,6 @@ export default function Dashboard({
                 <div>
                   <div style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)' }}>{profile.firstName} {profile.lastName}</div>
                   <div style={{ fontSize: '13px', color: 'var(--text-gray)', marginTop: '2px' }}>{profile.email}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--primary-red)', fontWeight: '700', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}><Sparkles size={11} /> Premium Account</div>
                 </div>
               </div>
 
@@ -1167,37 +1964,6 @@ export default function Dashboard({
               </div>
             </div>
 
-            {/* === Notification Preferences === */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '30px', marginBottom: '20px', boxShadow: 'var(--shadow-sm)' }}>
-              <h2 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Bell size={17} color="var(--primary-red)" /> Notification Preferences
-              </h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {[
-                  { key: 'emailReports',  label: 'Monthly Usage Reports',        desc: 'Receive a monthly summary of your PDF processing activity.' },
-                  { key: 'fileReady',     label: 'File Processing Alerts',       desc: 'Get notified when your file is ready to download.' },
-                  { key: 'planReminder',  label: 'Plan Renewal Reminders',       desc: 'Reminders before your subscription renews or expires.' },
-                  { key: 'newsletter',    label: 'Product News & Updates',       desc: 'Tips, new features, and product announcements from iLovePDF.' },
-                ].map(item => (
-                  <div key={item.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid var(--border-light)' }}>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>{item.label}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>{item.desc}</div>
-                    </div>
-                    <button
-                      onClick={() => setNotifications(n => ({ ...n, [item.key]: !n[item.key] }))}
-                      style={{
-                        width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer', flexShrink: 0,
-                        backgroundColor: notifications[item.key] ? 'var(--primary-red)' : 'var(--border-light)',
-                        position: 'relative', transition: 'background 0.2s'
-                      }}
-                    >
-                      <div style={{ position: 'absolute', top: '2px', left: notifications[item.key] ? '22px' : '2px', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
 
             {/* === Danger Zone === */}
             <div style={{ backgroundColor: 'var(--bg-card)', border: '1.5px solid #fecaca', borderRadius: '18px', padding: '30px', boxShadow: 'var(--shadow-sm)' }}>
@@ -1213,8 +1979,6 @@ export default function Dashboard({
 
           </div>
         )}
-
-
 
       </main>
     </div>

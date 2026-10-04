@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft, LayoutDashboard } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronRight, Check, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft, LayoutDashboard, Image as ImageIcon, PenTool, Code2, GraduationCap, ArrowUpRight } from 'lucide-react';
 import { 
   JpgToPdfIcon, WordToPdfIcon, PowerpointToPdfIcon, ExcelToPdfIcon, HtmlToPdfIcon,
   PdfToJpgIcon, PdfToWordIcon, PdfToPowerpointIcon, PdfToExcelIcon, PdfToPdfaIcon,
@@ -45,6 +45,9 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [isAllToolsOpen, setIsAllToolsOpen] = useState(false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
+  const [selectedLang, setSelectedLang] = useState('English');
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  const languages = ['English', 'Español', 'Français', 'Deutsch', 'Português', 'Italiano', '日本語'];
   const [mobileConvertOpen, setMobileConvertOpen] = useState(false);
   const [mobileAllToolsOpen, setMobileAllToolsOpen] = useState(false);
   const appLauncherRef = useRef(null);
@@ -55,6 +58,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
     const handleClickOutside = (event) => {
       if (appLauncherRef.current && !appLauncherRef.current.contains(event.target)) {
         setIsAppLauncherOpen(false);
+        setIsLangOpen(false);
       }
       if (allToolsRef.current && !allToolsRef.current.contains(event.target)) {
         setIsAllToolsOpen(false);
@@ -479,24 +483,26 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
 
         {isLoggedIn ? (
           <>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="btn btn-secondary hide-mobile"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                backgroundColor: currentView === 'dashboard' ? 'rgba(229, 36, 36, 0.1)' : 'var(--bg-light)',
-                border: currentView === 'dashboard' ? '1px solid var(--primary-red)' : '1px solid var(--border-light)',
-                color: currentView === 'dashboard' ? 'var(--primary-red)' : 'var(--text-dark)',
-                fontWeight: '700',
-                fontSize: '13px',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              <LayoutDashboard size={15} /> Dashboard
-            </button>
+            {currentView !== 'dashboard' && (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="btn btn-secondary hide-mobile"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'var(--bg-light)',
+                  border: '1px solid var(--border-light)',
+                  color: 'var(--text-dark)',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <LayoutDashboard size={15} /> Dashboard
+              </button>
+            )}
 
             {/* Logout Button */}
             <button
@@ -558,11 +564,10 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           </>
         )}
 
-        {/* 3x3 App launcher dots with Hover/Click Popup Menu */}
+        {/* 3x3 App launcher dots with Click Popup Menu */}
         <div 
           ref={appLauncherRef}
           className="app-launcher hide-mobile" 
-          onMouseEnter={() => setIsAppLauncherOpen(true)}
           onClick={(e) => {
             if (!e.target.closest('.app-launcher-popup')) {
               setIsAppLauncherOpen(prev => !prev);
@@ -570,7 +575,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
           }}
           style={{ 
             position: 'relative', 
-            padding: '8px', 
+            padding: '8px 10px', 
             borderRadius: '8px', 
             cursor: 'pointer', 
             display: 'flex', 
@@ -578,7 +583,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
             backgroundColor: isAppLauncherOpen ? 'var(--bg-light)' : 'transparent',
             transition: 'background-color 0.2s ease'
           }} 
-          title="iLovePDF Products & Applications"
+          title="iLovePDF Ecosystem & Applications"
         >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 4px)', gap: '3px' }}>
             {[...Array(9)].map((_, i) => (
@@ -595,38 +600,41 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
             ))}
           </div>
 
-          {/* Apps Popup Card matching exact iLovePDF design */}
+          {/* Redesigned Premium App Launcher Menu */}
           {isAppLauncherOpen && (
             <div 
               className="app-launcher-popup"
               onClick={(e) => e.stopPropagation()}
               style={{
                 position: 'absolute',
-                top: '48px',
-                right: '-6px',
-                width: '790px',
-                maxWidth: '92vw',
+                top: '46px',
+                right: '-10px',
+                width: '730px',
+                maxWidth: 'calc(100vw - 24px)',
                 boxSizing: 'border-box',
                 backgroundColor: dropdownBg,
                 border: `1px solid ${dropdownBorder}`,
                 borderRadius: '16px',
-                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.14)',
-                padding: '28px 32px',
+                boxShadow: theme === 'dark' 
+                  ? '0 24px 50px -10px rgba(0, 0, 0, 0.55), 0 0 1px 1px rgba(255, 255, 255, 0.08)' 
+                  : '0 20px 48px -10px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.04)',
+                padding: '22px 24px',
                 zIndex: 2000,
                 textAlign: 'left',
-                display: 'flex',
-                flexDirection: 'row',
-                gap: '30px'
+                display: 'grid',
+                gridTemplateColumns: '1.15fr 1.15fr 155px',
+                gap: '20px',
+                animation: 'fadeIn 0.18s ease-out'
               }}
             >
-              {/* Arrow pointer pointing to 9-dots icon */}
+              {/* Arrow pointer positioned directly below 9-dots button */}
               <div style={{
                 position: 'absolute',
                 top: '-7px',
-                right: '16px',
+                right: '23px',
                 transform: 'rotate(45deg)',
-                width: '13px',
-                height: '13px',
+                width: '12px',
+                height: '12px',
                 backgroundColor: dropdownBg,
                 borderLeft: `1px solid ${dropdownBorder}`,
                 borderTop: `1px solid ${dropdownBorder}`,
@@ -634,116 +642,308 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
               }} />
 
               {/* COLUMN 1: OTHER PRODUCTS */}
-              <div style={{ flex: '1 1 0', minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', margin: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.8px', textTransform: 'uppercase', margin: '0 0 2px 0' }}>
                   OTHER PRODUCTS
                 </h4>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {/* iLoveIMG */}
-                  <a href="#iloveimg" onClick={(e) => e.preventDefault()} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#eef4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#3b82f6">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                      </svg>
+                  <a 
+                    href="#iloveimg" 
+                    onClick={(e) => { e.preventDefault(); alert('iLoveIMG: Effortless image editing'); }} 
+                    className="app-launcher-item" 
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '7px 8px', borderRadius: '10px' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <ImageIcon size={20} color="#2563eb" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveIMG</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '1px' }}>Effortless image editing</div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveIMG</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>Effortless image editing</div>
-                    </div>
+                    <ChevronRight size={15} className="item-arrow" />
                   </a>
 
                   {/* iLoveSign */}
-                  <a href="#ilovesign" onClick={(e) => e.preventDefault()} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#eef4ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#1d4ed8">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                      </svg>
+                  <a 
+                    href="#ilovesign" 
+                    onClick={(e) => { e.preventDefault(); alert('iLoveSign: e-Signing made simple'); }} 
+                    className="app-launcher-item" 
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '7px 8px', borderRadius: '10px' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <PenTool size={20} color="#4f46e5" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveSign</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '1px' }}>e-Signing made simple</div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveSign</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>e-Signing made simple</div>
-                    </div>
+                    <ChevronRight size={15} className="item-arrow" />
                   </a>
 
                   {/* iLoveAPI */}
-                  <a href="#iloveapi" onClick={(e) => e.preventDefault()} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#e6f9f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#0d9488">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                      </svg>
+                  <a 
+                    href="#iloveapi" 
+                    onClick={(e) => { e.preventDefault(); alert('iLoveAPI: Document automation for developers'); }} 
+                    className="app-launcher-item" 
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '7px 8px', borderRadius: '10px' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Code2 size={20} color="#059669" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveAPI</div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '1px' }}>Document automation for developers</div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>iLoveAPI</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '2px' }}>Document automation for developers</div>
-                    </div>
+                    <ChevronRight size={15} className="item-arrow" />
                   </a>
 
                   {/* Integrations Card */}
-                  <div style={{ border: `1px solid ${dropdownBorder}`, borderRadius: '10px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#fcfcfd' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: `1px solid ${dropdownBorder}`, backgroundColor: dropdownBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <LinkIcon size={15} color="var(--text-gray)" />
+                  <a 
+                    href="#integrations" 
+                    onClick={(e) => { e.preventDefault(); alert('Integrations: Connect with Zapier, Make, WordPress, Google Drive'); }}
+                    className="app-launcher-item"
+                    style={{ 
+                      border: `1px solid ${dropdownBorder}`, 
+                      borderRadius: '10px', 
+                      padding: '7px 10px', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      textDecoration: 'none',
+                      backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : '#f8fafc',
+                      marginTop: '4px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '30px', height: '30px', borderRadius: '8px', backgroundColor: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <LinkIcon size={15} color="#7c3aed" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>Integrations</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-gray)' }}>Zapier, Make, WordPress...</div>
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>Integrations</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-gray)', marginTop: '2px' }}>Zapier, Make, Wordpress...</div>
-                    </div>
+                    <ArrowUpRight size={14} color="var(--text-gray)" />
+                  </a>
+                </div>
+              </div>
+
+              {/* COLUMN 2: SOLUTIONS & APPLICATIONS */}
+              <div style={{ borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.8px', textTransform: 'uppercase', margin: '0 0 6px 0' }}>
+                    SOLUTIONS
+                  </h4>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {/* Business */}
+                    <a 
+                      href="#business" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/pricing'); }} 
+                      className="app-launcher-item" 
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '7px 8px', borderRadius: '10px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Building2 size={20} color="#dc2626" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-dark)' }}>Business</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '1px' }}>Streamlined workflows for teams</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={15} className="item-arrow" />
+                    </a>
+
+                    {/* Education */}
+                    <a 
+                      href="#education" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/pricing'); }} 
+                      className="app-launcher-item" 
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '7px 8px', borderRadius: '10px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#fffbeb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <GraduationCap size={20} color="#d97706" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-dark)' }}>Education</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '1px' }}>Smart tools for schools & students</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={15} className="item-arrow" />
+                    </a>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: `1px solid ${dropdownBorder}`, paddingTop: '10px' }}>
+                  <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.8px', textTransform: 'uppercase', margin: '0 0 6px 0' }}>
+                    APPLICATIONS
+                  </h4>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {/* Desktop App */}
+                    <a 
+                      href="#desktop" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/'); }} 
+                      className="app-launcher-item" 
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '7px 8px', borderRadius: '10px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Monitor size={20} color="#475569" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-dark)' }}>Desktop App</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '1px' }}>Work offline on Mac & Windows</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={15} className="item-arrow" />
+                    </a>
+
+                    {/* Mobile App */}
+                    <a 
+                      href="#mobile" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/'); }} 
+                      className="app-launcher-item" 
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '7px 8px', borderRadius: '10px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Smartphone size={20} color="#9333ea" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text-dark)' }}>Mobile App</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '1px' }}>Scan and edit on iOS & Android</div>
+                        </div>
+                      </div>
+                      <ChevronRight size={15} className="item-arrow" />
+                    </a>
                   </div>
                 </div>
               </div>
 
-              {/* COLUMN 2: SOLUTIONS */}
-              <div style={{ flex: '1.2 1 0', minWidth: '240px', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '28px', display: 'flex', flexDirection: 'column', gap: '22px' }}>
-                {/* SOLUTIONS */}
+              {/* COLUMN 3: QUICK LINKS & HELP */}
+              <div style={{ borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <div>
-                  <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: '14px' }}>
-                    SOLUTIONS
+                  <h4 style={{ fontSize: '11px', fontWeight: '800', color: dropdownCategoryColor, letterSpacing: '0.8px', textTransform: 'uppercase', margin: '0 0 8px 0' }}>
+                    QUICK ACCESS
                   </h4>
 
-                  <a href="#business" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/pricing'); }} className="app-launcher-item" style={{ display: 'flex', alignItems: 'center', gap: '14px', textDecoration: 'none', padding: '6px 8px', borderRadius: '8px' }}>
-                    <div style={{ width: '54px', height: '54px', borderRadius: '10px', backgroundColor: theme === 'dark' ? '#374151' : '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-                        <rect x="5" y="14" width="6" height="15" rx="2" fill="#7f1d1d" />
-                        <rect x="14" y="9" width="6" height="20" rx="2" fill="#e5322d" />
-                        <rect x="23" y="5" width="6" height="24" rx="2" fill="#fca5a5" />
-                      </svg>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>Business</div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-gray)', marginTop: '3px', lineHeight: '1.35' }}>Streamlined PDF editing and workflows for business teams</div>
-                    </div>
-                  </a>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <a 
+                      href="#pricing" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/pricing'); }} 
+                      className="app-launcher-link" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '600', fontSize: '13.5px', padding: '6px 8px', borderRadius: '8px' }}
+                    >
+                      <CreditCard size={15} color="var(--text-gray)" /> Pricing
+                    </a>
+
+                    <a 
+                      href="#security" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/security'); }} 
+                      className="app-launcher-link" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '600', fontSize: '13.5px', padding: '6px 8px', borderRadius: '8px' }}
+                    >
+                      <Shield size={15} color="var(--text-gray)" /> Security
+                    </a>
+
+                    <a 
+                      href="#features" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/'); }} 
+                      className="app-launcher-link" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '600', fontSize: '13.5px', padding: '6px 8px', borderRadius: '8px' }}
+                    >
+                      <LayoutDashboard size={15} color="var(--text-gray)" /> Features
+                    </a>
+
+                    <a 
+                      href="#about" 
+                      onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/about'); }} 
+                      className="app-launcher-link" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '600', fontSize: '13.5px', padding: '6px 8px', borderRadius: '8px' }}
+                    >
+                      <Heart size={15} color="var(--text-gray)" /> About us
+                    </a>
+                  </div>
                 </div>
-              </div>
 
-              {/* COLUMN 3: LINKS & UTILITIES */}
-              <div style={{ width: '150px', borderLeft: `1px solid ${dropdownBorder}`, paddingLeft: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <a href="#pricing" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/pricing'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    <CreditCard size={17} color="var(--text-gray)" /> Pricing
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: `1px solid ${dropdownBorder}`, paddingTop: '10px', marginTop: '10px' }}>
+                  <a 
+                    href="#help" 
+                    onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/help'); }} 
+                    className="app-launcher-link" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '600', fontSize: '13.5px', padding: '6px 8px', borderRadius: '8px' }}
+                  >
+                    <HelpCircle size={15} color="var(--text-gray)" /> Help Center
                   </a>
 
-                  <a href="#security" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/security'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    <Shield size={17} color="var(--text-gray)" /> Security
-                  </a>
+                  {/* Interactive Language Selector */}
+                  <div style={{ position: 'relative' }}>
+                    <div 
+                      onClick={() => setIsLangOpen(prev => !prev)} 
+                      className="app-launcher-link" 
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', color: 'var(--text-dark)', fontWeight: '600', fontSize: '13.5px', padding: '6px 8px', borderRadius: '8px' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                        <Globe size={15} color="var(--text-gray)" /> {selectedLang}
+                      </div>
+                      <ChevronDown size={13} color="var(--text-gray)" style={{ transform: isLangOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    </div>
 
-                  <a href="#features" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    <LayoutDashboard size={17} color="var(--text-gray)" /> Features
-                  </a>
-
-                  <a href="#about" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/about'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    <Heart size={17} color="var(--text-gray)" /> About us
-                  </a>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: `1px solid ${dropdownBorder}`, paddingTop: '18px' }}>
-                  <a href="#help" onClick={(e) => { e.preventDefault(); setIsAppLauncherOpen(false); navigate('/help'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    <span style={{ fontSize: '15px', fontWeight: '800' }}>‹</span> Help
-                  </a>
-
-                  <a href="#language" onClick={(e) => { e.preventDefault(); alert('🌐 Language selection: English (US)'); }} className="app-launcher-link" style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none', color: 'var(--text-dark)', fontWeight: '700', fontSize: '14px' }}>
-                    <span style={{ fontSize: '15px', fontWeight: '800' }}>‹</span> Language
-                  </a>
+                    {isLangOpen && (
+                      <div 
+                        style={{
+                          position: 'absolute',
+                          bottom: '100%',
+                          right: '0px',
+                          marginBottom: '6px',
+                          backgroundColor: dropdownBg,
+                          border: `1px solid ${dropdownBorder}`,
+                          borderRadius: '10px',
+                          boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+                          padding: '6px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '2px',
+                          minWidth: '130px',
+                          zIndex: 2010
+                        }}
+                      >
+                        {languages.map((lang) => (
+                          <div
+                            key={lang}
+                            onClick={() => { setSelectedLang(lang); setIsLangOpen(false); }}
+                            style={{
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              fontSize: '12.5px',
+                              fontWeight: selectedLang === lang ? '700' : '500',
+                              color: selectedLang === lang ? 'var(--primary-red)' : 'var(--text-dark)',
+                              backgroundColor: selectedLang === lang ? 'var(--bg-light)' : 'transparent',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between'
+                            }}
+                            className="app-launcher-link"
+                          >
+                            <span>{lang}</span>
+                            {selectedLang === lang && <Check size={12} />}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -928,14 +1128,16 @@ export default function Header({ theme, toggleTheme, isLoggedIn, onLoginClick, o
             <div className="mobile-nav-auth-box">
               {isLoggedIn ? (
                 <>
-                  <button 
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => { navigate('/dashboard'); setMobileMenuOpen(false); }}
-                    style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '15px', fontWeight: '800' }}
-                  >
-                    <LayoutDashboard size={16} /> Open Dashboard
-                  </button>
+                  {currentView !== 'dashboard' && (
+                    <button 
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => { navigate('/dashboard'); setMobileMenuOpen(false); }}
+                      style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '15px', fontWeight: '800' }}
+                    >
+                      <LayoutDashboard size={16} /> Open Dashboard
+                    </button>
+                  )}
                   <button 
                     type="button"
                     className="btn btn-secondary"

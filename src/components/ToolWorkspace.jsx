@@ -258,7 +258,25 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     moveOrganizePage(draggedOrganizeIdx, dropIndex);
     setDraggedOrganizeIdx(null);
   };
+
+  // Crop PDF interactive states
   const [cropMargin, setCropMargin] = useState('40');
+  const [cropUniform, setCropUniform] = useState(true);
+  const [cropMarginTop, setCropMarginTop] = useState('40');
+  const [cropMarginBottom, setCropMarginBottom] = useState('40');
+  const [cropMarginLeft, setCropMarginLeft] = useState('40');
+  const [cropMarginRight, setCropMarginRight] = useState('40');
+  const [cropPageScope, setCropPageScope] = useState('all');
+
+  // PDF Forms interactive states
+  const [formsPreset, setFormsPreset] = useState('contact');
+  const [formsPlacement, setFormsPlacement] = useState('append');
+  const [formsTitle, setFormsTitle] = useState('Fillable Information & Form Fields');
+  const [formsIncludeSignature, setFormsIncludeSignature] = useState(true);
+  const [formsIncludeCheckbox, setFormsIncludeCheckbox] = useState(true);
+  const [formsIncludeDate, setFormsIncludeDate] = useState(true);
+  const [formsIncludeEmail, setFormsIncludeEmail] = useState(true);
+  const [formsIncludePhone, setFormsIncludePhone] = useState(true);
   const [showCameraScanner, setShowCameraScanner] = useState(false);
   const [selectedScanPreview, setSelectedScanPreview] = useState(null);
 
@@ -476,6 +494,8 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
 
   const getActionLabel = () => {
     const title = tool.title;
+    if (tool.id.includes('crop')) return 'Crop PDF Document';
+    if (tool.id.includes('forms')) return 'Create Fillable PDF Form';
     if (title.includes('PDF to')) return 'Convert to ' + title.split('to')[1].trim();
     if (title.includes('to PDF')) return 'Convert to PDF';
     return title;
@@ -546,8 +566,10 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   const [downloadBlob, setDownloadBlob] = useState(null);
   const [downloadFilename, setDownloadFilename] = useState('processed.pdf');
 
+  const uploadSizeLimitMb = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].maxFileSizeMb : 50;
+
   const addFiles = (newFiles) => {
-    const sizeLimitMb = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].maxFileSizeMb : 50;
+    const sizeLimitMb = uploadSizeLimitMb;
 
     const oversizedFiles = newFiles.filter(file => {
       const sizeBytes = file.size !== undefined ? file.size : 1.45 * 1024 * 1024;
@@ -803,10 +825,20 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     formData.append('keywords', redactKeywords);
     formData.append('pageOrder', organizePageOrder);
     formData.append('mode', 'custom');
-    formData.append('marginTop', cropMargin);
-    formData.append('marginBottom', cropMargin);
-    formData.append('marginLeft', cropMargin);
-    formData.append('marginRight', cropMargin);
+    formData.append('marginTop', cropUniform ? cropMargin : cropMarginTop);
+    formData.append('marginBottom', cropUniform ? cropMargin : cropMarginBottom);
+    formData.append('marginLeft', cropUniform ? cropMargin : cropMarginLeft);
+    formData.append('marginRight', cropUniform ? cropMargin : cropMarginRight);
+    formData.append('cropScope', cropPageScope);
+
+    formData.append('formPreset', formsPreset);
+    formData.append('formPlacement', formsPlacement);
+    formData.append('formTitle', formsTitle);
+    formData.append('includeSignature', formsIncludeSignature ? '1' : '0');
+    formData.append('includeCheckbox', formsIncludeCheckbox ? '1' : '0');
+    formData.append('includeDate', formsIncludeDate ? '1' : '0');
+    formData.append('includeEmail', formsIncludeEmail ? '1' : '0');
+    formData.append('includePhone', formsIncludePhone ? '1' : '0');
 
     const firstFileName = files[0] ? files[0].name : 'document.pdf';
     const targetFilename = getOutputFilename(tool.id, firstFileName);
@@ -1835,17 +1867,231 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
           p.drawRectangle({ x: 40, y: height - 50, width: 200, height: 16, color: rgb(0, 0, 0) });
         });
       } else if (toolId.includes('crop')) {
-        pages.forEach(p => {
+        const top = parseFloat(cropUniform ? cropMargin : cropMarginTop) || 40;
+        const bottom = parseFloat(cropUniform ? cropMargin : cropMarginBottom) || 40;
+        const left = parseFloat(cropUniform ? cropMargin : cropMarginLeft) || 40;
+        const right = parseFloat(cropUniform ? cropMargin : cropMarginRight) || 40;
+
+        pages.forEach((p, idx) => {
+          if (cropPageScope === 'first' && idx > 0) return;
           const { width, height } = p.getSize();
-          p.setCropBox(30, 30, width - 60, height - 60);
+          const effL = Math.min(left, Math.max(0, (width - 20) / 2));
+          const effR = Math.min(right, Math.max(0, (width - 20) / 2));
+          const effT = Math.min(top, Math.max(0, (height - 20) / 2));
+          const effB = Math.min(bottom, Math.max(0, (height - 20) / 2));
+          const newW = Math.max(20, width - effL - effR);
+          const newH = Math.max(20, height - effT - effB);
+
+          p.setCropBox(effL, effB, newW, newH);
+          p.setMediaBox(effL, effB, newW, newH);
         });
-      } else if (toolId.includes('forms') && firstP) {
-        try {
-          const form = sourcePdfDoc.getForm();
-          const textField = form.createTextField('user.fullname');
-          textField.setText('Interactive Fillable Name Field');
-          textField.addToPage(firstP, { x: 50, y: 200, width: 220, height: 24 });
-        } catch (e) {}
+      } else if (toolId.includes('forms')) {
+        const form = sourcePdfDoc.getForm();
+        const font = await sourcePdfDoc.embedFont(StandardFonts.Helvetica);
+        const fontBold = await sourcePdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+        let targetPage;
+        if (formsPlacement === 'append') {
+          targetPage = sourcePdfDoc.addPage([595.28, 841.89]);
+        } else if (formsPlacement === 'overlay_first') {
+          targetPage = pages[0];
+        } else {
+          targetPage = pages[pages.length - 1];
+        }
+
+        const { width: pW, height: pH } = targetPage.getSize();
+
+        if (formsPlacement === 'append') {
+          targetPage.drawRectangle({
+            x: 0, y: pH - 75,
+            width: pW, height: 75,
+            color: rgb(0.97, 0.98, 0.99)
+          });
+          targetPage.drawRectangle({
+            x: 0, y: pH - 77,
+            width: pW, height: 3,
+            color: rgb(0.9, 0.14, 0.14)
+          });
+
+          targetPage.drawText(formsTitle || 'Fillable Information & Form Fields', {
+            x: 40, y: pH - 45,
+            size: 18, font: fontBold,
+            color: rgb(0.12, 0.16, 0.23)
+          });
+          targetPage.drawText('Interactive fillable form fields created by azPDF. Click on fields to type.', {
+            x: 40, y: pH - 62,
+            size: 9, font: font,
+            color: rgb(0.4, 0.45, 0.55)
+          });
+
+          let curY = pH - 130;
+          const fieldsToRender = [];
+
+          if (formsPreset === 'approval') {
+            fieldsToRender.push({ id: 'approverName', label: 'Approver Full Name' });
+            fieldsToRender.push({ id: 'approverDept', label: 'Department / Organization' });
+            if (formsIncludeEmail) fieldsToRender.push({ id: 'approverEmail', label: 'Corporate Email' });
+            if (formsIncludeDate) fieldsToRender.push({ id: 'approvalDate', label: 'Approval Date' });
+          } else if (formsPreset === 'agreement') {
+            fieldsToRender.push({ id: 'repName', label: 'Authorized Representative' });
+            fieldsToRender.push({ id: 'compName', label: 'Company / Organization' });
+            if (formsIncludeEmail) fieldsToRender.push({ id: 'busEmail', label: 'Official Business Email' });
+            if (formsIncludePhone) fieldsToRender.push({ id: 'busPhone', label: 'Contact Phone Number' });
+            if (formsIncludeDate) fieldsToRender.push({ id: 'effectiveDate', label: 'Effective Date' });
+          } else {
+            fieldsToRender.push({ id: 'fullName', label: 'Full Legal Name' });
+            if (formsIncludeEmail) fieldsToRender.push({ id: 'emailAddr', label: 'Email Address' });
+            if (formsIncludePhone) fieldsToRender.push({ id: 'phoneNum', label: 'Phone Number' });
+            fieldsToRender.push({ id: 'organization', label: 'Company / Organization' });
+            if (formsIncludeDate) fieldsToRender.push({ id: 'formDate', label: 'Date' });
+          }
+
+          fieldsToRender.forEach((f, fIdx) => {
+            targetPage.drawText(f.label + ':', {
+              x: 40, y: curY + 28,
+              size: 10, font: fontBold,
+              color: rgb(0.2, 0.25, 0.35)
+            });
+
+            try {
+              const fieldName = `${f.id}_${Date.now()}_${fIdx}`;
+              const tf = form.createTextField(fieldName);
+              tf.setText('');
+              tf.addToPage(targetPage, {
+                x: 40, y: curY,
+                width: pW - 80, height: 26,
+                borderWidth: 1,
+                borderColor: rgb(0.8, 0.84, 0.88),
+                backgroundColor: rgb(0.98, 0.99, 1.0)
+              });
+            } catch (err) {}
+
+            curY -= 52;
+          });
+
+          if (formsIncludeCheckbox && curY > 150) {
+            try {
+              const cbName = `certCheck_${Date.now()}`;
+              const cb = form.createCheckBox(cbName);
+              cb.addToPage(targetPage, {
+                x: 40, y: curY,
+                width: 16, height: 16,
+                borderWidth: 1,
+                borderColor: rgb(0.6, 0.65, 0.75),
+                backgroundColor: rgb(1, 1, 1)
+              });
+            } catch (err) {}
+
+            targetPage.drawText('I confirm that all information provided in this document is accurate, genuine, and true.', {
+              x: 65, y: curY + 3,
+              size: 9, font: font,
+              color: rgb(0.3, 0.35, 0.45)
+            });
+
+            curY -= 45;
+          }
+
+          if (formsIncludeSignature && curY >= 80) {
+            targetPage.drawRectangle({
+              x: 40, y: curY - 30,
+              width: pW - 80, height: 60,
+              color: rgb(0.97, 0.98, 0.99),
+              borderColor: rgb(0.85, 0.88, 0.92),
+              borderWidth: 1
+            });
+            targetPage.drawRectangle({
+              x: 40, y: curY - 30,
+              width: 3, height: 60,
+              color: rgb(0.9, 0.14, 0.14)
+            });
+
+            targetPage.drawText('Authorized Signature', {
+              x: 55, y: curY + 12,
+              size: 10, font: fontBold,
+              color: rgb(0.2, 0.25, 0.35)
+            });
+            targetPage.drawLine({
+              start: { x: 55, y: curY - 14 },
+              end: { x: 260, y: curY - 14 },
+              thickness: 1,
+              color: rgb(0.7, 0.75, 0.8)
+            });
+            targetPage.drawText('(Click or sign here)', {
+              x: 55, y: curY - 24,
+              size: 8, font: font,
+              color: rgb(0.5, 0.55, 0.65)
+            });
+
+            try {
+              const sigField = form.createTextField(`signatureField_${Date.now()}`);
+              sigField.addToPage(targetPage, {
+                x: 55, y: curY - 10,
+                width: 200, height: 22,
+                borderWidth: 0,
+                backgroundColor: rgb(0.94, 0.96, 0.99)
+              });
+            } catch (err) {}
+
+            targetPage.drawText('Date Signed', {
+              x: 320, y: curY + 12,
+              size: 10, font: fontBold,
+              color: rgb(0.2, 0.25, 0.35)
+            });
+            targetPage.drawLine({
+              start: { x: 320, y: curY - 14 },
+              end: { x: pW - 60, y: curY - 14 },
+              thickness: 1,
+              color: rgb(0.7, 0.75, 0.8)
+            });
+            try {
+              const dateField = form.createTextField(`signedDate_${Date.now()}`);
+              dateField.addToPage(targetPage, {
+                x: 320, y: curY - 10,
+                width: 140, height: 22,
+                borderWidth: 0,
+                backgroundColor: rgb(0.94, 0.96, 0.99)
+              });
+            } catch (err) {}
+          }
+        } else {
+          // Overlay mode
+          const ovY = Math.max(25, 30);
+          targetPage.drawRectangle({
+            x: 30, y: ovY,
+            width: pW - 60, height: 95,
+            color: rgb(1, 1, 1),
+            borderColor: rgb(0.85, 0.88, 0.92),
+            borderWidth: 1
+          });
+          targetPage.drawRectangle({
+            x: 30, y: ovY + 93,
+            width: pW - 60, height: 2,
+            color: rgb(0.9, 0.14, 0.14)
+          });
+          targetPage.drawText(formsTitle || 'Form Sign-off', {
+            x: 40, y: ovY + 76,
+            size: 11, font: fontBold,
+            color: rgb(0.15, 0.2, 0.3)
+          });
+
+          try {
+            const tf1 = form.createTextField(`ov_name_${Date.now()}`);
+            tf1.addToPage(targetPage, { x: 40, y: ovY + 44, width: (pW - 100) / 2, height: 20, borderWidth: 1, borderColor: rgb(0.8, 0.84, 0.88) });
+            targetPage.drawText('Full Name:', { x: 40, y: ovY + 65, size: 8, font: fontBold, color: rgb(0.3, 0.35, 0.45) });
+
+            const tf2 = form.createTextField(`ov_contact_${Date.now()}`);
+            tf2.addToPage(targetPage, { x: 50 + (pW - 100) / 2, y: ovY + 44, width: (pW - 100) / 2, height: 20, borderWidth: 1, borderColor: rgb(0.8, 0.84, 0.88) });
+            targetPage.drawText('Email / Phone:', { x: 50 + (pW - 100) / 2, y: ovY + 65, size: 8, font: fontBold, color: rgb(0.3, 0.35, 0.45) });
+
+            const tf3 = form.createTextField(`ov_sig_${Date.now()}`);
+            tf3.addToPage(targetPage, { x: 40, y: ovY + 12, width: (pW - 100) / 2, height: 20, borderWidth: 1, borderColor: rgb(0.8, 0.84, 0.88) });
+            targetPage.drawText('Signature:', { x: 40, y: ovY + 33, size: 8, font: fontBold, color: rgb(0.3, 0.35, 0.45) });
+
+            const tf4 = form.createTextField(`ov_dt_${Date.now()}`);
+            tf4.addToPage(targetPage, { x: 50 + (pW - 100) / 2, y: ovY + 12, width: (pW - 100) / 2, height: 20, borderWidth: 1, borderColor: rgb(0.8, 0.84, 0.88) });
+            targetPage.drawText('Date:', { x: 50 + (pW - 100) / 2, y: ovY + 33, size: 8, font: fontBold, color: rgb(0.3, 0.35, 0.45) });
+          } catch (err) {}
+        }
       } else if (toolId.includes('compare')) {
         const comparePdf = await PDFDocument.create();
         const page = comparePdf.addPage([612, 792]);
@@ -2501,6 +2747,9 @@ startxref
 
               <p style={{ fontSize: '14px', color: 'var(--text-gray)', marginTop: '16px', marginBottom: 0 }}>
                 {tool.id.includes('scan') ? 'or click upload icon to select files from device' : 'or Drag files here'}
+              </p>
+              <p style={{ fontSize: '12px', color: 'var(--text-light-gray)', marginTop: '8px', marginBottom: 0 }}>
+                Maximum file size: {uploadSizeLimitMb} MB
               </p>
             </div>
           )}
@@ -4571,33 +4820,340 @@ startxref
 
               {/* Crop PDF controls */}
               {tool.id.includes('crop') && (
-                <div>
-                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '8px' }}>
-                    Crop Margins (points cut from edges):
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                    {['20', '40', '60', '80'].map((m) => (
+                <div style={{
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '12px',
+                  padding: '16px 20px',
+                  width: '100%',
+                  maxWidth: '560px',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '15px' }}>✂️</span>
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>
+                        Crop PDF Margins
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
                       <button
-                        key={m}
                         type="button"
-                        onClick={() => setCropMargin(m)}
+                        onClick={() => setCropUniform(true)}
                         style={{
-                          padding: '8px 16px', borderRadius: '6px',
-                          border: cropMargin === m ? '2px solid var(--primary-red)' : '1px solid var(--border-light)',
-                          backgroundColor: cropMargin === m ? 'rgba(229,36,36,0.1)' : 'var(--bg-light)',
-                          color: cropMargin === m ? 'var(--primary-red)' : 'var(--text-dark)',
-                          fontWeight: '700', cursor: 'pointer'
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '4px 10px',
+                          borderRadius: '5px',
+                          border: cropUniform ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+                          backgroundColor: cropUniform ? 'rgba(229,36,36,0.1)' : 'transparent',
+                          color: cropUniform ? 'var(--primary-red)' : 'var(--text-gray)',
+                          cursor: 'pointer'
                         }}
                       >
-                        {m} pt {m === '40' ? '(Standard)' : ''}
+                        Uniform
                       </button>
-                    ))}
+                      <button
+                        type="button"
+                        onClick={() => setCropUniform(false)}
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '4px 10px',
+                          borderRadius: '5px',
+                          border: !cropUniform ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+                          backgroundColor: !cropUniform ? 'rgba(229,36,36,0.1)' : 'transparent',
+                          color: !cropUniform ? 'var(--primary-red)' : 'var(--text-gray)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Custom Margins
+                      </button>
+                    </div>
+                  </div>
+
+                  {cropUniform ? (
+                    <div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', marginBottom: '8px', textAlign: 'left' }}>
+                        Preset margin cut from all 4 boundaries:
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                        {[
+                          { val: '20', label: '20 pt', sub: 'Trim Bleed' },
+                          { val: '40', label: '40 pt', sub: 'Standard' },
+                          { val: '60', label: '60 pt', sub: 'Aggressive' },
+                          { val: '80', label: '80 pt', sub: 'Deep Crop' }
+                        ].map((item) => (
+                          <button
+                            key={item.val}
+                            type="button"
+                            onClick={() => setCropMargin(item.val)}
+                            style={{
+                              padding: '8px 6px',
+                              borderRadius: '8px',
+                              border: cropMargin === item.val ? '2px solid var(--primary-red)' : '1px solid var(--border-light)',
+                              backgroundColor: cropMargin === item.val ? 'rgba(229,36,36,0.08)' : 'var(--bg-light)',
+                              color: cropMargin === item.val ? 'var(--primary-red)' : 'var(--text-dark)',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '2px'
+                            }}
+                          >
+                            <span style={{ fontSize: '13px' }}>{item.label}</span>
+                            <span style={{ fontSize: '10px', opacity: 0.8, fontWeight: '500' }}>{item.sub}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', marginBottom: '8px', textAlign: 'left' }}>
+                        Individual Margins (in points, 1 pt ≈ 0.35 mm):
+                      </p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                        {[
+                          { label: 'Top', val: cropMarginTop, set: setCropMarginTop },
+                          { label: 'Bottom', val: cropMarginBottom, set: setCropMarginBottom },
+                          { label: 'Left', val: cropMarginLeft, set: setCropMarginLeft },
+                          { label: 'Right', val: cropMarginRight, set: setCropMarginRight }
+                        ].map((f) => (
+                          <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>{f.label}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="200"
+                              value={f.val}
+                              onChange={(e) => f.set(e.target.value)}
+                              style={{
+                                padding: '6px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border-light)',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                textAlign: 'center',
+                                backgroundColor: 'var(--bg-light)',
+                                color: 'var(--text-dark)'
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Crop Scope */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border-light)' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '600' }}>
+                      Apply Crop Scope:
+                    </span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setCropPageScope('all')}
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '4px 10px',
+                          borderRadius: '5px',
+                          border: cropPageScope === 'all' ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+                          backgroundColor: cropPageScope === 'all' ? 'rgba(229,36,36,0.1)' : 'transparent',
+                          color: cropPageScope === 'all' ? 'var(--primary-red)' : 'var(--text-gray)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        All Pages
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCropPageScope('first')}
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '4px 10px',
+                          borderRadius: '5px',
+                          border: cropPageScope === 'first' ? '1.5px solid var(--primary-red)' : '1px solid var(--border-light)',
+                          backgroundColor: cropPageScope === 'first' ? 'rgba(229,36,36,0.1)' : 'transparent',
+                          color: cropPageScope === 'first' ? 'var(--primary-red)' : 'var(--text-gray)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        First Page Only
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PDF Forms controls */}
+              {tool.id.includes('forms') && (
+                <div style={{
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '12px',
+                  padding: '16px 20px',
+                  width: '100%',
+                  maxWidth: '620px',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                    <span style={{ fontSize: '16px' }}>📝</span>
+                    <div style={{ textAlign: 'left' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)', display: 'block' }}>
+                        Create Interactive PDF Form
+                      </span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-gray)' }}>
+                        Add fillable text fields, checkboxes, and formal signature areas
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Form Preset Selection */}
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', display: 'block', marginBottom: '6px', textAlign: 'left' }}>
+                      Select Form Template Preset:
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {[
+                        { id: 'contact', title: 'Registration / Contact', desc: 'Name, Email, Phone, Company' },
+                        { id: 'approval', title: 'Sign-Off & Approval', desc: 'Approver, Dept, Date, Checklist' },
+                        { id: 'agreement', title: 'Client Agreement', desc: 'Authorized Rep, Entity, Signature' }
+                      ].map((preset) => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => setFormsPreset(preset.id)}
+                          style={{
+                            padding: '10px 8px',
+                            borderRadius: '8px',
+                            border: formsPreset === preset.id ? '2px solid var(--primary-red)' : '1px solid var(--border-light)',
+                            backgroundColor: formsPreset === preset.id ? 'rgba(229,36,36,0.08)' : 'var(--bg-light)',
+                            color: formsPreset === preset.id ? 'var(--primary-red)' : 'var(--text-dark)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            textAlign: 'left',
+                            gap: '3px'
+                          }}
+                        >
+                          <span style={{ fontSize: '12px', fontWeight: '800' }}>{preset.title}</span>
+                          <span style={{ fontSize: '10px', opacity: 0.8, color: 'var(--text-gray)' }}>{preset.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Placement & Title */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', display: 'block', marginBottom: '4px', textAlign: 'left' }}>
+                        Form Placement:
+                      </label>
+                      <select
+                        value={formsPlacement}
+                        onChange={(e) => setFormsPlacement(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          backgroundColor: 'var(--bg-light)',
+                          color: 'var(--text-dark)'
+                        }}
+                      >
+                        <option value="append">Append Clean Form Page (Recommended)</option>
+                        <option value="overlay_last">Overlay on Bottom of Last Page</option>
+                        <option value="overlay_first">Overlay on First Page</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', display: 'block', marginBottom: '4px', textAlign: 'left' }}>
+                        Form Section Title:
+                      </label>
+                      <input
+                        type="text"
+                        value={formsTitle}
+                        onChange={(e) => setFormsTitle(e.target.value)}
+                        placeholder="e.g. Fillable Form Document"
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border-light)',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          backgroundColor: 'var(--bg-light)',
+                          color: 'var(--text-dark)'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Checkbox toggles for fields */}
+                  <div style={{
+                    backgroundColor: 'var(--bg-light)',
+                    borderRadius: '8px',
+                    padding: '10px 12px',
+                    border: '1px solid var(--border-light)'
+                  }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', display: 'block', marginBottom: '6px', textAlign: 'left' }}>
+                      Included Form Elements:
+                    </span>
+                    <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: 'var(--text-dark)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={formsIncludeEmail}
+                          onChange={(e) => setFormsIncludeEmail(e.target.checked)}
+                        />
+                        Email Field
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: 'var(--text-dark)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={formsIncludePhone}
+                          onChange={(e) => setFormsIncludePhone(e.target.checked)}
+                        />
+                        Phone Field
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: 'var(--text-dark)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={formsIncludeDate}
+                          onChange={(e) => setFormsIncludeDate(e.target.checked)}
+                        />
+                        Date Field
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: 'var(--text-dark)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={formsIncludeCheckbox}
+                          onChange={(e) => setFormsIncludeCheckbox(e.target.checked)}
+                        />
+                        Checkbox
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '600', color: 'var(--text-dark)', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={formsIncludeSignature}
+                          onChange={(e) => setFormsIncludeSignature(e.target.checked)}
+                        />
+                        Signature Area
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* General ready notice */}
-              {!tool.id.includes('split') && !tool.id.includes('rotate') && !tool.id.includes('watermark') && !tool.id.includes('protect') && !tool.id.includes('unlock') && !tool.id.includes('compress') && !tool.id.includes('pagenumber') && !tool.id.includes('sign') && !tool.id.includes('translate') && !tool.id.includes('edit') && !tool.id.includes('htmltopdf') && !tool.id.includes('redact') && !tool.id.includes('organize') && !tool.id.includes('crop') && (
+              {!tool.id.includes('split') && !tool.id.includes('rotate') && !tool.id.includes('watermark') && !tool.id.includes('protect') && !tool.id.includes('unlock') && !tool.id.includes('compress') && !tool.id.includes('pagenumber') && !tool.id.includes('sign') && !tool.id.includes('translate') && !tool.id.includes('edit') && !tool.id.includes('htmltopdf') && !tool.id.includes('redact') && !tool.id.includes('organize') && !tool.id.includes('crop') && !tool.id.includes('forms') && (
                 <p style={{ fontSize: '13px', color: 'var(--text-gray)', margin: 0 }}>
                   Ready to process <strong>{files.length}</strong> file(s) with high accuracy vector conversion.
                 </p>

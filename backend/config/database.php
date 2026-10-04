@@ -95,6 +95,31 @@ class Database {
                 replied_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS paddle_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                txn_id TEXT UNIQUE,
+                user_id INTEGER DEFAULT 1,
+                plan_id TEXT,
+                plan_name TEXT,
+                amount REAL,
+                currency TEXT DEFAULT 'USD',
+                customer_name TEXT,
+                customer_email TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS invoices (
+                id TEXT PRIMARY KEY,
+                user_id INTEGER DEFAULT 1,
+                date TEXT,
+                amount TEXT,
+                plan TEXT,
+                status TEXT DEFAULT 'Paid',
+                downloadUrl TEXT DEFAULT '#',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
         ");
 
         // Seed if users is empty

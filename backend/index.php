@@ -28,6 +28,7 @@ require_once __DIR__ . '/controllers/AdminController.php';
 require_once __DIR__ . '/controllers/AuthController.php';
 require_once __DIR__ . '/controllers/ContactController.php';
 require_once __DIR__ . '/controllers/UserController.php';
+require_once __DIR__ . '/controllers/PaddleController.php';
 require_once __DIR__ . '/controllers/PdfController.php';
 
 // Parse Path and Method
@@ -131,6 +132,11 @@ if ($path === '/api/user/invoices' && $method === 'GET') {
 
 if ($path === '/api/support/ticket' && $method === 'POST') {
     UserController::submitTicket();
+}
+
+// ── Paddle Payment Gateway Endpoints ────────────────────────────────────────
+if (str_starts_with($path, '/api/paddle')) {
+    PaddleController::handle();
 }
 
 // ── PDF Tools Endpoints ─────────────────────────────────────────────────────

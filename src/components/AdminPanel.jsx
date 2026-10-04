@@ -43,6 +43,11 @@ export default function AdminPanel({
   const [userSearch, setUserSearch] = useState('');
   const [userPlanFilter, setUserPlanFilter] = useState('All');
   const [fileSearch, setFileSearch] = useState('');
+  const [fileToolFilter, setFileToolFilter] = useState('All');
+  const [fileDateFilter, setFileDateFilter] = useState('All');
+  const [selectedFileIds, setSelectedFileIds] = useState([]);
+  const [filePage, setFilePage] = useState(1);
+  const filesPerPage = 100;
 
   // Modals state
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -63,6 +68,8 @@ export default function AdminPanel({
   // ── Menu Set (Tool Content & Visibility Management) State ──
   const [selectedMenuTool, setSelectedMenuTool] = useState(null);
   const [menuSetSearch, setMenuSetSearch] = useState('');
+  const [draftLimits, setDraftLimits] = useState({});
+  const [savedLimitId, setSavedLimitId] = useState(null);
   const [menuSetFilter, setMenuSetFilter] = useState('All'); // 'All' | 'Active' | 'Disabled'
   const [menuToolForm, setMenuToolForm] = useState({
     title: '',
@@ -677,10 +684,10 @@ export default function AdminPanel({
     pricingSubtitle: siteContent?.pricingSubtitle || 'Work seamlessly with all PDF tools. Get unlimited processing, high-speed OCR, digital e-signatures, and batch file support.',
     freePlanTitle: siteContent?.freePlanTitle || 'Free',
     freePlanDesc: siteContent?.freePlanDesc || 'Essential PDF tools for quick tasks and light usage.',
+    basicPlanTitle: siteContent?.basicPlanTitle || 'Basic',
+    basicPlanDesc: siteContent?.basicPlanDesc || 'Higher limits, faster processing, and no daily file caps.',
     premiumPlanTitle: siteContent?.premiumPlanTitle || 'Premium',
     premiumPlanDesc: siteContent?.premiumPlanDesc || 'Complete access, unlimited processing, OCR speed, and zero ads.',
-    businessPlanTitle: siteContent?.businessPlanTitle || 'Business / Team',
-    businessPlanDesc: siteContent?.businessPlanDesc || 'Custom team management, dedicated support, and enterprise API access.',
     footerBrand: siteContent?.footerBrand || 'I ❤️ PDF',
     footerDesc: siteContent?.footerDesc || 'The all-in-one PDF solution to make working with documents fast, simple, and completely secure.',
     footerCopyright: siteContent?.footerCopyright || '© 2026 iLovePDF. All Rights Reserved.',
@@ -1076,18 +1083,45 @@ export default function AdminPanel({
     return matchSearch && matchPlan;
   });
 
-  const filteredFiles = recentFiles.filter(f =>
-    f.name.toLowerCase().includes(fileSearch.toLowerCase()) ||
-    f.tool.toLowerCase().includes(fileSearch.toLowerCase())
-  );
+  const filteredFiles = recentFiles.filter(f => {
+    const q = fileSearch.toLowerCase();
+    const matchSearch = f.name.toLowerCase().includes(q) || f.tool.toLowerCase().includes(q) || (f.userName || '').toLowerCase().includes(q);
+    const matchTool = fileToolFilter === 'All' || f.tool === fileToolFilter;
+    const matchDate = fileDateFilter === 'All' || f.date === fileDateFilter;
+    return matchSearch && matchTool && matchDate;
+  });
+  const fileTools = ['All', ...new Set(recentFiles.map(f => f.tool))];
+  const fileDates = ['All', ...new Set(recentFiles.map(f => f.date))];
+  const totalFilePages = Math.max(1, Math.ceil(filteredFiles.length / filesPerPage));
+  const currentFilePage = Math.min(filePage, totalFilePages);
+  const paginatedFiles = filteredFiles.slice((currentFilePage - 1) * filesPerPage, currentFilePage * filesPerPage);
+  const allPageSelected = paginatedFiles.length > 0 && paginatedFiles.every(f => selectedFileIds.includes(f.id));
+  const toggleSelectAllFiles = () => {
+    if (allPageSelected) {
+      setSelectedFileIds(prev => prev.filter(id => !paginatedFiles.some(f => f.id === id)));
+    } else {
+      setSelectedFileIds(prev => [...new Set([...prev, ...paginatedFiles.map(f => f.id)])]);
+    }
+  };
+  const toggleSelectFile = (id) => {
+    setSelectedFileIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const handleDeleteSelectedFiles = () => {
+    if (selectedFileIds.length === 0) return;
+    if (window.confirm(`Delete ${selectedFileIds.length} selected file(s) permanently?`)) {
+      setRecentFiles(prev => prev.filter(f => !selectedFileIds.includes(f.id)));
+      addLog(`Admin deleted ${selectedFileIds.length} file(s) from storage.`, 'warning');
+      setSelectedFileIds([]);
+    }
+  };
 
   const getPlanMeta = (plan = '') => {
     const p = String(plan || '').toUpperCase();
-    if (p === 'BUSINESS') {
-      return { color: '#2563eb', bg: '#eff6ff', icon: <Crown size={12} /> };
-    }
     if (p === 'PREMIUM') {
       return { color: '#d97706', bg: '#fffbeb', icon: <Star size={12} /> };
+    }
+    if (p === 'BASIC') {
+      return { color: '#16a34a', bg: '#f0fdf4', icon: <BadgeCheck size={12} /> };
     }
     return { color: '#6b7280', bg: '#f9fafb', icon: <User size={12} /> };
   };
@@ -1098,14 +1132,13 @@ export default function AdminPanel({
 
   const tabNames = {
     overview: 'Dashboard Overview',
-    menuset: 'Menu Set & Tool Content',
+    menuset: 'Tool Settings',
     messages: 'Contact Messages',
     footer: 'Footer Manager',
     content: 'Home Page Content',
     legal: 'Privacy & Terms Pages',
     users: 'User Accounts',
-    tools: 'PDF Tools Config',
-    files: 'Platform Files',
+    files: 'Recently Converted',
     settings: 'System Settings',
   };
 
@@ -1167,7 +1200,7 @@ export default function AdminPanel({
             <span style={{ color: 'var(--text-gray)' }}>/</span>
             <span style={{ color: 'var(--text-dark)', fontWeight: '700' }}>
               {selectedMenuTool && activeTab === 'menuset' 
-                ? `Menu Set › ${selectedMenuTool.title}` 
+                ? `Tool Settings › ${selectedMenuTool.title}` 
                 : (tabNames[activeTab] || 'Dashboard')}
             </span>
           </div>
@@ -1187,9 +1220,6 @@ export default function AdminPanel({
             fontWeight: '700',
             color: 'var(--text-dark)'
           }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', boxShadow: '0 0 6px #10b981' }} />
-            <span>Server Online</span>
-            <span style={{ color: 'var(--border-light)' }}>|</span>
             <span style={{ color: 'var(--text-gray)', fontWeight: '500' }}>
               Maintenance: {systemSettings?.maintenanceMode ? <span style={{ color: '#ef4444', fontWeight: '800' }}>ON</span> : <span style={{ color: '#10b981', fontWeight: '800' }}>OFF</span>}
             </span>
@@ -1198,30 +1228,6 @@ export default function AdminPanel({
 
         {/* Right: Quick Actions & Profile */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* View Live Website Button */}
-          <button
-            type="button"
-            onClick={onBack}
-            title="Open Live Public Website"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 14px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-light)',
-              backgroundColor: 'var(--bg-light)',
-              color: 'var(--text-dark)',
-              fontSize: '13px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              transition: 'all 0.15s'
-            }}
-          >
-            <Globe size={15} color="var(--primary-red)" />
-            <span className="hide-mobile">View Website</span>
-          </button>
-
           {/* Contact Messages Bell / Alert */}
           <button
             type="button"
@@ -1312,35 +1318,6 @@ export default function AdminPanel({
             </button>
           )}
 
-          {/* Admin Avatar Pill */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '4px 10px 4px 6px',
-            borderRadius: '24px',
-            backgroundColor: 'var(--bg-light)',
-            border: '1px solid var(--border-light)'
-          }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--primary-red)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: '800',
-              fontSize: '12px'
-            }}>
-              AD
-            </div>
-            <div className="hide-mobile" style={{ textAlign: 'left', lineHeight: '1.2' }}>
-              <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-dark)' }}>Admin</div>
-              <div style={{ fontSize: '10px', color: '#10b981', fontWeight: '700' }}>● Online</div>
-            </div>
-          </div>
         </div>
       </header>
 
@@ -1396,10 +1373,6 @@ export default function AdminPanel({
               </div>
               <div>
                 <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>Admin Panel</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                  Super Admin Active
-                </div>
               </div>
             </div>
 
@@ -1454,14 +1427,8 @@ export default function AdminPanel({
             </div>
             {[
               { id: 'overview', label: 'Dashboard Overview', icon: <Activity size={18} /> },
-              { id: 'menuset', label: 'Menu Set', icon: <Sliders size={18} /> },
-              { id: 'messages', label: 'Contact Messages', icon: <Mail size={18} />, badge: unreadMessagesCount },
-              { id: 'footer', label: 'Footer Manager', icon: <Layout size={18} /> },
-              { id: 'content', label: 'Home Page Content', icon: <Edit size={18} /> },
               { id: 'users', label: 'User Accounts', icon: <Users size={18} /> },
-              { id: 'tools', label: 'PDF Tools Config', icon: <Settings size={18} /> },
-              { id: 'files', label: 'Platform Files', icon: <FileText size={18} /> },
-              { id: 'settings', label: 'System Settings', icon: <Server size={18} /> },
+              { id: 'files', label: 'Recently Converted', icon: <FileText size={18} /> },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1506,128 +1473,71 @@ export default function AdminPanel({
             ))}
 
             <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '14px 12px 2px' }}>
-              Pages Management
+              Settings
             </div>
             {[
-              { id: 'security', label: 'Security', icon: <Shield size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('security'); } },
-              { id: 'privacy', label: 'Privacy Policy', icon: <Scale size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('privacy'); } },
-              { id: 'terms', label: 'Terms & Conditions', icon: <FileText size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('terms'); } },
-              { id: 'about', label: 'About Us', icon: <Heart size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('about'); } },
-              { id: 'contact', label: 'Contact Us', icon: <Mail size={18} />, badge: unreadMessagesCount, action: () => setActiveTab('messages') },
-              { id: 'blog', label: 'Blog', icon: <BookOpen size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('blog'); } },
-              { id: 'press', label: 'Press', icon: <Newspaper size={18} />, action: () => { setActiveTab('legal'); setLegalSubTab('press'); } },
-            ].map(tab => {
-              const isCurrent = tab.id === 'contact' 
-                ? activeTab === 'messages' 
-                : (activeTab === 'legal' && legalSubTab === tab.id);
-              return (
-                <button
-                  key={tab.id}
-                  onClick={tab.action}
-                  className={`admin-nav-btn ${isCurrent ? 'active' : ''}`}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '9px 14px',
-                    borderRadius: '10px',
-                    border: 'none',
-                    backgroundColor: isCurrent ? 'var(--primary-red)' : 'transparent',
-                    color: isCurrent ? '#ffffff' : 'var(--text-gray)',
-                    fontWeight: isCurrent ? '700' : '500',
-                    fontSize: '13.5px',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.2s',
-                    width: '100%'
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {tab.icon} {tab.label}
-                  </span>
-                  {tab.badge > 0 && (
-                    <span style={{
-                      backgroundColor: isCurrent ? '#ffffff' : 'var(--primary-red)',
-                      color: isCurrent ? 'var(--primary-red)' : '#ffffff',
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      padding: '2px 7px',
-                      borderRadius: '10px'
-                    }}>
-                      {tab.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+              { id: 'menuset', label: 'Tool Settings', icon: <Sliders size={18} /> },
+              { id: 'footer', label: 'Footer Manager', icon: <Layout size={18} /> },
+              { id: 'content', label: 'Home Page Content', icon: <Edit size={18} /> },
+              { id: 'settings', label: 'System Settings', icon: <Server size={18} /> },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  if (tab.id === 'menuset') setSelectedMenuTool(null);
+                }}
+                className={`admin-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: activeTab === tab.id ? 'var(--primary-red)' : 'transparent',
+                  color: activeTab === tab.id ? '#ffffff' : 'var(--text-gray)',
+                  fontWeight: activeTab === tab.id ? '700' : '500',
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                  width: '100%'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {tab.icon} {tab.label}
+                </span>
+              </button>
+            ))}
 
-        {/* Back Link to Home (Desktop) */}
-        <button
-          onClick={onBack}
-          className="admin-exit-btn"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            color: 'var(--text-gray)',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            border: 'none',
-            backgroundColor: 'transparent',
-            transition: 'color 0.2s',
-            marginTop: 'auto',
-            width: '100%',
-            textAlign: 'left'
-          }}
-        >
-          <ArrowLeft size={16} /> Exit to Site Home
-        </button>
-      </aside>
-
-      {/* Main Content Area */}
-      <main className="admin-main-content" style={{ flex: 1, padding: '36px 40px', overflowY: 'auto', boxSizing: 'border-box' }}>
-
-        {/* === TAB 1: DASHBOARD OVERVIEW === */}
-        {activeTab === 'overview' && (
-          <div>
-            {/* Header section */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Platform Dashboard</h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Real-time telemetry, user signups, and document server stats.</p>
-              </div>
-
-              {/* Server Live Status Badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'var(--border-light)', padding: '6px 14px', borderRadius: '20px' }}>
-                <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>Server Online</span>
-              </div>
+            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '14px 12px 2px' }}>
+              Pages Management
             </div>
-
-            {/* Quick stats cards grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
-              {[
-                { label: 'Total Users', value: usersData.length, change: 'All registrations', color: '#2563eb', bg: 'var(--border-light)', icon: <Users size={20} /> },
-                { label: 'Banned Users', value: bannedCount, change: 'Suspended accounts', color: '#ef4444', bg: '#fef2f2', icon: <ShieldAlert size={20} /> },
-                { label: 'Free Users', value: freeCount, change: 'Standard plan', color: 'var(--text-gray)', bg: 'var(--border-light)', icon: <User size={20} /> },
-                { label: 'Premium Users', value: premiumCount, change: 'Subscription active', color: '#d97706', bg: '#fffbeb', icon: <Star size={20} /> }
-              ].map((stat, i) => (
-                <div key={i} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-gray)', display: 'block', marginBottom: '8px' }}>{stat.label}</span>
-                    <span style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', display: 'block', marginBottom: '4px' }}>{stat.value}</span>
-                    <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '500' }}>{stat.change}</span>
-                  </div>
-                  <div style={{ padding: '12px', backgroundColor: 'var(--bg-light)', color: stat.color, borderRadius: '12px' }}>
-                    {stat.icon}
-                  </div>
-                </div>
-              ))}
+            <button
+              onClick={() => { setActiveTab('legal'); setLegalSubTab('security'); }}
+              className={`admin-nav-btn ${activeTab === 'legal' ? 'active' : ''}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '9px 14px',
+                borderRadius: '10px',
+                border: 'none',
+                backgroundColor: activeTab === 'legal' ? 'var(--primary-red)' : 'transparent',
+                color: activeTab === 'legal' ? '#ffffff' : 'var(--text-gray)',
+                fontWeight: activeTab === 'legal' ? '700' : '500',
+                fontSize: '13.5px',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.2s',
+                width: '100%'
+              }}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <FileText size={18} /> Pages Content
+              </span>
+            </button>
             </div>
 
             {/* Visual Charts & Live Server Metrics Section */}
@@ -1767,7 +1677,7 @@ export default function AdminPanel({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                   <div>
                     <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                      Menu Set & Tool Content
+                      Tool Settings & Tool Content
                     </h1>
                     <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
                       Manage all 31 PDF tool menu sheets, toggle descriptive content ON/OFF, and click on any tool to edit its "What is..." and "How to use..." content.
@@ -1847,7 +1757,7 @@ export default function AdminPanel({
                   {/* Table Header */}
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: '2.5fr 1fr 2.5fr 1.2fr 1.2fr 1.2fr',
+                    gridTemplateColumns: '2.2fr 0.9fr 2fr 0.9fr 1.1fr 1.1fr 1.1fr',
                     padding: '14px 20px',
                     backgroundColor: 'var(--bg-light)',
                     borderBottom: '1.5px solid var(--border-light)',
@@ -1860,8 +1770,9 @@ export default function AdminPanel({
                     <span>PDF Tool & Details</span>
                     <span>Category</span>
                     <span>Content Snippet</span>
-                    <span style={{ textAlign: 'center' }}>Site Status</span>
-                    <span style={{ textAlign: 'center' }}>Content Display</span>
+                    <span style={{ textAlign: 'center' }}>Enabled</span>
+                    <span style={{ textAlign: 'center' }}>Display Content</span>
+                    <span style={{ textAlign: 'center' }}>Size Limit (MB)</span>
                     <span style={{ textAlign: 'right', paddingRight: '8px' }}>Action</span>
                   </div>
 
@@ -1892,7 +1803,7 @@ export default function AdminPanel({
                             onClick={() => handleOpenMenuTool(tool)}
                             style={{
                               display: 'grid',
-                              gridTemplateColumns: '2.5fr 1fr 2.5fr 1.2fr 1.2fr 1.2fr',
+                    gridTemplateColumns: '2.2fr 0.9fr 2fr 0.9fr 1.1fr 1.1fr 1.1fr',
                               padding: '16px 20px',
                               alignItems: 'center',
                               borderBottom: idx < filteredMenuTools.length - 1 ? '1px solid var(--border-light)' : 'none',
@@ -1955,34 +1866,26 @@ export default function AdminPanel({
                               </div>
                             </div>
 
-                            {/* Tool Active on Site Quick Toggle */}
+                            {/* Tool Enabled Quick Toggle */}
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                               <button
                                 type="button"
                                 onClick={(e) => handleToggleToolQuick(tool, e)}
-                                title={isToolActive ? "Tool is active on site. Click to take offline." : "Tool is offline. Click to activate."}
+                                title={isToolActive ? "Enabled" : "Disabled"}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '6px',
-                                  padding: '5px 12px',
-                                  borderRadius: '20px',
-                                  border: isToolActive ? '1.5px solid #10b981' : '1.5px solid #ef4444',
-                                  backgroundColor: isToolActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                  color: isToolActive ? '#059669' : '#dc2626',
-                                  fontSize: '11px',
-                                  fontWeight: '800',
+                                  justifyContent: 'center',
+                                  padding: '6px',
+                                  borderRadius: '8px',
+                                  border: 'none',
+                                  backgroundColor: 'transparent',
+                                  color: isToolActive ? '#10b981' : 'var(--text-light-gray)',
                                   cursor: 'pointer',
                                   transition: 'all 0.15s'
                                 }}
                               >
-                                <span style={{
-                                  width: '7px',
-                                  height: '7px',
-                                  borderRadius: '50%',
-                                  backgroundColor: isToolActive ? '#10b981' : '#ef4444'
-                                }} />
-                                {isToolActive ? 'ONLINE' : 'OFFLINE'}
+                                {isToolActive ? <Eye size={20} /> : <EyeOff size={20} />}
                               </button>
                             </div>
 
@@ -2014,6 +1917,55 @@ export default function AdminPanel({
                                   backgroundColor: isContentEnabled ? '#10b981' : 'var(--text-gray)'
                                 }} />
                                 {isContentEnabled ? 'ON' : 'OFF'}
+                              </button>
+                            </div>
+
+                            {/* Upload Size Limit inline editor */}
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                              <input
+                                type="number"
+                                min="1"
+                                max="500"
+                                value={draftLimits[tool.id] ?? toolsConfig?.[tool.id]?.maxFileSizeMb ?? 50}
+                                onChange={e => setDraftLimits(p => ({ ...p, [tool.id]: e.target.value }))}
+                                style={{
+                                  width: '64px',
+                                  padding: '6px 8px',
+                                  borderRadius: '6px',
+                                  border: '1.5px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-card)',
+                                  color: 'var(--text-dark)',
+                                  fontSize: '13px',
+                                  fontWeight: '700',
+                                  textAlign: 'center',
+                                  outline: 'none'
+                                }}
+                              />
+                              <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '700' }}>MB</span>
+                              <button
+                                type="button"
+                                title="Save size limit"
+                                onClick={() => {
+                                  const limitVal = draftLimits[tool.id] ?? toolsConfig?.[tool.id]?.maxFileSizeMb ?? 50;
+                                  handleLimitChange(tool.id, limitVal);
+                                  setDraftLimits(p => { const n = { ...p }; delete n[tool.id]; return n; });
+                                  setSavedLimitId(tool.id);
+                                  addLog(`Upload size limit for "${tool.title}" set to ${limitVal} MB.`, 'success');
+                                  setTimeout(() => setSavedLimitId(null), 1500);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '6px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-light)',
+                                  color: 'var(--primary-red)',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {savedLimitId === tool.id ? <CheckCircle2 size={14} color="#10b981" /> : <Save size={14} />}
                               </button>
                             </div>
 
@@ -2069,7 +2021,7 @@ export default function AdminPanel({
                       cursor: 'pointer'
                     }}
                   >
-                    <ArrowLeft size={16} /> Back to Menu Set
+                    <ArrowLeft size={16} /> Back to Tool Settings
                   </button>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -2241,6 +2193,32 @@ export default function AdminPanel({
                           value={menuToolForm.title}
                           onChange={e => setMenuToolForm(prev => ({ ...prev, title: e.target.value }))}
                           placeholder="e.g. Merge PDF, Convert PDF to Word"
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            border: '1.5px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-light)',
+                            color: 'var(--text-dark)',
+                            fontSize: '14px',
+                            fontWeight: '700',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+
+                      {/* Upload Size Limit */}
+                      <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                          Upload Size Limit (MB)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="500"
+                          value={toolsConfig?.[selectedMenuTool.id]?.maxFileSizeMb ?? 50}
+                          onChange={e => handleLimitChange(selectedMenuTool.id, e.target.value)}
                           style={{
                             width: '100%',
                             padding: '12px 14px',
@@ -2774,6 +2752,7 @@ export default function AdminPanel({
                               style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
                             >
                               <option value="Free">Free</option>
+                              <option value="Basic">Basic</option>
                               <option value="Premium">Premium</option>
                             </select>
                           </div>
@@ -2895,7 +2874,7 @@ export default function AdminPanel({
                     />
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    {['All', 'Premium', 'Free'].map(f => (
+                    {['All', 'Free', 'Basic', 'Premium'].map(f => (
                       <button
                         key={f}
                         onClick={() => setUserPlanFilter(f)}
@@ -3087,6 +3066,7 @@ export default function AdminPanel({
                           <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Licensing Plan</label>
                           <select value={newUserForm.plan} onChange={e => setNewUserForm(p => ({ ...p, plan: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }}>
                             <option value="Free">Free Account</option>
+                            <option value="Basic">Basic Account</option>
                             <option value="Premium">Premium Account</option>
                           </select>
                         </div>
@@ -3112,127 +3092,12 @@ export default function AdminPanel({
           </div>
         )}
 
-        {/* === TAB 3: PDF TOOLS CONFIGURATION === */}
-        {activeTab === 'tools' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>PDF Engine Configuration</h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Configure file size upload constraints and toggle specific microservices globally.</p>
-              </div>
-            </div>
-
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '3fr 1.5fr 1.5fr', padding: '12px 16px', backgroundColor: 'var(--bg-light)', borderBottom: '1.5px solid var(--border-light)', fontWeight: '800', fontSize: '12px', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                <span>PDF Processing Tool</span>
-                <span style={{ textAlign: 'center' }}>Upload Size Limit (MB)</span>
-                <span style={{ textAlign: 'right', paddingRight: '12px' }}>Operational Access</span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {Object.keys(toolsConfig).map((toolId) => {
-                  const conf = toolsConfig[toolId];
-                  const formattedTitle = toolId
-                    .replace('tool-', '')
-                    .replace('to', ' to ')
-                    .replace('pdf', 'PDF')
-                    .replace('word', 'Word')
-                    .replace('excel', 'Excel')
-                    .replace('powerpoint', 'PowerPoint')
-                    .replace('jpg', 'JPG')
-                    .replace('aisummarizer', 'AI Summarizer')
-                    .replace(/^\w/, c => c.toUpperCase());
-
-                  return (
-                    <div
-                      key={toolId}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '3fr 1.5fr 1.5fr',
-                        padding: '16px',
-                        alignItems: 'center',
-                        borderBottom: '1px solid var(--border-light)',
-                        transition: 'background 0.2s'
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
-                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      {/* Name & ID */}
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>{formattedTitle}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-light-gray)' }}>Resource Identifier: <code style={{ backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', padding: '2px 4px', borderRadius: '4px' }}>{toolId}</code></div>
-                      </div>
-
-                      {/* File Size input limit */}
-                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                        <input
-                          type="number"
-                          min="1"
-                          max="500"
-                          value={conf.maxFileSizeMb}
-                          onChange={e => handleLimitChange(toolId, e.target.value)}
-                          style={{
-                            width: '80px',
-                            padding: '6px 8px',
-                            borderRadius: '6px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-card)',
-                            color: 'var(--text-dark)',
-                            fontSize: '13px',
-                            fontWeight: '700',
-                            textAlign: 'center',
-                            outline: 'none'
-                          }}
-                        />
-                        <span style={{ fontSize: '12px', color: 'var(--text-gray)', marginLeft: '6px', fontWeight: '700' }}>MB</span>
-                      </div>
-
-                      {/* Status toggle operational */}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '8px' }}>
-                        <button
-                          onClick={() => handleToggleTool(toolId, formattedTitle, conf.enabled)}
-                          style={{
-                            width: '52px',
-                            height: '26px',
-                            borderRadius: '13px',
-                            backgroundColor: conf.enabled ? '#10b981' : '#cbd5e1',
-                            position: 'relative',
-                            border: 'none',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.2s'
-                          }}
-                        >
-                          <div style={{
-                            position: 'absolute',
-                            width: '20px',
-                            height: '20px',
-                            borderRadius: '50%',
-                            backgroundColor: '#ffffff',
-                            top: '3px',
-                            left: conf.enabled ? '29px' : '3px',
-                            transition: 'left 0.2s',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
-                          }} />
-                        </button>
-                      </div>
-
-                    </div>
-                  );
-                })}
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* === TAB 4: PLATFORM FILES MANAGER === */}
         {activeTab === 'files' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
               <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Server Storage Files</h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Audit file transfers, inspect size metrics, and clear memory logs.</p>
+                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Recently Converted Files</h1>
+                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>All recently converted files across the platform.</p>
               </div>
 
               {/* Cache Clean Action */}
@@ -3270,22 +3135,47 @@ export default function AdminPanel({
 
             {/* Filter toolbar */}
             <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px' }}>
-              <div style={{ position: 'relative' }}>
-                <Search size={16} color="var(--text-light-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  placeholder="Search file database by filename or tool processed..."
-                  value={fileSearch}
-                  onChange={e => setFileSearch(e.target.value)}
-                  style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                />
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+                  <Search size={16} color="var(--text-light-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    placeholder="Search file database by filename, tool or user..."
+                    value={fileSearch}
+                    onChange={e => { setFileSearch(e.target.value); setFilePage(1); }}
+                    style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                  />
+                </div>
+                <select
+                  value={fileToolFilter}
+                  onChange={e => { setFileToolFilter(e.target.value); setFilePage(1); }}
+                  style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                >
+                  {fileTools.map(t => <option key={t} value={t}>{t === 'All' ? 'All Tools' : t}</option>)}
+                </select>
+                <select
+                  value={fileDateFilter}
+                  onChange={e => { setFileDateFilter(e.target.value); setFilePage(1); }}
+                  style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                >
+                  {fileDates.map(d => <option key={d} value={d}>{d === 'All' ? 'All Dates' : d}</option>)}
+                </select>
+                {selectedFileIds.length > 0 && (
+                  <button
+                    onClick={handleDeleteSelectedFiles}
+                    style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    Delete Selected ({selectedFileIds.length})
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Platform files list (Table) */}
             <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '3.5fr 2fr 1fr 1.5fr 1fr 1fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1px solid var(--border-light)' }}>
-                {['Document Filename', 'Tool Mode', 'Size', 'Processing Date', 'Status', 'Action'].map((h, i) => (
+              <div style={{ display: 'grid', gridTemplateColumns: '40px 3fr 1.6fr 1.8fr 0.8fr 1.4fr 0.9fr 0.7fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1px solid var(--border-light)', alignItems: 'center' }}>
+                <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAllFiles} title="Select all" />
+                {['Document Filename', 'User', 'Tool Mode', 'Size', 'Processing Date', 'Status', 'Action'].map((h, i) => (
                   <div key={i} style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
                 ))}
               </div>
@@ -3293,24 +3183,33 @@ export default function AdminPanel({
               {filteredFiles.length === 0 ? (
                 <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light-gray)' }}>No records logged in memory.</div>
               ) : (
-                filteredFiles.map((file, idx) => (
+                paginatedFiles.map((file, idx) => (
                   <div
                     key={file.id}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '3.5fr 2fr 1fr 1.5fr 1fr 1fr',
+                      gridTemplateColumns: '40px 3fr 1.6fr 1.8fr 0.8fr 1.4fr 0.9fr 0.7fr',
                       padding: '16px 24px',
                       alignItems: 'center',
-                      borderBottom: idx < filteredFiles.length - 1 ? '1px solid var(--border-light)' : 'none',
+                      borderBottom: idx < paginatedFiles.length - 1 ? '1px solid var(--border-light)' : 'none',
                       transition: 'background 0.15s'
                     }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                   >
+                    {/* Checkbox */}
+                    <input type="checkbox" checked={selectedFileIds.includes(file.id)} onChange={() => toggleSelectFile(file.id)} />
+
                     {/* Filename & Type */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
                       <span style={{ fontSize: '18px', flexShrink: 0 }}>📄</span>
                       <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.name}</span>
+                    </div>
+
+                    {/* User */}
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.userName || 'Guest'}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-gray)' }}>ID: {file.userId ?? '—'}</div>
                     </div>
 
                     {/* Tool */}
@@ -3352,6 +3251,20 @@ export default function AdminPanel({
             <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-light-gray)', textAlign: 'right' }}>
               Logged storage count: {filteredFiles.length} files
             </div>
+
+            {/* Pagination */}
+            {totalFilePages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '14px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-gray)', marginRight: '8px' }}>
+                  Page {currentFilePage} of {totalFilePages}
+                </span>
+                <button onClick={() => setFilePage(p => Math.max(1, p - 1))} disabled={currentFilePage === 1} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', fontSize: '13px', fontWeight: '700', cursor: currentFilePage === 1 ? 'not-allowed' : 'pointer', color: 'var(--text-dark)' }}>Prev</button>
+                {Array.from({ length: totalFilePages }, (_, i) => i + 1).map(n => (
+                  <button key={n} onClick={() => setFilePage(n)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: n === currentFilePage ? 'var(--primary-red)' : 'var(--bg-card)', color: n === currentFilePage ? '#fff' : 'var(--text-dark)', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>{n}</button>
+                ))}
+                <button onClick={() => setFilePage(p => Math.min(totalFilePages, p + 1))} disabled={currentFilePage === totalFilePages} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', fontSize: '13px', fontWeight: '700', cursor: currentFilePage === totalFilePages ? 'not-allowed' : 'pointer', color: 'var(--text-dark)' }}>Next</button>
+              </div>
+            )}
 
           </div>
         )}
@@ -4861,54 +4774,60 @@ export default function AdminPanel({
 
                   <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '4px 0' }} />
 
-                  {/* Plan Cards Headings */}
+                  {/* Plan Cards — Free / Basic / Premium */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Free Plan Title</label>
+                    {/* Free */}
+                    <div style={{ backgroundColor: 'var(--bg-light)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border-light)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🆓 Free Plan</div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
                       <input
                         type="text"
                         value={contentForm.freePlanTitle}
                         onChange={e => setContentForm(p => ({ ...p, freePlanTitle: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
                       />
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Free Plan Description</label>
-                      <input
-                        type="text"
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
+                      <textarea
+                        rows={3}
                         value={contentForm.freePlanDesc}
                         onChange={e => setContentForm(p => ({ ...p, freePlanDesc: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
                       />
                     </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Premium Plan Title</label>
+                    {/* Basic */}
+                    <div style={{ backgroundColor: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>⭐ Basic Plan</div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
+                      <input
+                        type="text"
+                        value={contentForm.basicPlanTitle}
+                        onChange={e => setContentForm(p => ({ ...p, basicPlanTitle: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
+                      <textarea
+                        rows={3}
+                        value={contentForm.basicPlanDesc}
+                        onChange={e => setContentForm(p => ({ ...p, basicPlanDesc: e.target.value }))}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    {/* Premium */}
+                    <div style={{ backgroundColor: '#fffbeb', borderRadius: '10px', padding: '14px', border: '1px solid #fde68a' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🔥 Premium Plan</div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
                       <input
                         type="text"
                         value={contentForm.premiumPlanTitle}
                         onChange={e => setContentForm(p => ({ ...p, premiumPlanTitle: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fde68a', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
                       />
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Premium Plan Description</label>
-                      <input
-                        type="text"
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
+                      <textarea
+                        rows={3}
                         value={contentForm.premiumPlanDesc}
                         onChange={e => setContentForm(p => ({ ...p, premiumPlanDesc: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Business Plan Title</label>
-                      <input
-                        type="text"
-                        value={contentForm.businessPlanTitle}
-                        onChange={e => setContentForm(p => ({ ...p, businessPlanTitle: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
-                      />
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Business Plan Description</label>
-                      <input
-                        type="text"
-                        value={contentForm.businessPlanDesc}
-                        onChange={e => setContentForm(p => ({ ...p, businessPlanDesc: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fde68a', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
                       />
                     </div>
                   </div>

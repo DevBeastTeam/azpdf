@@ -707,7 +707,17 @@ function App() {
 
   // ── Context value ─────────────────────────────────────────────────────────────
   const addRecentFile = async (newFile) => {
-    const entry = { id: Date.now(), name: newFile.name, tool: newFile.tool, size: newFile.size, date: 'Just now', pages: Math.floor(Math.random() * 20) + 1, status: 'Completed' };
+    const entry = {
+      id: Date.now(),
+      name: newFile.name,
+      tool: newFile.tool,
+      size: newFile.size,
+      date: 'Just now',
+      pages: Math.floor(Math.random() * 20) + 1,
+      status: 'Completed',
+      userName: currentUser?.name || currentUser?.email || 'Guest',
+      userId: currentUser?.id || 'guest'
+    };
     setRecentFiles(prev => [entry, ...prev]);
     setUsersData(prev => {
       const updatedUsers = prev.map(u => u.id === 1 ? { ...u, files: u.files + 1 } : u);

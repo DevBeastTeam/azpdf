@@ -1383,25 +1383,21 @@ class PdfController {
             if (empty($files)) Response::error('Please upload a PDF file to crop.', 400);
 
             $file = $files[0];
-            $margin = (float) ($_POST['marginLeft'] ?? ($_POST['marginTop'] ?? 40));
-            if ($margin < 0) $margin = 0;
-            if ($margin > 200) $margin = 200;
+            $marginTop = (float) ($_POST['marginTop'] ?? ($_POST['margin'] ?? 40));
+            $marginBottom = (float) ($_POST['marginBottom'] ?? ($_POST['margin'] ?? 40));
+            $marginLeft = (float) ($_POST['marginLeft'] ?? ($_POST['margin'] ?? 40));
+            $marginRight = (float) ($_POST['marginRight'] ?? ($_POST['margin'] ?? 40));
+            $scope = trim($_POST['cropScope'] ?? 'all');
 
-            $pdf = PdfHelper::createPdf();
-            $pageCount = $pdf->setSourceFile($file['tmp_name']);
-
-            for ($p = 1; $p <= $pageCount; $p++) {
-                $tpl = $pdf->importPage($p);
-                $size = $pdf->getTemplateSize($tpl);
-                $cw = $size['width'];
-                $ch = $size['height'];
-                $newW = max(1, $cw - ($margin * 2));
-                $newH = max(1, $ch - ($margin * 2));
-                $pdf->AddPage(($cw >= $ch) ? 'L' : 'P', [$cw, $ch]);
-                $pdf->useTemplate($tpl, $margin, $margin, $newW, $newH);
+            $tempOut = tempnam('/tmp', 'crop_') . '.pdf';
+            if (PdfHelper::cropPdf($file['tmp_name'], $tempOut, $marginTop, $marginBottom, $marginLeft, $marginRight, $scope) && file_exists($tempOut) && filesize($tempOut) > 0) {
+                $content = file_get_contents($tempOut);
+                @unlink($tempOut);
+                Response::buffer($content, 'cropped_document.pdf');
+                return;
             }
 
-            Response::buffer($pdf->Output('S'), 'cropped_document.pdf');
+            Response::error('Failed to crop PDF document.', 500);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }
@@ -1414,49 +1410,26 @@ class PdfController {
             if (empty($files)) Response::error('Please upload a PDF file to add forms.', 400);
 
             $file = $files[0];
-            $pdf = PdfHelper::createPdf();
-            $pageCount = $pdf->setSourceFile($file['tmp_name']);
-
-            $fields = [
-                ['Full Name', 40],
-                ['Email Address', 60],
-                ['Phone Number', 80],
-                ['Company / Organization', 100],
-                ['Signature', 120],
+            $options = [
+                'preset' => trim($_POST['formPreset'] ?? 'contact'),
+                'placement' => trim($_POST['formPlacement'] ?? 'append'),
+                'title' => trim($_POST['formTitle'] ?? 'Fillable Information & Form Fields'),
+                'includeSignature' => !isset($_POST['includeSignature']) || $_POST['includeSignature'] === '1' || $_POST['includeSignature'] === 'true',
+                'includeCheckbox' => !isset($_POST['includeCheckbox']) || $_POST['includeCheckbox'] === '1' || $_POST['includeCheckbox'] === 'true',
+                'includeDate' => !isset($_POST['includeDate']) || $_POST['includeDate'] === '1' || $_POST['includeDate'] === 'true',
+                'includeEmail' => !isset($_POST['includeEmail']) || $_POST['includeEmail'] === '1' || $_POST['includeEmail'] === 'true',
+                'includePhone' => !isset($_POST['includePhone']) || $_POST['includePhone'] === '1' || $_POST['includePhone'] === 'true',
             ];
 
-            for ($p = 1; $p <= $pageCount; $p++) {
-                $tpl = $pdf->importPage($p);
-                $size = $pdf->getTemplateSize($tpl);
-                $orientation = ($size['width'] > $size['height']) ? 'L' : 'P';
-                $pdf->AddPage($orientation, [$size['width'], $size['height']]);
-                $pdf->useTemplate($tpl);
-
-                if ($p === $pageCount) {
-                    $pdf->SetFont('Helvetica', 'B', 14);
-                    $pdf->SetTextColor(30, 30, 30);
-                    $pdf->SetXY(30, 30);
-                    $pdf->Cell(0, 10, 'Fillable Form Fields', 0, 1);
-
-                    $pdf->SetFont('Helvetica', '', 10);
-                    foreach ($fields as $field) {
-                        [$label, $y] = $field;
-                        $pdf->SetTextColor(60, 60, 60);
-                        $pdf->SetXY(30, $y);
-                        $pdf->Cell(90, 8, $label, 0, 1);
-                        $pdf->SetDrawColor(140, 140, 140);
-                        $pdf->SetLineWidth(0.4);
-                        $pdf->Line(120, $y + 4, 420, $y + 4);
-                    }
-
-                    $pdf->SetFont('Helvetica', 'B', 9);
-                    $pdf->SetTextColor(229, 36, 36);
-                    $pdf->SetXY(30, 150);
-                    $pdf->Cell(0, 8, 'Please fill in the fields above, then print or save.', 0, 1);
-                }
+            $tempOut = tempnam('/tmp', 'forms_') . '.pdf';
+            if (PdfHelper::generatePdfForm($file['tmp_name'], $tempOut, $options) && file_exists($tempOut) && filesize($tempOut) > 0) {
+                $content = file_get_contents($tempOut);
+                @unlink($tempOut);
+                Response::buffer($content, 'form_document.pdf');
+                return;
             }
 
-            Response::buffer($pdf->Output('S'), 'form_document.pdf');
+            Response::error('Failed to create PDF form.', 500);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }

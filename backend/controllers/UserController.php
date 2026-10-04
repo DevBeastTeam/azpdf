@@ -89,14 +89,34 @@ class UserController {
     }
 
     public static function getInvoices(): void {
-        Response::json([
-            'success' => true,
-            'invoices' => [
-                ['id' => 'INV-2026-001', 'date' => date('Y-m-01'), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
-                ['id' => 'INV-2026-002', 'date' => date('Y-m-01', strtotime('-1 month')), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
-                ['id' => 'INV-2026-003', 'date' => date('Y-m-01', strtotime('-2 months')), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
-            ]
-        ]);
+        try {
+            $rows = Database::query('SELECT id, date, amount, plan, status, downloadUrl FROM invoices ORDER BY created_at DESC');
+            if (empty($rows)) {
+                $defaults = [
+                    ['id' => 'INV-2026-001', 'user_id' => 1, 'date' => date('Y-m-01'), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
+                    ['id' => 'INV-2026-002', 'user_id' => 1, 'date' => date('Y-m-01', strtotime('-1 month')), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
+                    ['id' => 'INV-2026-003', 'user_id' => 1, 'date' => date('Y-m-01', strtotime('-2 months')), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#'],
+                ];
+                foreach ($defaults as $d) {
+                    Database::run('INSERT OR IGNORE INTO invoices (id, user_id, date, amount, plan, status, downloadUrl) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+                        $d['id'], $d['user_id'], $d['date'], $d['amount'], $d['plan'], $d['status'], $d['downloadUrl']
+                    ]);
+                }
+                $rows = Database::query('SELECT id, date, amount, plan, status, downloadUrl FROM invoices ORDER BY created_at DESC');
+            }
+
+            Response::json([
+                'success' => true,
+                'invoices' => $rows
+            ]);
+        } catch (Throwable $e) {
+            Response::json([
+                'success' => true,
+                'invoices' => [
+                    ['id' => 'INV-2026-001', 'date' => date('Y-m-01'), 'amount' => '$4.00', 'plan' => 'Premium Yearly', 'status' => 'Paid', 'downloadUrl' => '#']
+                ]
+            ]);
+        }
     }
 
     public static function submitTicket(): void {
