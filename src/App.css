@@ -812,6 +812,38 @@
   flex-wrap: wrap;
 }
 
+.footer-exact-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.footer-exact-brand {
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.2px;
+}
+
+.footer-exact-quicklinks {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.footer-exact-quicklink {
+  font-size: 13px;
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.footer-exact-quicklink:hover {
+  color: #ffffff;
+}
+
 .footer-exact-socials {
   display: flex;
   align-items: center;
@@ -862,6 +894,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 18px;
+  }
+  .footer-exact-bottom-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
   }
   .footer-exact-bottom-right {
     flex-direction: column;
