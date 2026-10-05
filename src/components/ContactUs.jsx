@@ -288,13 +288,14 @@ export default function ContactUs() {
                       onChange={(e) => setFormData({ ...formData, teamSize: e.target.value })}
                       style={{
                         width: '100%',
-                        padding: '12px 14px',
+                        padding: '12px 36px 12px 14px',
                         borderRadius: '10px',
                         border: '1px solid var(--border-light)',
                         fontSize: '14px',
                         backgroundColor: 'var(--bg-card)',
                         color: 'var(--text-dark)',
-                        outline: 'none'
+                        outline: 'none',
+                        cursor: 'pointer'
                       }}
                     >
                       <option>1-10 employees</option>

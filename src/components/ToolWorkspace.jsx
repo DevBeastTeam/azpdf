@@ -832,6 +832,7 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
   };
 
   const startProcessing = async () => {
+    if (status === 'processing') return;
     if (tool.id.includes('merge') && files.length < 2) {
       alert('Please select at least 2 files to merge.');
       return;
@@ -4620,7 +4621,8 @@ startxref
                             value={pageNumberFontSize}
                             onChange={(e) => setPageNumberFontSize(e.target.value)}
                             style={{
-                              padding: '5px 8px',
+                              minWidth: '130px',
+                              padding: '6px 32px 6px 10px',
                               borderRadius: '6px',
                               border: '1px solid var(--border-light)',
                               backgroundColor: 'var(--bg-light)',
@@ -4673,10 +4675,16 @@ startxref
                     value={targetLanguage} 
                     onChange={(e) => setTargetLanguage(e.target.value)}
                     style={{ 
-                      padding: '10px 14px', borderRadius: '8px', 
-                      border: '1px solid var(--border-light)', fontSize: '14px', 
-                      width: '200px', fontWeight: '600',
-                      backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)'
+                      minWidth: '220px',
+                      width: 'auto',
+                      padding: '10px 36px 10px 14px', 
+                      borderRadius: '8px', 
+                      border: '1px solid var(--border-light)', 
+                      fontSize: '14px', 
+                      fontWeight: '600',
+                      backgroundColor: 'var(--bg-light)', 
+                      color: 'var(--text-dark)',
+                      cursor: 'pointer'
                     }}
                   >
                     <option value="Urdu">Urdu (اردو)</option>
@@ -4769,7 +4777,8 @@ startxref
                         value={htmlOrientation}
                         onChange={(e) => setHtmlOrientation(e.target.value)}
                         style={{
-                          padding: '6px 12px',
+                          minWidth: '160px',
+                          padding: '6px 32px 6px 12px',
                           borderRadius: '6px',
                           border: '1px solid var(--border-light)',
                           backgroundColor: 'var(--bg-light)',
@@ -5144,13 +5153,16 @@ startxref
                         onChange={(e) => setFormsPlacement(e.target.value)}
                         style={{
                           width: '100%',
-                          padding: '8px 10px',
+                          minWidth: '220px',
+                          padding: '8px 32px 8px 12px',
                           borderRadius: '6px',
                           border: '1px solid var(--border-light)',
                           fontSize: '12px',
                           fontWeight: '600',
                           backgroundColor: 'var(--bg-light)',
-                          color: 'var(--text-dark)'
+                          color: 'var(--text-dark)',
+                          cursor: 'pointer',
+                          boxSizing: 'border-box'
                         }}
                       >
                         <option value="append">Append Clean Form Page (Recommended)</option>
@@ -5316,6 +5328,7 @@ startxref
                 type="button"
                 className="btn btn-primary" 
                 onClick={startProcessing}
+                disabled={status === 'processing'}
                 style={{ 
                   minWidth: '220px', 
                   backgroundColor: 'var(--primary-red)', 
@@ -5327,7 +5340,9 @@ startxref
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  boxShadow: '0 4px 15px rgba(229, 36, 36, 0.35)'
+                  boxShadow: '0 4px 15px rgba(229, 36, 36, 0.35)',
+                  opacity: status === 'processing' ? 0.7 : 1,
+                  cursor: status === 'processing' ? 'not-allowed' : 'pointer'
                 }}
               >
                 <Download size={18} />

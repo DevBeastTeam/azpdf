@@ -42,34 +42,105 @@ class PaddleController {
                 'test_card' => [
                     'number' => '4242 4242 4242 4242',
                     'expiry' => '12/28',
-                    'cvv' => '123'
+                    'cvv' => '123',
+                    'zip' => '10001'
                 ]
             ]);
             return;
         }
 
-        // 2. Create Transaction
+        // 2. Test Connection
+        if ($action === 'test_connection') {
+            $baseApi = $isSandbox ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
+            $ch = curl_init($baseApi . '/products?status=active');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Bearer ' . $apiKey
+            ]);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+            $resp = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            $valid = ($httpCode >= 200 && $httpCode < 300);
+            Response::json([
+                'success' => true,
+                'connected' => $valid,
+                'http_code' => $httpCode,
+                'mode' => $paddleEnv,
+                'message' => $valid
+                    ? "Successfully connected to Paddle {$paddleEnv} API!"
+                    : "Paddle API returned HTTP {$httpCode}. " . ($isSandbox ? "Using high-fidelity sandbox simulator fallback." : "Check your live API key.")
+            ]);
+            return;
+        }
+
+        // 3. Update Config (From Admin Panel)
+        if ($action === 'update_config') {
+            try {
+                $rawInput = file_get_contents('php://input');
+                $data = json_decode($rawInput, true) ?: $_POST;
+                $newEnv = strtolower($data['environment'] ?? $paddleEnv);
+                $newVendorId = trim($data['vendor_id'] ?? $vendorId);
+                $newClientToken = trim($data['client_side_token'] ?? $clientSideToken);
+                $newApiKey = trim($data['api_key'] ?? $apiKey);
+
+                if (file_exists($envFile)) {
+                    $content = file_get_contents($envFile);
+                    $content = preg_replace('/^PADDLE_ENV=.*$/m', 'PADDLE_ENV=' . $newEnv, $content);
+                    $content = preg_replace('/^PADDLE_VENDOR_ID=.*$/m', 'PADDLE_VENDOR_ID=' . $newVendorId, $content);
+                    if ($newEnv === 'sandbox') {
+                        $content = preg_replace('/^PADDLE_SANDBOX_CLIENT_SIDE_TOKEN=.*$/m', 'PADDLE_SANDBOX_CLIENT_SIDE_TOKEN=' . $newClientToken, $content);
+                        if (!empty($newApiKey)) {
+                            $content = preg_replace('/^PADDLE_SANDBOX_API_KEY=.*$/m', 'PADDLE_SANDBOX_API_KEY=' . $newApiKey, $content);
+                        }
+                    } else {
+                        $content = preg_replace('/^PADDLE_CLIENT_SIDE_TOKEN=.*$/m', 'PADDLE_CLIENT_SIDE_TOKEN=' . $newClientToken, $content);
+                        if (!empty($newApiKey)) {
+                            $content = preg_replace('/^PADDLE_API_KEY=.*$/m', 'PADDLE_API_KEY=' . $newApiKey, $content);
+                        }
+                    }
+                    file_put_contents($envFile, $content);
+                }
+
+                Response::json([
+                    'success' => true,
+                    'message' => 'Paddle configuration updated successfully in .env',
+                    'environment' => $newEnv,
+                    'vendor_id' => $newVendorId,
+                    'client_side_token' => $newClientToken
+                ]);
+            } catch (Throwable $e) {
+                Response::error($e->getMessage(), 500);
+            }
+            return;
+        }
+
+        // 4. Create Transaction
         if ($action === 'create_transaction') {
             try {
                 $rawInput = file_get_contents('php://input');
                 $data = json_decode($rawInput, true) ?: $_POST;
 
                 $planId = trim($data['plan_id'] ?? 'PREMIUM');
-                $planName = trim($data['plan_name'] ?? 'Premium (1-Year Plan)');
+                $planName = trim($data['plan_name'] ?? 'Premium Plan');
                 $amount = (float) ($data['amount'] ?? 48.00);
                 $customerName = trim($data['customer_name'] ?? 'Alex Johnson');
                 $customerEmail = trim(filter_var($data['customer_email'] ?? 'alex@example.com', FILTER_SANITIZE_EMAIL));
                 $userId = (int) ($data['user_id'] ?? 1);
 
-                $localTxnId = 'txn_sdbx_' . strtolower(substr(bin2hex(random_bytes(8)), 0, 16));
+                $localTxnId = 'txn_' . ($isSandbox ? 'sdbx_' : 'live_') . strtolower(substr(bin2hex(random_bytes(8)), 0, 16));
                 $amountCents = (int) round($amount * 100);
 
-                // Try Paddle Billing v2 sandbox API if possible
+                // Base URLs depending on Sandbox or Live
+                $baseApi = $isSandbox ? 'https://sandbox-api.paddle.com' : 'https://api.paddle.com';
+                $baseBuy = $isSandbox ? 'https://sandbox-buy.paddle.com' : 'https://buy.paddle.com';
+
                 $paddleTxnId = null;
                 $checkoutUrl = null;
 
                 try {
-                    $ch = curl_init('https://sandbox-api.paddle.com/transactions');
+                    $ch = curl_init($baseApi . '/transactions');
                     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($ch, CURLOPT_POST, true);
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
@@ -112,7 +183,7 @@ class PaddleController {
 
                 $finalTxnId = $paddleTxnId ?: $localTxnId;
                 if (!$checkoutUrl) {
-                    $checkoutUrl = 'https://sandbox-buy.paddle.com/checkout?_ptxn=' . $finalTxnId;
+                    $checkoutUrl = $baseBuy . '/checkout?_ptxn=' . $finalTxnId;
                 }
 
                 // Store pending transaction in database
@@ -136,7 +207,7 @@ class PaddleController {
                         'email' => $customerEmail
                     ],
                     'environment' => $paddleEnv,
-                    'is_sandbox' => true
+                    'is_sandbox' => $isSandbox
                 ]);
             } catch (Throwable $e) {
                 Response::error($e->getMessage(), 500);
@@ -144,7 +215,7 @@ class PaddleController {
             return;
         }
 
-        // 3. Verify / Complete Transaction
+        // 5. Verify / Complete Transaction
         if ($action === 'verify_transaction') {
             try {
                 $rawInput = file_get_contents('php://input');
@@ -152,9 +223,10 @@ class PaddleController {
 
                 $txnId = trim($data['txn_id'] ?? ($_GET['txn_id'] ?? ''));
                 $planId = trim($data['plan_id'] ?? 'PREMIUM');
-                $planName = trim($data['plan_name'] ?? 'Premium (1-Year Plan)');
+                $planName = trim($data['plan_name'] ?? 'Premium Plan');
                 $amount = (float) ($data['amount'] ?? 48.00);
                 $userId = (int) ($data['user_id'] ?? 1);
+                $customerEmail = trim(filter_var($data['customer_email'] ?? '', FILTER_SANITIZE_EMAIL));
 
                 if (empty($txnId)) {
                     Response::error('Transaction ID is required', 400);
@@ -165,7 +237,13 @@ class PaddleController {
                 Database::run("UPDATE paddle_transactions SET status = 'completed' WHERE txn_id = ?", [$txnId]);
 
                 // Update user's active plan in users table
-                Database::run("UPDATE users SET plan = ? WHERE id = ?", [$planId, $userId]);
+                if ($userId > 0) {
+                    Database::run("UPDATE users SET plan = ? WHERE id = ?", [$planId, $userId]);
+                }
+                if (!empty($customerEmail)) {
+                    Database::run("UPDATE users SET plan = ? WHERE email = ?", [$planId, $customerEmail]);
+                }
+                Database::syncUsersToJson();
 
                 // Create new invoice record in invoices table
                 $invoiceId = 'INV-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 4));
@@ -188,7 +266,7 @@ class PaddleController {
                     'invoice_id' => $invoiceId,
                     'invoice_date' => $invoiceDate,
                     'invoice_amount' => $invoiceAmount,
-                    'message' => "Payment verified via Paddle Sandbox! Your subscription to {$planName} is now active."
+                    'message' => "Payment verified via Paddle (" . ($isSandbox ? 'Sandbox' : 'Live') . ")! Your subscription to {$planName} is now active."
                 ]);
             } catch (Throwable $e) {
                 Response::error($e->getMessage(), 500);
@@ -196,7 +274,7 @@ class PaddleController {
             return;
         }
 
-        // 4. Payment History
+        // 6. Payment History
         if ($action === 'history') {
             try {
                 $rows = Database::query("SELECT * FROM paddle_transactions ORDER BY created_at DESC LIMIT 50");
@@ -213,3 +291,4 @@ class PaddleController {
         Response::error('Unknown Paddle action', 400);
     }
 }
+

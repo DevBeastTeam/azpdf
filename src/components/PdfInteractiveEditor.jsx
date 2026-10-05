@@ -3563,7 +3563,7 @@ export default function PdfInteractiveEditor({ file, onSave, onCancel, mode = 'e
 // ── Style objects ─────────────────────────────────────────────────────────────
 const S = {
   btn:    (bg, color) => ({ display:'flex', alignItems:'center', gap:5, backgroundColor:bg, color, border:'none', padding:'7px 13px', borderRadius:7, cursor:'pointer', fontWeight:600, fontSize:13 }),
-  sel:    { backgroundColor:'#0f172a', color:'#e2e8f0', border:'1px solid #475569', borderRadius:6, padding:'4px 8px', fontSize:12 },
+  sel:    { backgroundColor:'#0f172a', color:'#e2e8f0', border:'1px solid #475569', borderRadius:6, padding:'5px 28px 5px 10px', fontSize:12, minWidth:68, cursor:'pointer' },
   miniBtn:{ border:'1px solid #475569', padding:'4px 9px', borderRadius:6, fontWeight:700, fontSize:11, cursor:'pointer' },
   navBtn: { backgroundColor:'#0f172a', color:'#e2e8f0', border:'1px solid #334155', padding:'6px 10px', borderRadius:6, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }
 };

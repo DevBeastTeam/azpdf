@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronDown, ChevronUp, ChevronRight, Check, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft, LayoutDashboard, Image as ImageIcon, PenTool, Code2, GraduationCap, ArrowUpRight } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronRight, Check, Moon, Sun, Menu, X, ArrowRight, LogOut, LogIn, CreditCard, Shield, Sparkles, Heart, Monitor, Smartphone, Link as LinkIcon, Building2, HelpCircle, Globe, ChevronLeft, LayoutDashboard, Image as ImageIcon, PenTool, Code2, GraduationCap, ArrowUpRight, BookOpen } from 'lucide-react';
 import { 
   JpgToPdfIcon, WordToPdfIcon, PowerpointToPdfIcon, ExcelToPdfIcon, HtmlToPdfIcon,
   PdfToJpgIcon, PdfToWordIcon, PdfToPowerpointIcon, PdfToExcelIcon, PdfToPdfaIcon,
@@ -470,6 +470,26 @@ export default function Header({ theme, toggleTheme, isLoggedIn, isAdminLoggedIn
             </>
             )}
           </li>
+          <li>
+            <a 
+              href="/pricing" 
+              className="nav-item" 
+              onClick={(e) => { e.preventDefault(); navigate('/pricing'); }}
+              style={getNavItemStyle(['pricing'])}
+            >
+              PRICING
+            </a>
+          </li>
+          <li>
+            <a 
+              href="/blog" 
+              className="nav-item" 
+              onClick={(e) => { e.preventDefault(); navigate('/blog'); }}
+              style={getNavItemStyle(['blog'])}
+            >
+              BLOG
+            </a>
+          </li>
 
         </ul>
       </div>
@@ -504,26 +524,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, isAdminLoggedIn
               </button>
             )}
 
-            {isAdminLoggedIn && currentView !== 'admin' && (
-              <button
-                onClick={() => navigate('/admin')}
-                className="btn btn-secondary hide-mobile"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '8px 14px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                  border: '1px solid rgba(99, 102, 241, 0.3)',
-                  color: 'var(--primary-color, #6366f1)',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <Shield size={15} /> Admin Dashboard
-              </button>
-            )}
+
 
             {/* Logout Button */}
             <button
@@ -937,6 +938,9 @@ export default function Header({ theme, toggleTheme, isLoggedIn, isAdminLoggedIn
             <a href="/pricing" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/pricing'); setMobileMenuOpen(false); }}>
               <span className="mobile-nav-label"><CreditCard size={18} /> Pricing</span> <ArrowRight size={16} />
             </a>
+            <a href="/blog" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/blog'); setMobileMenuOpen(false); }}>
+              <span className="mobile-nav-label"><BookOpen size={18} /> Blog Articles</span> <ArrowRight size={16} />
+            </a>
             <a href="/#features" className="mobile-nav-item" onClick={(e) => { e.preventDefault(); navigate('/#features'); setMobileMenuOpen(false); }}>
               <span className="mobile-nav-label"><LayoutDashboard size={18} /> Features</span> <ArrowRight size={16} />
             </a>
@@ -977,16 +981,7 @@ export default function Header({ theme, toggleTheme, isLoggedIn, isAdminLoggedIn
                       <LayoutDashboard size={16} /> Open Dashboard
                     </button>
                   )}
-                  {isAdminLoggedIn && currentView !== 'admin' && (
-                    <button 
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => { navigate('/admin'); setMobileMenuOpen(false); }}
-                      style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '15px', fontWeight: '800', backgroundColor: '#6366f1' }}
-                    >
-                      <Shield size={16} /> Admin Dashboard
-                    </button>
-                  )}
+
                   <button 
                     type="button"
                     className="btn btn-secondary"

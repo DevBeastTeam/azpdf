@@ -128,8 +128,7 @@ const defaultSiteContent = {
       links: [
         { label: 'About us', url: '/about' },
         { label: 'Contact us', url: '/contact' },
-        { label: 'Blog', url: '/blog' },
-        { label: 'Press', url: '/press' }
+        { label: 'Blog', url: '/blog' }
       ]
     }
   ],
@@ -236,10 +235,11 @@ function HomePage({ toolsConfig, siteContent, isLoggedIn, onOpenAuth }) {
           if (el) el.scrollIntoView({ behavior: 'smooth' });
           else navigate('/#tools');
         }}
-        onGoPremium={() => {
+        onGoPremium={(planType = 'PREMIUM') => {
           if (isLoggedIn) {
-            navigate('/dashboard');
+            navigate(`/dashboard?upgrade=${planType}`);
           } else {
+            sessionStorage.setItem('azpdf_intended_plan', planType);
             onOpenAuth('signup');
           }
         }}
@@ -618,14 +618,19 @@ function App() {
               if (hasValidFooterCols) {
                 finalFooterCols = dbContent.footerColumns.map(col => ({
                   ...col,
-                  links: (col.links || []).map(lnk => {
-                    const lbl = (lnk.label || '').toLowerCase().trim();
-                    if (lbl === 'security' && lnk.url === '/privacy') return { ...lnk, url: '/security' };
-                    if (lbl === 'about us' && lnk.url === '/contact') return { ...lnk, url: '/about' };
-                    if (lbl === 'blog' && lnk.url === '/help') return { ...lnk, url: '/blog' };
-                    if (lbl === 'press' && lnk.url === '/contact') return { ...lnk, url: '/press' };
-                    return lnk;
-                  })
+                  links: (col.links || [])
+                    .filter(lnk => {
+                      const lbl = (lnk.label || '').toLowerCase().trim();
+                      const url = (lnk.url || '').toLowerCase().trim();
+                      return lbl !== 'press' && url !== '/press';
+                    })
+                    .map(lnk => {
+                      const lbl = (lnk.label || '').toLowerCase().trim();
+                      if (lbl === 'security' && lnk.url === '/privacy') return { ...lnk, url: '/security' };
+                      if (lbl === 'about us' && lnk.url === '/contact') return { ...lnk, url: '/about' };
+                      if (lbl === 'blog' && (lnk.url === '/help' || !lnk.url)) return { ...lnk, url: '/blog' };
+                      return lnk;
+                    })
                 }));
               }
               const hasValidFooterBtns = Array.isArray(dbContent.footerButtons) && dbContent.footerButtons.length > 0;
@@ -761,7 +766,13 @@ function App() {
         return exists ? prev : [user, ...prev];
       });
     }
-    navigate('/');
+    const intendedPlan = sessionStorage.getItem('azpdf_intended_plan');
+    if (intendedPlan) {
+      sessionStorage.removeItem('azpdf_intended_plan');
+      navigate(`/dashboard?upgrade=${intendedPlan}`);
+    } else {
+      navigate('/');
+    }
   };
 
   const handleLogout = () => {
@@ -799,15 +810,19 @@ function App() {
       return { totalConversions: currentTotal, dailyConversions: currentDaily };
     });
 
+    const activeUserId = currentUser?.id || 1;
+    let nextUsersList = [];
     setUsersData(prev => {
-      const updatedUsers = prev.map(u => u.id === (currentUser?.id || 1) ? { ...u, files: (u.files || 0) + 1 } : u);
-      fetch('/api/admin/files', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file: entry, users: updatedUsers })
-      }).catch(e => console.error(e));
-      return updatedUsers;
+      nextUsersList = (prev || []).map(u => u.id === activeUserId ? { ...u, files: (u.files || 0) + 1 } : u);
+      return nextUsersList;
     });
+
+    // Make single network call outside of React state updater to avoid StrictMode double-invocations
+    fetch('/api/admin/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: entry, users: nextUsersList })
+    }).catch(e => console.error('Recent file persist error:', e));
   };
 
   const handleFormatAllData = async () => {
@@ -955,7 +970,8 @@ function App() {
             <Route path="/terms"   element={<TermsAndConditions />} />
             <Route path="/about"   element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
-            <Route path="/blog"    element={<Blog />} />
+            <Route path="/blog"        element={<Blog />} />
+            <Route path="/blog/:slug"  element={<Blog />} />
             <Route path="/press"   element={<Press />} />
             <Route path="/help"    element={<HelpAndSupport />} />
             <Route path="/seed"    element={<SeedPage onSeedComplete={(res) => {

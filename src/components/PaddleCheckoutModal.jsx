@@ -24,6 +24,45 @@ export default function PaddleCheckoutModal({
   const [activeTransaction, setActiveTransaction] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successData, setSuccessData] = useState(null);
+  const [paddleConfig, setPaddleConfig] = useState(null);
+
+  useEffect(() => {
+    // Fetch Paddle configuration from backend
+    fetch('/api/paddle?action=config')
+      .then(res => res.json())
+      .then(cfg => {
+        if (cfg.success) {
+          setPaddleConfig(cfg);
+          if (cfg.test_card?.number) setCardNumber(cfg.test_card.number);
+          if (cfg.test_card?.expiry) setExpiry(cfg.test_card.expiry);
+          if (cfg.test_card?.cvv) setCvv(cfg.test_card.cvv);
+          if (cfg.test_card?.zip) setPostalCode(cfg.test_card.zip);
+
+          // Initialize Paddle.js v2 if available on window
+          if (typeof window !== 'undefined' && window.Paddle && cfg.client_side_token) {
+            try {
+              if (cfg.is_sandbox) {
+                window.Paddle.Environment.set('sandbox');
+              }
+              window.Paddle.Initialize({
+                token: cfg.client_side_token,
+                eventCallback: function(event) {
+                  if (event && event.name === 'checkout.completed') {
+                    const txnId = event.data?.transaction_id || event.data?.id || '';
+                    if (txnId) {
+                      verifyTransactionDirect(txnId);
+                    }
+                  }
+                }
+              });
+            } catch (err) {
+              console.warn('Paddle SDK init warning:', err);
+            }
+          }
+        }
+      })
+      .catch(e => console.warn('Could not load paddle config:', e));
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -36,6 +75,45 @@ export default function PaddleCheckoutModal({
       if (customerPreset?.email) setEmail(customerPreset.email);
     }
   }, [isOpen, plan, customerPreset]);
+
+  const verifyTransactionDirect = async (txnId) => {
+    try {
+      setIsLoading(true);
+      setLoadingStep('Verifying Paddle payment authorization...');
+      const verifyRes = await fetch('/api/paddle?action=verify_transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          txn_id: txnId,
+          plan_id: plan.id,
+          plan_name: plan.name,
+          amount: plan.priceTotal || plan.priceMonth,
+          customer_email: email.trim(),
+          user_id: customerPreset?.id || customerPreset?.userId || 1
+        })
+      });
+      const verifyData = await verifyRes.json();
+      setIsLoading(false);
+      if (verifyData?.success) {
+        setIsSuccess(true);
+        setSuccessData(verifyData);
+        if (onSuccess) {
+          onSuccess({
+            planId: plan.id,
+            planName: plan.name,
+            amount: plan.priceTotal || plan.priceMonth,
+            invoiceId: verifyData.invoice_id,
+            txnId
+          });
+        }
+      } else {
+        setErrorMessage(verifyData?.error || 'Verification failed.');
+      }
+    } catch (e) {
+      setIsLoading(false);
+      setErrorMessage('Failed to verify: ' + e.message);
+    }
+  };
 
   if (!isOpen || !plan) return null;
 
@@ -65,7 +143,7 @@ export default function PaddleCheckoutModal({
           amount: plan.priceTotal || plan.priceMonth,
           customer_name: name.trim(),
           customer_email: email.trim(),
-          user_id: 1
+          user_id: customerPreset?.id || customerPreset?.userId || 1
         })
       });
 
@@ -75,7 +153,7 @@ export default function PaddleCheckoutModal({
       }
 
       setActiveTransaction(initData);
-      setLoadingStep('Authorizing payment with Paddle Sandbox...');
+      setLoadingStep(`Authorizing payment with Paddle (${initData.is_sandbox ? 'Sandbox' : 'Live'})...`);
 
       // Small pause for realistic payment processing feel
       await new Promise(r => setTimeout(r, 1200));
@@ -90,7 +168,8 @@ export default function PaddleCheckoutModal({
           plan_id: plan.id,
           plan_name: plan.name,
           amount: plan.priceTotal || plan.priceMonth,
-          user_id: 1
+          customer_email: email.trim(),
+          user_id: customerPreset?.id || customerPreset?.userId || 1
         })
       });
 
@@ -132,11 +211,23 @@ export default function PaddleCheckoutModal({
           amount: plan.priceTotal || plan.priceMonth,
           customer_name: name.trim(),
           customer_email: email.trim(),
-          user_id: 1
+          user_id: customerPreset?.id || customerPreset?.userId || 1
         })
       });
       const initData = await initRes.json();
       setIsLoading(false);
+
+      if (initData?.txn_id && typeof window !== 'undefined' && window.Paddle && !initData.txn_id.startsWith('txn_sdbx_')) {
+        try {
+          window.Paddle.Checkout.open({
+            transactionId: initData.txn_id
+          });
+          return;
+        } catch (e) {
+          console.warn('Fallback to checkout URL:', e);
+        }
+      }
+
       if (initData?.checkout_url) {
         window.open(initData.checkout_url, '_blank', 'width=800,height=750,scrollbars=yes,resizable=yes');
       }
@@ -199,10 +290,12 @@ export default function PaddleCheckoutModal({
                   Paddle Checkout
                 </span>
                 <span style={{
-                  fontSize: '10px', fontWeight: '800', backgroundColor: '#e0f2fe',
-                  color: '#0284c7', padding: '2px 8px', borderRadius: '12px', letterSpacing: '0.5px'
+                  fontSize: '10px', fontWeight: '800', 
+                  backgroundColor: paddleConfig?.is_sandbox ? '#e0f2fe' : '#dcfce7',
+                  color: paddleConfig?.is_sandbox ? '#0284c7' : '#15803d', 
+                  padding: '2px 8px', borderRadius: '12px', letterSpacing: '0.5px'
                 }}>
-                  SANDBOX TESTING
+                  {paddleConfig?.is_sandbox ? 'SANDBOX TESTING' : 'LIVE PRODUCTION'}
                 </span>
               </div>
               <span style={{ fontSize: '12px', color: '#64748b' }}>

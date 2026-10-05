@@ -30,8 +30,7 @@ export const IMAGE_FOOTER_COLUMNS = [
     links: [
       { label: 'About us', url: '/about' },
       { label: 'Contact us', url: '/contact' },
-      { label: 'Blog', url: '/blog' },
-      { label: 'Press', url: '/press' }
+      { label: 'Blog', url: '/blog' }
     ]
   }
 ];
@@ -145,9 +144,17 @@ export default function Footer({ siteContent }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const columns = (siteContent?.footerColumns && siteContent.footerColumns.length > 0)
+  const rawColumns = (siteContent?.footerColumns && siteContent.footerColumns.length > 0)
     ? siteContent.footerColumns
     : IMAGE_FOOTER_COLUMNS;
+  const columns = rawColumns.map(col => ({
+    ...col,
+    links: (col.links || []).filter(l => {
+      const lbl = (l.label || '').toLowerCase().trim();
+      const url = (l.url || '').toLowerCase().trim();
+      return lbl !== 'press' && url !== '/press';
+    })
+  }));
   const socialLinks = siteContent?.socialLinks || {};
   const appStoreBadges = siteContent?.appStoreBadges;
   const copyright = siteContent?.footerCopyright || '© iLovePDF 2026 ® - Your PDF Editor';

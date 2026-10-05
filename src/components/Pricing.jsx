@@ -16,9 +16,9 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
     }
   };
 
-  const handleGoPremium = () => {
-    if (onGoPremium) return onGoPremium();
-    navigate('/dashboard');
+  const handleSelectPlan = (planType = 'PREMIUM') => {
+    if (onGoPremium) return onGoPremium(planType);
+    navigate(`/dashboard?upgrade=${planType}`);
   };
 
   return (
@@ -286,7 +286,7 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
             </div>
 
             <button 
-              onClick={handleGoPremium}
+              onClick={() => handleSelectPlan('PREMIUM')}
               style={{
                 marginTop: '36px',
                 padding: '14px',
@@ -359,7 +359,7 @@ export default function Pricing({ onContactSales, onGetStarted, onGoPremium, sit
             </div>
 
             <button 
-              onClick={handleGoPremium}
+              onClick={() => handleSelectPlan('BASIC')}
               style={{
                 marginTop: '36px',
                 padding: '14px',

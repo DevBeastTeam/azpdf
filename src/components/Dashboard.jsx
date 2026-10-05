@@ -6,8 +6,9 @@ import {
   Camera, Bell, Lock, Globe, Phone, Mail, AlertTriangle, Save, Eye, EyeOff, Building2, Check
 } from 'lucide-react';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getUserSession, setUserSession, clearUserSession } from '../utils/session';
+import PaddleCheckoutModal from './PaddleCheckoutModal';
 
 export const PLAN_TIERS = [
   {
@@ -98,11 +99,104 @@ export default function Dashboard({
     const u = currentUser || getUserSession();
     return normalizePlanId(u?.plan || 'FREE');
   });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isPaddleModalOpen, setIsPaddleModalOpen] = useState(false);
+  const [selectedPlanForPaddle, setSelectedPlanForPaddle] = useState(null);
+
   const [invoices, setInvoices] = useState([]);
   const [billingMsg, setBillingMsg] = useState('');
-  const [totalProcesses, setTotalProcesses] = useState(0);
-  const [scannedDocs, setScannedDocs] = useState(0);
-  const [ocrCount, setOcrCount] = useState(0);
+  const [totalProcesses, setTotalProcesses] = useState(() => {
+    const u = currentUser || getUserSession();
+    const rfCount = Array.isArray(recentFiles) ? recentFiles.length : 0;
+    return (u && u.files) ? u.files : (rfCount > 0 ? rfCount : 14);
+  });
+  const [scannedDocs, setScannedDocs] = useState(() => {
+    const rfCount = Array.isArray(recentFiles) ? recentFiles.length : 0;
+    return Math.max(2, Math.floor((rfCount || 14) * 0.15));
+  });
+  const [ocrCount, setOcrCount] = useState(() => {
+    const rfCount = Array.isArray(recentFiles) ? recentFiles.length : 0;
+    return Math.max(3, Math.floor((rfCount || 14) * 0.25));
+  });
+
+  const handlePaddleSuccess = (res) => {
+    const newPlanId = res.planId || 'PREMIUM';
+    setBillingPlan(newPlanId);
+    setProfile(prev => ({ ...prev, plan: newPlanId }));
+
+    // Persist to user session
+    const current = currentUser || getUserSession();
+    if (current) {
+      const updated = { ...current, plan: newPlanId };
+      setUserSession(updated);
+    }
+
+    // Prepend new invoice
+    if (res.invoiceId) {
+      const newInv = {
+        id: res.invoiceId,
+        date: new Date().toISOString().split('T')[0],
+        amount: `$${res.amount || 48}.00`,
+        plan: res.planName || newPlanId,
+        status: 'Paid',
+        downloadUrl: '#'
+      };
+      setInvoices(prev => [newInv, ...prev.filter(i => i.id !== res.invoiceId)]);
+    }
+
+    setBillingMsg(`🎉 Payment successful via Paddle! Your account has been upgraded to ${res.planName || newPlanId}.`);
+    setTimeout(() => setBillingMsg(''), 8000);
+  };
+
+  useEffect(() => {
+    const upgradeParam = searchParams.get('upgrade') || searchParams.get('plan');
+    if (upgradeParam) {
+      const target = PLAN_TIERS.find(p => p.id === upgradeParam.toUpperCase());
+      if (target && target.level > 0) {
+        setSelectedPlanForPaddle(target);
+        setIsPaddleModalOpen(true);
+        setActiveTab('billing');
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('upgrade');
+        newParams.delete('plan');
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+
+    const returnTxn = searchParams.get('checkout_id') || searchParams.get('_ptxn');
+    if (returnTxn) {
+      setActiveTab('billing');
+      fetch('/api/paddle?action=verify_transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          txn_id: returnTxn,
+          plan_id: 'PREMIUM',
+          plan_name: 'Premium Plan',
+          amount: 48,
+          user_id: currentUser?.id || 1,
+          customer_email: currentUser?.email || ''
+        })
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          handlePaddleSuccess({
+            planId: res.plan_id || 'PREMIUM',
+            planName: res.plan_name || 'Premium Plan',
+            amount: 48,
+            invoiceId: res.invoice_id
+          });
+        }
+      })
+      .catch(e => console.warn('Return verify error:', e));
+
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('checkout_id');
+      newParams.delete('_ptxn');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetch('/api/user/invoices')
@@ -115,25 +209,54 @@ export default function Dashboard({
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      const u = currentUser || getUserSession();
+      const rfCount = Array.isArray(recentFiles) ? recentFiles.length : 0;
+      const fallbackCount = (u && u.files) ? u.files : (rfCount > 0 ? rfCount : 14);
+
       try {
-        const res = await fetch('/api/user/dashboard');
+        const queryParams = new URLSearchParams();
+        if (u?.id) queryParams.set('userId', u.id);
+        if (u?.email) queryParams.set('email', u.email);
+        const qStr = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
+        const res = await fetch(`/api/user/dashboard${qStr}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.totalProcesses !== undefined) setTotalProcesses(data.totalProcesses);
-          if (data.scannedDocs !== undefined) setScannedDocs(data.scannedDocs);
-          if (data.ocrCount !== undefined) setOcrCount(data.ocrCount);
+          if (data.totalProcesses !== undefined && data.totalProcesses !== null) {
+            setTotalProcesses(data.totalProcesses);
+          } else {
+            setTotalProcesses(fallbackCount);
+          }
+          if (data.scannedDocs !== undefined && data.scannedDocs !== null) {
+            setScannedDocs(data.scannedDocs);
+          } else {
+            setScannedDocs(Math.max(2, Math.floor(fallbackCount * 0.15)));
+          }
+          if (data.ocrCount !== undefined && data.ocrCount !== null) {
+            setOcrCount(data.ocrCount);
+          } else {
+            setOcrCount(Math.max(3, Math.floor(fallbackCount * 0.25)));
+          }
+
+          if (data.recentFiles && data.recentFiles.length > 0 && (!recentFiles || recentFiles.length === 0)) {
+            if (typeof setRecentFiles === 'function') {
+              setRecentFiles(data.recentFiles);
+            }
+          }
+        } else {
+          setTotalProcesses(fallbackCount);
+          setScannedDocs(Math.max(2, Math.floor(fallbackCount * 0.15)));
+          setOcrCount(Math.max(3, Math.floor(fallbackCount * 0.25)));
         }
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
-        // Fallback to calculating from recentFiles
-        const count = recentFiles.length;
-        setTotalProcesses(count > 0 ? count : 148);
-        setScannedDocs(count > 0 ? Math.floor(count * 0.1) : 12);
-        setOcrCount(count > 0 ? Math.floor(count * 0.3) : 32);
+        setTotalProcesses(fallbackCount);
+        setScannedDocs(Math.max(2, Math.floor(fallbackCount * 0.15)));
+        setOcrCount(Math.max(3, Math.floor(fallbackCount * 0.25)));
       }
     };
     fetchDashboardData();
-  }, [recentFiles]);
+  }, [recentFiles, currentUser]);
 
   // Tier calculations
   const currentNormalized = normalizePlanId(billingPlan);
@@ -1534,7 +1657,8 @@ export default function Dashboard({
                 value={toolFilter}
                 onChange={(e) => { setToolFilter(e.target.value); setFilesPage(1); }}
                 style={{
-                  padding: '10px 14px',
+                  minWidth: '180px',
+                  padding: '10px 36px 10px 14px',
                   borderRadius: '10px',
                   border: '1px solid var(--border-light)',
                   backgroundColor: 'var(--bg-card)',
@@ -1730,7 +1854,10 @@ export default function Dashboard({
                 <div>
                   {nextTier ? (
                     <button
-                      onClick={handleScrollToPlans}
+                      onClick={() => {
+                        setSelectedPlanForPaddle(nextTier);
+                        setIsPaddleModalOpen(true);
+                      }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -1919,11 +2046,11 @@ export default function Dashboard({
                           >
                             <CheckCircle2 size={16} /> Active Plan
                           </button>
-                        ) : isUpgrade ? (
+                        ) : (tier.level > 0 && !isCurrent) ? (
                           <button
                             onClick={() => {
-                              setBillingMsg(`Selected plan: ${tier.name}.`);
-                              setTimeout(() => setBillingMsg(''), 4000);
+                              setSelectedPlanForPaddle(tier);
+                              setIsPaddleModalOpen(true);
                             }}
                             style={{
                               width: '100%',
@@ -1945,7 +2072,7 @@ export default function Dashboard({
                               transition: 'opacity 0.2s'
                             }}
                           >
-                            <Sparkles size={15} /> Upgrade to {tier.name}
+                            <Sparkles size={15} /> {isUpgrade ? `Upgrade to ${tier.name}` : `Switch to ${tier.name}`}
                           </button>
                         ) : (
                           <button
@@ -2123,6 +2250,19 @@ export default function Dashboard({
         )}
 
       </main>
+
+      {/* Paddle Checkout & Upgrade Modal */}
+      <PaddleCheckoutModal
+        isOpen={isPaddleModalOpen}
+        onClose={() => setIsPaddleModalOpen(false)}
+        plan={selectedPlanForPaddle}
+        customerPreset={{
+          id: currentUser?.id || 1,
+          name: profile.firstName ? `${profile.firstName} ${profile.lastName}`.trim() : (currentUser?.name || 'User'),
+          email: profile.email || currentUser?.email || 'user@example.com'
+        }}
+        onSuccess={handlePaddleSuccess}
+      />
     </div>
   );
 }

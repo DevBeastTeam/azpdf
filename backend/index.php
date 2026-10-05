@@ -30,6 +30,7 @@ require_once __DIR__ . '/controllers/ContactController.php';
 require_once __DIR__ . '/controllers/UserController.php';
 require_once __DIR__ . '/controllers/PaddleController.php';
 require_once __DIR__ . '/controllers/PdfController.php';
+require_once __DIR__ . '/controllers/BlogController.php';
 
 // Parse Path and Method
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -179,8 +180,34 @@ if ($path === '/api/user/invoices' && $method === 'GET') {
     UserController::getInvoices();
 }
 
+if ($path === '/api/user/dashboard' && $method === 'GET') {
+    UserController::getDashboard();
+}
+
 if ($path === '/api/support/ticket' && $method === 'POST') {
     UserController::submitTicket();
+}
+
+// ── Blog Endpoints ─────────────────────────────────────────────────────────
+if ($path === '/api/blogs' && $method === 'GET') {
+    BlogController::getAll();
+}
+
+if ($path === '/api/blogs' && $method === 'POST') {
+    BlogController::create();
+}
+
+if (preg_match('#^/api/blogs/(\d+)$#', $path, $matches)) {
+    $blogId = (int) $matches[1];
+    if ($method === 'GET') {
+        BlogController::getBySlug($blogId);
+    } elseif ($method === 'PUT' || $method === 'POST') {
+        BlogController::update($blogId);
+    } elseif ($method === 'DELETE') {
+        BlogController::delete($blogId);
+    }
+} elseif (preg_match('#^/api/blogs/([^/]+)$#', $path, $matches) && $method === 'GET') {
+    BlogController::getBySlug($matches[1]);
 }
 
 // ── Paddle Payment Gateway Endpoints ────────────────────────────────────────

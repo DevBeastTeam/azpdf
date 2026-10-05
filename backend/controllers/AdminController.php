@@ -386,17 +386,40 @@ class AdminController {
             $users = $data['users'] ?? null;
 
             if ($file) {
-                Database::run(
-                    'INSERT OR IGNORE INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    [$file['id'], $file['name'], $file['tool'], $file['size'], $file['date'], $file['pages'], $file['status']]
-                );
-                // Permanent conversion counter increment (+1) - never drops on deletion
-                Database::run('INSERT INTO conversion_stats (id, total_conversions) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET total_conversions = total_conversions + 1');
-                $convDate = !empty($file['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $file['date']) ? $file['date'] : date('Y-m-d');
-                Database::run('INSERT INTO daily_conversions (date, count) VALUES (?, 1) ON CONFLICT(date) DO UPDATE SET count = count + 1', [$convDate]);
+                $fileId = $file['id'] ?? null;
+                $alreadyExists = false;
+                if ($fileId) {
+                    $existing = Database::query('SELECT id FROM recent_files WHERE id = ?', [$fileId]);
+                    if (!empty($existing)) {
+                        $alreadyExists = true;
+                    }
+                }
 
-                $allFiles = Database::query('SELECT * FROM recent_files ORDER BY id DESC');
-                self::syncJsonDb('recentFiles', $allFiles);
+                if (!$alreadyExists) {
+                    Database::run(
+                        'INSERT INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        [$file['id'], $file['name'], $file['tool'], $file['size'], $file['date'], $file['pages'], $file['status']]
+                    );
+                    // Permanent conversion counter increment (+1) - strictly once per unique conversion
+                    Database::run('INSERT INTO conversion_stats (id, total_conversions) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET total_conversions = total_conversions + 1');
+                    $convDate = !empty($file['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $file['date']) ? $file['date'] : date('Y-m-d');
+                    Database::run('INSERT INTO daily_conversions (date, count) VALUES (?, 1) ON CONFLICT(date) DO UPDATE SET count = count + 1', [$convDate]);
+
+                    $allFiles = Database::query('SELECT * FROM recent_files ORDER BY id DESC');
+                    self::syncJsonDb('recentFiles', $allFiles);
+
+                    // Sync conversionStats to db.json
+                    $statsRows = Database::query('SELECT total_conversions FROM conversion_stats WHERE id = 1');
+                    $dailyRows = Database::query('SELECT date, count FROM daily_conversions ORDER BY date ASC');
+                    $dailyMap = [];
+                    foreach ($dailyRows as $r) {
+                        $dailyMap[$r['date']] = (int) $r['count'];
+                    }
+                    self::syncJsonDb('conversionStats', [
+                        'totalConversions' => (int) ($statsRows[0]['total_conversions'] ?? 0),
+                        'dailyConversions' => $dailyMap
+                    ]);
+                }
             }
 
             if (isset($data['files']) && is_array($data['files'])) {

@@ -141,7 +141,91 @@ class Database {
                 date TEXT PRIMARY KEY,
                 count INTEGER DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS blogs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                slug TEXT UNIQUE NOT NULL,
+                excerpt TEXT,
+                content TEXT NOT NULL,
+                category TEXT DEFAULT 'Tutorials',
+                author TEXT DEFAULT 'Technical Team',
+                image TEXT,
+                read_time TEXT DEFAULT '4 min read',
+                tags TEXT,
+                status TEXT DEFAULT 'Published',
+                created_at TEXT,
+                updated_at TEXT
+            );
         ");
+
+        // Seed blogs table if empty
+        $blogCountStmt = $pdo->query("SELECT COUNT(*) FROM blogs");
+        if ((int) $blogCountStmt->fetchColumn() === 0) {
+            $defaultBlogs = [
+                [
+                    'title' => 'How to Compress Large PDF Files Without Losing Print Quality',
+                    'slug' => 'how-to-compress-large-pdf-files',
+                    'excerpt' => 'Learn the difference between lossless image optimization and DPI downsampling to achieve maximum PDF compression ratios.',
+                    'content' => "PDF file sizes often balloon due to high-resolution embedded images, redundant font definitions, and uncompressed stream objects.\n\nIn this comprehensive guide, we explain how our automated compression algorithm reduces file size by up to 80% while keeping text razor-sharp and images crisp for presentations and print.\n\n### Why Compress PDFs?\n- Fast email sharing without attachment size limit errors\n- Reduced cloud hosting bandwidth and storage costs\n- Instant browser load times for web visitors\n\nTry our free online Compress PDF tool today to optimize your documents effortlessly.",
+                    'category' => 'Tutorials',
+                    'author' => 'Technical Team',
+                    'image' => 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=800&auto=format&fit=crop&q=80',
+                    'read_time' => '4 min read',
+                    'tags' => 'PDF, Compression, Optimization, Speed',
+                    'status' => 'Published',
+                    'created_at' => '2026-08-28 10:00:00'
+                ],
+                [
+                    'title' => 'Top 5 PDF Security Best Practices for Remote Teams',
+                    'slug' => 'pdf-security-best-practices-remote-teams',
+                    'excerpt' => 'Protect sensitive invoices, contracts, and business plans with password encryption, redaction, and access revocation.',
+                    'content' => "Working remotely requires heightened vigilance when sharing confidential documents across team members and external stakeholders.\n\n### 1. Always Encrypt Sensitive Contracts\nNever email sensitive spreadsheets or payroll summaries without AES-256 password encryption.\n\n### 2. Permanently Redact Personal Information\nBlack highlighter marks can be bypassed in primitive PDF viewers. Use true destructive redaction to purge SSNs and tax IDs.\n\n### 3. Apply Visual and Forensic Watermarks\nMarking documents with 'CONFIDENTIAL - FOR REVIEW ONLY' prevents unauthorized disclosure and leakages.\n\n### 4. Verify Digital Signatures\nEnsure document integrity by checking cryptographic digital signatures before accepting partner agreements.\n\n### 5. Automated File Purging\nChoose cloud platforms like azPDF that strictly enforce automatic file deletion within 2 hours.",
+                    'category' => 'Security',
+                    'author' => 'Security Officer',
+                    'image' => 'https://images.unsplash.com/photo-1563986768609-322da13575f3?w=800&auto=format&fit=crop&q=80',
+                    'read_time' => '5 min read',
+                    'tags' => 'Security, Encryption, Remote Work, Privacy',
+                    'status' => 'Published',
+                    'created_at' => '2026-08-14 14:30:00'
+                ],
+                [
+                    'title' => 'Introducing AI PDF Summarizer & Multi-Language Document Translation',
+                    'slug' => 'ai-pdf-summarizer-and-translation',
+                    'excerpt' => 'Extract executive summaries, action items, and translate 50+ languages directly from any scanned or digital PDF document.',
+                    'content' => "We are thrilled to launch our new AI Summarizer and Document Translator! Powered by state-of-the-art language models, you can now parse 100-page reports into bullet points in under 5 seconds.\n\n### Key Capabilities:\n- **Instant TL;DR**: Get high-level executive summaries without manual reading\n- **Action Items Extraction**: Detect deliverables, deadlines, and responsible owners\n- **50+ Languages**: Translate French, Spanish, German, Urdu, Arabic, Chinese with flawless syntax\n- **Preserve Formatting**: Output neatly formatted documents ready for presentation",
+                    'category' => 'Productivity',
+                    'author' => 'Product Team',
+                    'image' => 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+                    'read_time' => '3 min read',
+                    'tags' => 'AI, Translation, Summarizer, Productivity',
+                    'status' => 'Published',
+                    'created_at' => '2026-07-30 09:15:00'
+                ],
+                [
+                    'title' => 'Why Automatic File Purging is Essential for Document Privacy',
+                    'slug' => 'why-automatic-file-purging-is-essential',
+                    'excerpt' => 'A look inside our privacy-by-design architecture and why we permanently wipe processed files within 2 hours.',
+                    'content' => "Cloud storage is convenient, but permanent retention of customer documents creates unnecessary data liability and compliance risks.\n\nDiscover why azPDF strictly enforces a 2-hour automated deletion protocol for all processed files. Zero residual cache, zero unauthorized backups, and full peace of mind for enterprises worldwide.",
+                    'category' => 'Company Updates',
+                    'author' => 'Privacy Team',
+                    'image' => 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&auto=format&fit=crop&q=80',
+                    'read_time' => '3 min read',
+                    'tags' => 'Privacy, Compliance, GDPR, Architecture',
+                    'status' => 'Published',
+                    'created_at' => '2026-07-12 16:45:00'
+                ]
+            ];
+
+            $blogInsert = $pdo->prepare("INSERT INTO blogs (title, slug, excerpt, content, category, author, image, read_time, tags, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            foreach ($defaultBlogs as $b) {
+                $blogInsert->execute([
+                    $b['title'], $b['slug'], $b['excerpt'], $b['content'],
+                    $b['category'], $b['author'], $b['image'], $b['read_time'],
+                    $b['tags'], $b['status'], $b['created_at'], $b['created_at']
+                ]);
+            }
+        }
 
         // Seed conversion_stats if empty
         $statsStmt = $pdo->query("SELECT COUNT(*) FROM conversion_stats");
