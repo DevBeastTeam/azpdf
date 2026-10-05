@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
+import { getUserSession, setUserSession, clearUserSession } from '../utils/session';
 
 export const PLAN_TIERS = [
   {
@@ -94,16 +95,14 @@ export default function Dashboard({
 
   // Billing state
   const [billingPlan, setBillingPlan] = useState(() => {
-    const u = currentUser || (() => {
-      try {
-        const saved = sessionStorage.getItem('azpdf_user_session') || sessionStorage.getItem('azpdf_active_user');
-        return saved ? JSON.parse(saved) : null;
-      } catch (e) { return null; }
-    })();
+    const u = currentUser || getUserSession();
     return normalizePlanId(u?.plan || 'FREE');
   });
   const [invoices, setInvoices] = useState([]);
   const [billingMsg, setBillingMsg] = useState('');
+  const [totalProcesses, setTotalProcesses] = useState(0);
+  const [scannedDocs, setScannedDocs] = useState(0);
+  const [ocrCount, setOcrCount] = useState(0);
 
   useEffect(() => {
     fetch('/api/user/invoices')
@@ -113,6 +112,28 @@ export default function Dashboard({
       })
       .catch(err => console.error('Error fetching invoices:', err));
   }, []);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const res = await fetch('/api/user/dashboard');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.totalProcesses !== undefined) setTotalProcesses(data.totalProcesses);
+          if (data.scannedDocs !== undefined) setScannedDocs(data.scannedDocs);
+          if (data.ocrCount !== undefined) setOcrCount(data.ocrCount);
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        // Fallback to calculating from recentFiles
+        const count = recentFiles.length;
+        setTotalProcesses(count > 0 ? count : 148);
+        setScannedDocs(count > 0 ? Math.floor(count * 0.1) : 12);
+        setOcrCount(count > 0 ? Math.floor(count * 0.3) : 32);
+      }
+    };
+    fetchDashboardData();
+  }, [recentFiles]);
 
   // Tier calculations
   const currentNormalized = normalizePlanId(billingPlan);
@@ -128,13 +149,8 @@ export default function Dashboard({
 
   // Profile state
   const [profile, setProfile] = useState(() => {
-    // Priority 1: Use live currentUser prop from App.jsx (set on login)
-    const u = currentUser || (() => {
-      try {
-        const savedUser = sessionStorage.getItem('azpdf_user_session') || sessionStorage.getItem('azpdf_active_user');
-        return savedUser ? JSON.parse(savedUser) : null;
-      } catch (e) { return null; }
-    })();
+    // Priority 1: Use live currentUser prop from App.jsx or synced 24h session
+    const u = currentUser || getUserSession();
 
     if (u && (u.email || u.name)) {
       const nameParts = (u.name || 'User').trim().split(/\s+/);
@@ -143,7 +159,6 @@ export default function Dashboard({
         lastName: nameParts.slice(1).join(' ') || '',
         email: u.email || 'user@example.com',
         phone: u.phone || '+1 (555) 012-3456',
-        bio: u.bio || 'PDF processing enthusiast. Managing documents and workflows.',
         language: 'English',
         avatarInitials: u.avatar || (nameParts[0] ? nameParts[0][0] : 'U').toUpperCase(),
         avatarColor: 'var(--primary-red)',
@@ -177,7 +192,7 @@ export default function Dashboard({
   const handleProfileSave = async () => {
     try {
       // Persist updated profile back to storage so it survives page refresh
-      const stored = JSON.parse(sessionStorage.getItem('azpdf_user_session') || '{}');
+      const stored = getUserSession() || {};
       const updated = {
         ...stored,
         name: `${profile.firstName} ${profile.lastName}`.trim(),
@@ -186,7 +201,7 @@ export default function Dashboard({
         bio: profile.bio,
         avatar: profile.avatarInitials,
       };
-      sessionStorage.setItem('azpdf_user_session', JSON.stringify(updated));
+      setUserSession(updated);
       // Also persist to backend DB
       await fetch('/api/user/profile', {
         method: 'POST',
@@ -213,7 +228,11 @@ export default function Dashboard({
   };
 
   const handleDeleteFile = (id) => {
-    setRecentFiles(prev => prev.filter(f => f.id !== id));
+    setRecentFiles(prev => {
+      const updated = prev.filter(f => f.id !== id);
+      persistFiles(updated);
+      return updated;
+    });
   };
 
   const handleDownloadFile = (file) => {
@@ -242,16 +261,49 @@ export default function Dashboard({
   const handleClearAllFiles = () => {
     if (window.confirm('Are you sure you want to clear all your recent files?')) {
       setRecentFiles([]);
+      persistFiles([]);
+    }
+  };
+
+  const persistFiles = async (files) => {
+    try {
+      await fetch('/api/admin/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files })
+      });
+    } catch (err) {
+      console.error('Failed to persist files:', err);
+    }
+  };
+
+  const handleBulkDeleteFiles = () => {
+    if (selectedFileIds.length === 0) return;
+    if (window.confirm(`Delete ${selectedFileIds.length} selected file(s) permanently?`)) {
+      setRecentFiles(prev => {
+        const updated = prev.filter(f => !selectedFileIds.includes(f.id));
+        persistFiles(updated);
+        return updated;
+      });
+      setSelectedFileIds([]);
+    }
+  };
+
+  const toggleSelectFile = (id) => {
+    setSelectedFileIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllFiles = () => {
+    if (selectedFileIds.length === paginatedFiles.length) {
+      setSelectedFileIds([]);
+    } else {
+      setSelectedFileIds(paginatedFiles.map(f => f.id));
     }
   };
 
   const handleDeleteAccount = () => {
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      sessionStorage.removeItem('azpdf_user_session');
-      sessionStorage.removeItem('azpdf_active_user');
-      localStorage.removeItem('azpdf_auth');
-      localStorage.removeItem('azpdf_user');
-      localStorage.removeItem('azpdf_active_user');
+      clearUserSession();
       window.location.href = '/';
     }
   };
@@ -278,6 +330,7 @@ export default function Dashboard({
     (toolFilter === 'all' || f.tool === toolFilter)
   );
   const [filesPage, setFilesPage] = useState(1);
+  const [selectedFileIds, setSelectedFileIds] = useState([]);
   const filesPerPage = 8;
   const totalFilePages = Math.max(1, Math.ceil(filteredFiles.length / filesPerPage));
   const currentFilesPage = Math.min(filesPage, totalFilePages);
@@ -497,7 +550,7 @@ export default function Dashboard({
                     <FileText size={18} />
                   </div>
                 </div>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>148</div>
+                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{totalProcesses}</div>
                 <div style={{ fontSize: '12px', color: '#10b981', fontWeight: '600' }}>↑ +12% from last week</div>
               </div>
 
@@ -508,7 +561,7 @@ export default function Dashboard({
                     <Clock size={18} />
                   </div>
                 </div>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>12</div>
+                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{scannedDocs}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-gray)' }}>Scanned documents total</div>
               </div>
 
@@ -519,7 +572,7 @@ export default function Dashboard({
                     <Zap size={18} />
                   </div>
                 </div>
-                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>32</div>
+                <div style={{ fontSize: '32px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{ocrCount}</div>
                 <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: '600' }}>High-accuracy OCR active</div>
               </div>
 
@@ -1354,27 +1407,49 @@ export default function Dashboard({
                     </tr>
                   </thead>
                   <tbody>
-                    {recentFiles.slice(0, 3).map(file => (
-                      <tr key={file.id} style={{ borderBottom: '1px solid var(--border-light)', fontSize: '14px', color: 'var(--text-gray)' }}>
-                        <td style={{ padding: '16px', fontWeight: '700', color: 'var(--text-dark)' }}>{file.name}</td>
-                        <td style={{ padding: '16px' }}>
-                          <span style={{ backgroundColor: 'var(--bg-light)', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>
-                            {file.tool}
-                          </span>
-                        </td>
-                        <td style={{ padding: '16px', color: 'var(--text-gray)' }}>{file.size}</td>
-                        <td style={{ padding: '16px', color: 'var(--text-gray)' }}>{file.date}</td>
-                        <td style={{ padding: '16px', textAlign: 'right' }}>
-                          <button 
-                            onClick={() => handleDownloadFile(file)}
-                            style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--primary-red)', cursor: 'pointer', padding: '6px' }} 
-                            title="Download"
-                          >
-                            <Download size={16} />
-                          </button>
+                    {recentFiles.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-gray)' }}>
+                          No recent files found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      recentFiles.slice(0, 20).map(file => (
+                        <tr key={file.id} style={{ borderBottom: '1px solid var(--border-light)', fontSize: '14px', color: 'var(--text-gray)' }}>
+                          <td style={{ padding: '16px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <FileText size={18} color="var(--primary-red)" />
+                              {file.name}
+                            </div>
+                          </td>
+                          <td style={{ padding: '16px' }}>
+                            <span style={{ backgroundColor: 'var(--bg-light)', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>
+                              {file.tool}
+                            </span>
+                          </td>
+                          <td style={{ padding: '16px', color: 'var(--text-gray)' }}>{file.size}</td>
+                          <td style={{ padding: '16px', color: 'var(--text-gray)' }}>{file.date}</td>
+                          <td style={{ padding: '16px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <button 
+                                onClick={() => handleDownloadFile(file)}
+                                style={{ border: 'none', backgroundColor: 'var(--bg-light)', borderRadius: '6px', padding: '8px', color: 'var(--text-gray)', cursor: 'pointer' }} 
+                                title="Download"
+                              >
+                                <Download size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteFile(file.id)}
+                                style={{ border: 'none', backgroundColor: '#fee2e2', borderRadius: '6px', padding: '8px', color: '#dc2626', cursor: 'pointer' }} 
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1445,9 +1520,24 @@ export default function Dashboard({
                   No files found matching "{searchQuery}".
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <>
+                  {selectedFileIds.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', padding: '10px 16px', backgroundColor: '#fef2f2', borderRadius: '10px', border: '1px solid #fecaca' }}>
+                      <span style={{ fontWeight: '700', fontSize: '13px', color: '#dc2626' }}>{selectedFileIds.length} file(s) selected</span>
+                      <button onClick={handleBulkDeleteFiles} style={{ border: 'none', backgroundColor: '#dc2626', color: '#fff', borderRadius: '8px', padding: '8px 16px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        Delete Selected
+                      </button>
+                      <button onClick={() => setSelectedFileIds([])} style={{ border: 'none', backgroundColor: 'transparent', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border-light)', color: 'var(--text-gray)', fontSize: '12px', fontWeight: '700' }}>
+                      <th style={{ padding: '14px 16px', width: '40px' }}>
+                        <input type="checkbox" checked={paginatedFiles.length > 0 && selectedFileIds.length === paginatedFiles.length} onChange={toggleSelectAllFiles} style={{ cursor: 'pointer', transform: 'scale(1.2)' }} />
+                      </th>
                       <th style={{ padding: '14px 16px' }}>FILE NAME</th>
                       <th style={{ padding: '14px 16px' }}>TOOL</th>
                       <th style={{ padding: '14px 16px' }}>SIZE</th>
@@ -1458,6 +1548,9 @@ export default function Dashboard({
                   <tbody>
                     {paginatedFiles.map(file => (
                       <tr key={file.id} style={{ borderBottom: '1px solid var(--border-light)', fontSize: '14px', color: 'var(--text-gray)' }}>
+                        <td style={{ padding: '16px' }}>
+                          <input type="checkbox" checked={selectedFileIds.includes(file.id)} onChange={() => toggleSelectFile(file.id)} style={{ cursor: 'pointer', transform: 'scale(1.2)' }} />
+                        </td>
                         <td style={{ padding: '16px', fontWeight: '700', color: 'var(--text-dark)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <FileText size={18} color="var(--primary-red)" />
@@ -1489,6 +1582,7 @@ export default function Dashboard({
                     ))}
                   </tbody>
                 </table>
+                </>
               )}
               {filteredFiles.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '16px' }}>
@@ -1913,16 +2007,6 @@ export default function Dashboard({
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}><Phone size={13} /> Phone Number</label>
                   <input type="tel" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} style={{ width: '100%', padding: '11px 13px', borderRadius: '9px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} onFocus={e => e.target.style.borderColor = 'var(--primary-red)'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Bio / Description</label>
-                  <textarea value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} rows={3} style={{ width: '100%', padding: '11px 13px', borderRadius: '9px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }} onFocus={e => e.target.style.borderColor = 'var(--primary-red)'} onBlur={e => e.target.style.borderColor = 'var(--border-light)'} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}><Globe size={13} /> Language</label>
-                  <select value={profile.language} onChange={e => setProfile(p => ({ ...p, language: e.target.value }))} style={{ width: '100%', padding: '11px 13px', borderRadius: '9px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}>
-                    {['English', 'Urdu', 'Arabic', 'Spanish', 'French', 'German', 'Chinese'].map(l => <option key={l}>{l}</option>)}
-                  </select>
                 </div>
               </div>
 

@@ -5,13 +5,14 @@ import {
   Database, Clock, ArrowLeft, RefreshCw, Download, Save, CheckCircle, AlertTriangle, Smartphone, Eye, EyeOff,
   Layout, Globe, ExternalLink, Link as LinkIcon, Mail, MessageSquare, Phone, Building, Calendar, Check, Reply, Send,
   Sun, Moon, Sliders, ChevronRight, RotateCcw, CheckCircle2, ToggleLeft, ToggleRight, BookOpen, List,
-  Bell, Shield, Scale, Newspaper, Target, Sparkles, Heart, Lock
+  Bell, Shield, Scale, Newspaper, Target, Sparkles, Heart, Lock, UserCheck, UserX, LogOut,
+  BarChart3, TrendingUp, Layers
 } from 'lucide-react';
 import StoreBadges from './StoreBadges';
 import { toolsData } from './ToolsGrid';
 import { TOOL_INFORMATION } from '../data/toolInformation';
-import { 
-  defaultPrivacyPolicy, 
+import {
+  defaultPrivacyPolicy,
   defaultTermsAndConditions,
   defaultSecurityPage,
   defaultAboutUs,
@@ -19,6 +20,7 @@ import {
 } from '../data/legalPagesData';
 
 import { useNavigate } from 'react-router-dom';
+import { clearAdminSession, clearUserSession } from '../utils/session';
 
 export default function AdminPanel({
   usersData,
@@ -32,7 +34,11 @@ export default function AdminPanel({
   siteContent,
   setSiteContent,
   theme,
-  toggleTheme
+  toggleTheme,
+  onLogout,
+  conversionStats = { totalConversions: 0, dailyConversions: {} },
+  setConversionStats,
+  onFormatAllData
 }) {
   const navigate = useNavigate();
   const onBack = () => navigate('/');
@@ -46,12 +52,16 @@ export default function AdminPanel({
   const [fileDateFilter, setFileDateFilter] = useState('All');
   const [selectedFileIds, setSelectedFileIds] = useState([]);
   const [filePage, setFilePage] = useState(1);
-  const filesPerPage = 100;
+  const filesPerPage = 200;
+  const [userPage, setUserPage] = useState(1);
+  const usersPerPage = 50;
 
   // Modals state
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState(null);
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
 
   // New User Form state
   const [newUserForm, setNewUserForm] = useState({ name: '', email: '', plan: 'Free', status: 'Active' });
@@ -272,8 +282,8 @@ export default function AdminPanel({
         : (custom?.toolActive !== undefined ? custom.toolActive : true);
 
       const matchSearch = title.toLowerCase().includes(menuSetSearch.toLowerCase()) ||
-                          tool.id.toLowerCase().includes(menuSetSearch.toLowerCase()) ||
-                          desc.toLowerCase().includes(menuSetSearch.toLowerCase());
+        tool.id.toLowerCase().includes(menuSetSearch.toLowerCase()) ||
+        desc.toLowerCase().includes(menuSetSearch.toLowerCase());
       if (!matchSearch) return false;
 
       if (menuSetFilter === 'Active') return isToolActive;
@@ -958,6 +968,7 @@ export default function AdminPanel({
     if (deleteConfirmUser) {
       const { id, name } = deleteConfirmUser;
       setUsersData(prev => prev.filter(u => u.id !== id));
+      setSelectedUserIds(prev => prev.filter(x => x !== id));
       addLog(`Deleted user: ${name}.`, 'warning');
       setDeleteConfirmUser(null);
     }
@@ -1034,7 +1045,7 @@ export default function AdminPanel({
     addLog(`${mode ? 'ACTIVATED Maintenance Mode' : 'DEACTIVATED Maintenance Mode'} globally.`, mode ? 'warning' : 'success');
   };
 
-  // Analytics Helpers
+  // Analytics & Lifetime Conversion Tracking
   const premiumCount = usersData.filter(u => u.plan === 'Premium').length;
   const bannedCount = usersData.filter(u => u.status === 'Banned').length;
   const freeCount = usersData.filter(u => u.plan === 'Free').length;
@@ -1043,9 +1054,146 @@ export default function AdminPanel({
     return premiumCount * systemSettings.monthlyPremiumPrice;
   }, [premiumCount, systemSettings]);
 
-  const totalFilesCount = useMemo(() => {
-    return usersData.reduce((acc, curr) => acc + curr.files, 0) + recentFiles.length;
-  }, [usersData, recentFiles]);
+  // Permanent Lifetime Converted Files Counter (Never decreases when recent files are deleted)
+  const lifetimeConversions = conversionStats?.totalConversions || 0;
+  const totalFilesCount = lifetimeConversions;
+
+  // Real-time Daily Conversions Chart Calculations
+  // Real-time Daily PDF Conversions & User Registrations Chart Calculations
+  const [chartRange, setChartRange] = useState('7d'); // '7d' | '15d' | '30d' | 'all'
+  const [userChartRange, setUserChartRange] = useState('7d'); // '7d' | '15d' | '30d' | 'all'
+  const [showFormatModal, setShowFormatModal] = useState(false);
+  const [isFormatting, setIsFormatting] = useState(false);
+  const [formatSuccessMsg, setFormatSuccessMsg] = useState('');
+  const [activeHoverDay, setActiveHoverDay] = useState(null);
+  const [activeHoverUserDay, setActiveHoverUserDay] = useState(null);
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayConversions = useMemo(() => {
+    return (conversionStats?.dailyConversions && conversionStats.dailyConversions[todayStr]) || 0;
+  }, [conversionStats, todayStr]);
+
+  // PDF Chart Data
+  const daysCount = chartRange === 'all' ? 45 : chartRange === '30d' ? 30 : chartRange === '15d' ? 15 : 7;
+  const dailyChartData = useMemo(() => {
+    const data = [];
+    const now = new Date();
+    for (let i = daysCount - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const count = (conversionStats?.dailyConversions && conversionStats.dailyConversions[dateStr]) || 0;
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      data.push({
+        date: dateStr,
+        label: `${dayName}, ${monthDay}`,
+        shortDate: monthDay,
+        dayName,
+        count,
+        isToday: i === 0
+      });
+    }
+    return data;
+  }, [conversionStats, daysCount]);
+
+  const maxDailyCount = useMemo(() => {
+    const counts = dailyChartData.map(d => d.count);
+    return Math.max(...counts, 4);
+  }, [dailyChartData]);
+
+  const totalPeriodConversions = useMemo(() => {
+    return dailyChartData.reduce((acc, curr) => acc + curr.count, 0);
+  }, [dailyChartData]);
+
+  // User Registrations Chart Data
+  const userDaysCount = userChartRange === 'all' ? 45 : userChartRange === '30d' ? 30 : userChartRange === '15d' ? 15 : 7;
+  const userRegistrationsByDate = useMemo(() => {
+    const map = {};
+    if (!usersData || !Array.isArray(usersData)) return map;
+    usersData.forEach(u => {
+      if (!u.joinDate) return;
+      let dateKey = '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(u.joinDate)) {
+        dateKey = u.joinDate;
+      } else {
+        const parsed = new Date(u.joinDate);
+        if (!isNaN(parsed.getTime())) {
+          dateKey = parsed.toISOString().split('T')[0];
+        }
+      }
+      if (dateKey) {
+        map[dateKey] = (map[dateKey] || 0) + 1;
+      }
+    });
+    return map;
+  }, [usersData]);
+
+  const userChartData = useMemo(() => {
+    const data = [];
+    const now = new Date();
+    for (let i = userDaysCount - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const count = userRegistrationsByDate[dateStr] || 0;
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      data.push({
+        date: dateStr,
+        label: `${dayName}, ${monthDay}`,
+        shortDate: monthDay,
+        dayName,
+        count,
+        isToday: i === 0
+      });
+    }
+    return data;
+  }, [userRegistrationsByDate, userDaysCount]);
+
+  const maxUserDailyCount = useMemo(() => {
+    const counts = userChartData.map(d => d.count);
+    return Math.max(...counts, 4);
+  }, [userChartData]);
+
+  const totalPeriodNewUsers = useMemo(() => {
+    return userChartData.reduce((acc, curr) => acc + curr.count, 0);
+  }, [userChartData]);
+
+  const todayNewUsers = useMemo(() => {
+    return userRegistrationsByDate[todayStr] || 0;
+  }, [userRegistrationsByDate, todayStr]);
+
+  const handleConfirmFormat = async () => {
+    setIsFormatting(true);
+    try {
+      let ok = false;
+      if (typeof onFormatAllData === 'function') {
+        ok = await onFormatAllData();
+      } else {
+        const res = await fetch('/api/admin/format-data', { method: 'POST' });
+        ok = res.ok;
+        if (ok) {
+          setUsersData([]);
+          setRecentFiles([]);
+          if (typeof setConversionStats === 'function') {
+            setConversionStats({ totalConversions: 0, dailyConversions: {} });
+          }
+        }
+      }
+      if (ok) {
+        addLog('SYSTEM FORMAT: All users, files, conversion statistics, and charts were reset to 0 by Admin.', 'warning');
+        setFormatSuccessMsg('All platform data has been completely formatted and reset to zero (0).');
+        setTimeout(() => setFormatSuccessMsg(''), 5000);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error formatting data: ' + e.message);
+    } finally {
+      setIsFormatting(false);
+      setShowFormatModal(false);
+    }
+  };
 
   const filteredUsers = usersData.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -1053,6 +1201,50 @@ export default function AdminPanel({
     const matchPlan = userPlanFilter === 'All' || u.plan === userPlanFilter;
     return matchSearch && matchPlan;
   });
+
+  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
+  const currentUserPage = Math.min(userPage, totalUserPages);
+  const paginatedUsers = filteredUsers.slice((currentUserPage - 1) * usersPerPage, currentUserPage * usersPerPage);
+
+  const allPageUsersSelected = paginatedUsers.length > 0 && paginatedUsers.every(u => selectedUserIds.includes(u.id));
+  const somePageUsersSelected = paginatedUsers.some(u => selectedUserIds.includes(u.id));
+  const isUserIndeterminate = selectedUserIds.length > 0 && !allPageUsersSelected && somePageUsersSelected;
+
+  const toggleSelectAllUsers = () => {
+    if (allPageUsersSelected) {
+      setSelectedUserIds(prev => prev.filter(id => !paginatedUsers.some(u => u.id === id)));
+    } else {
+      setSelectedUserIds(prev => [...new Set([...prev, ...paginatedUsers.map(u => u.id)])]);
+    }
+  };
+
+  const toggleSelectUser = (id) => {
+    setSelectedUserIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleBulkBanUsers = () => {
+    if (selectedUserIds.length === 0) return;
+    setUsersData(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, status: 'Banned' } : u));
+    addLog(`Admin banned ${selectedUserIds.length} user account(s).`, 'warning');
+  };
+
+  const handleBulkActivateUsers = () => {
+    if (selectedUserIds.length === 0) return;
+    setUsersData(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, status: 'Active' } : u));
+    addLog(`Admin activated ${selectedUserIds.length} user account(s).`, 'success');
+  };
+
+  const handleBulkDeleteUsers = () => {
+    if (selectedUserIds.length === 0) return;
+    setBulkDeleteConfirmOpen(true);
+  };
+
+  const confirmBulkDeleteUsers = () => {
+    setUsersData(prev => prev.filter(u => !selectedUserIds.includes(u.id)));
+    addLog(`Admin deleted ${selectedUserIds.length} user account(s) permanently.`, 'warning');
+    setSelectedUserIds([]);
+    setBulkDeleteConfirmOpen(false);
+  };
 
   const filteredFiles = recentFiles.filter(f => {
     const q = fileSearch.toLowerCase();
@@ -1084,6 +1276,120 @@ export default function AdminPanel({
       addLog(`Admin deleted ${selectedFileIds.length} file(s) from storage.`, 'warning');
       setSelectedFileIds([]);
     }
+  };
+
+  const renderPagination = (currentPage, totalPages, setPage, totalItems, itemsPerPage, itemLabel = 'records') => {
+    if (totalItems === 0) return null;
+
+    const startIdx = (currentPage - 1) * itemsPerPage + 1;
+    const endIdx = Math.min(currentPage * itemsPerPage, totalItems);
+
+    const getPageNumbers = () => {
+      if (totalPages <= 7) {
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+      }
+      if (currentPage <= 4) {
+        return [1, 2, 3, 4, 5, '...', totalPages];
+      }
+      if (currentPage >= totalPages - 3) {
+        return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+      }
+      return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+    };
+
+    const pages = getPageNumbers();
+
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '12px',
+        padding: '6px 4px'
+      }}>
+        <div style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>
+          Showing <span style={{ color: 'var(--text-dark)', fontWeight: '700' }}>{startIdx}–{endIdx}</span> of{' '}
+          <span style={{ color: 'var(--text-dark)', fontWeight: '700' }}>{totalItems}</span> {itemLabel}{' '}
+          <span style={{ color: 'var(--text-light-gray)', fontSize: '12px' }}>({itemsPerPage} per page)</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: '1.5px solid var(--border-light)',
+              backgroundColor: 'var(--bg-card)',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              color: currentPage === 1 ? 'var(--text-light-gray)' : 'var(--text-dark)',
+              opacity: currentPage === 1 ? 0.5 : 1,
+              transition: 'all 0.15s'
+            }}
+          >
+            Prev
+          </button>
+
+          {pages.map((p, i) => {
+            if (p === '...') {
+              return (
+                <span key={`dots-${i}`} style={{ padding: '0 6px', color: 'var(--text-light-gray)', fontSize: '13px' }}>
+                  …
+                </span>
+              );
+            }
+            const isCurrent = p === currentPage;
+            return (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                style={{
+                  minWidth: '32px',
+                  height: '32px',
+                  padding: '0 8px',
+                  borderRadius: '8px',
+                  border: `1.5px solid ${isCurrent ? 'var(--primary-red)' : 'var(--border-light)'}`,
+                  backgroundColor: isCurrent ? 'var(--primary-red)' : 'var(--bg-card)',
+                  color: isCurrent ? '#ffffff' : 'var(--text-dark)',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {p}
+              </button>
+            );
+          })}
+
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages || totalPages === 0}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              border: '1.5px solid var(--border-light)',
+              backgroundColor: 'var(--bg-card)',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: (currentPage === totalPages || totalPages === 0) ? 'not-allowed' : 'pointer',
+              color: (currentPage === totalPages || totalPages === 0) ? 'var(--text-light-gray)' : 'var(--text-dark)',
+              opacity: (currentPage === totalPages || totalPages === 0) ? 0.5 : 1,
+              transition: 'all 0.15s'
+            }}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const getPlanMeta = (plan = '') => {
@@ -1169,8 +1475,8 @@ export default function AdminPanel({
             <span style={{ color: 'var(--text-gray)', fontWeight: '500' }}>Admin Console</span>
             <span style={{ color: 'var(--text-gray)' }}>/</span>
             <span style={{ color: 'var(--text-dark)', fontWeight: '700' }}>
-              {selectedMenuTool && activeTab === 'menuset' 
-                ? `Tool Settings › ${selectedMenuTool.title}` 
+              {selectedMenuTool && activeTab === 'menuset'
+                ? `Tool Settings › ${selectedMenuTool.title}`
                 : (tabNames[activeTab] || 'Dashboard')}
             </span>
           </div>
@@ -1302,4415 +1608,5405 @@ export default function AdminPanel({
 
         {/* Sidebar Navigation */}
         <aside className="admin-sidebar" style={{
-        width: '260px',
-        backgroundColor: 'var(--bg-card)',
-        color: 'var(--text-dark)',
-        padding: '24px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        flexShrink: 0,
-        borderRight: '1px solid var(--border-light)',
-        zIndex: 10
-      }}>
-        <div className="admin-sidebar-top">
-          {/* Admin Identity */}
-          <div className="admin-identity-row" style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            padding: '12px 14px',
-            backgroundColor: 'var(--bg-light)',
-            borderRadius: '14px',
-            marginBottom: '28px',
-            border: '1px solid var(--border-light)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--primary-red)',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: '800',
-                fontSize: '16px'
-              }}>
-                AD
+          width: '260px',
+          backgroundColor: 'var(--bg-card)',
+          color: 'var(--text-dark)',
+          padding: '24px 16px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+          borderRight: '1px solid var(--border-light)',
+          zIndex: 10
+        }}>
+          <div className="admin-sidebar-top">
+            {/* Admin Identity */}
+            <div className="admin-identity-row" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              padding: '12px 14px',
+              backgroundColor: 'var(--bg-light)',
+              borderRadius: '14px',
+              marginBottom: '28px',
+              border: '1px solid var(--border-light)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--primary-red)',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800',
+                  fontSize: '16px'
+                }}>
+                  AD
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>Admin Panel</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-dark)' }}>Admin Panel</div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {toggleTheme && (
+                  <button
+                    onClick={toggleTheme}
+                    title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                    style={{
+                      background: 'none',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '8px',
+                      padding: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--text-dark)'
+                    }}
+                  >
+                    {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+                  </button>
+                )}
+
+                {/* Mobile-only inline Exit & Logout buttons */}
+                <button
+                  onClick={onBack}
+                  className="admin-mobile-exit-btn"
+                  style={{
+                    display: 'none',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-dark)',
+                    border: '1px solid var(--border-light)',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <ArrowLeft size={14} /> Exit
+                </button>
+                <button
+                  onClick={() => {
+                    if (onLogout) {
+                      onLogout();
+                    } else {
+                      clearAdminSession();
+                      clearUserSession();
+                      navigate('/');
+                    }
+                  }}
+                  className="admin-mobile-exit-btn"
+                  style={{
+                    display: 'none',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <LogOut size={14} /> Logout
+                </button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {toggleTheme && (
+            {/* Navigation Links */}
+            <div className="admin-nav-links" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '6px 12px 2px' }}>
+                Platform
+              </div>
+              {[
+                { id: 'overview', label: 'Dashboard Overview', icon: <Activity size={18} /> },
+                { id: 'users', label: 'User Accounts', icon: <Users size={18} /> },
+                { id: 'files', label: 'Recently Converted', icon: <FileText size={18} /> },
+              ].map(tab => (
                 <button
-                  onClick={toggleTheme}
-                  title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    if (tab.id === 'menuset') setSelectedMenuTool(null);
+                  }}
+                  className={`admin-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
                   style={{
-                    background: 'none',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: '8px',
-                    padding: '6px',
-                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--text-dark)'
+                    justifyContent: 'space-between',
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: activeTab === tab.id ? 'var(--primary-red)' : 'transparent',
+                    color: activeTab === tab.id ? '#ffffff' : 'var(--text-gray)',
+                    fontWeight: activeTab === tab.id ? '700' : '500',
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                    width: '100%'
                   }}
                 >
-                  {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {tab.icon} {tab.label}
+                  </span>
+                  {tab.badge > 0 && (
+                    <span style={{
+                      backgroundColor: activeTab === tab.id ? '#ffffff' : 'var(--primary-red)',
+                      color: activeTab === tab.id ? 'var(--primary-red)' : '#ffffff',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '2px 7px',
+                      borderRadius: '10px'
+                    }}>
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
-              )}
+              ))}
 
-              {/* Mobile-only inline Exit button */}
+              <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '14px 12px 2px' }}>
+                Settings
+              </div>
+              {[
+                { id: 'menuset', label: 'Tool Settings', icon: <Sliders size={18} /> },
+                { id: 'content', label: 'Pages Setting', icon: <Edit size={18} /> },
+                { id: 'settings', label: 'System Settings', icon: <Server size={18} /> },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    if (tab.id === 'menuset') setSelectedMenuTool(null);
+                  }}
+                  className={`admin-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '9px 14px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: activeTab === tab.id ? 'var(--primary-red)' : 'transparent',
+                    color: activeTab === tab.id ? '#ffffff' : 'var(--text-gray)',
+                    fontWeight: activeTab === tab.id ? '700' : '500',
+                    fontSize: '13.5px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s',
+                    width: '100%'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {tab.icon} {tab.label}
+                  </span>
+                </button>
+              ))}
+
+              <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '14px 12px 2px' }}>
+                Pages Management
+              </div>
               <button
-                onClick={onBack}
-                className="admin-mobile-exit-btn"
+                onClick={() => { setActiveTab('legal'); setLegalSubTab('security'); }}
+                className={`admin-nav-btn ${activeTab === 'legal' ? 'active' : ''}`}
                 style={{
-                  display: 'none',
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  borderRadius: '8px',
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-dark)',
-                  border: '1px solid var(--border-light)',
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  cursor: 'pointer'
+                  justifyContent: 'space-between',
+                  padding: '9px 14px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: activeTab === 'legal' ? 'var(--primary-red)' : 'transparent',
+                  color: activeTab === 'legal' ? '#ffffff' : 'var(--text-gray)',
+                  fontWeight: activeTab === 'legal' ? '700' : '500',
+                  fontSize: '13.5px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                  width: '100%'
                 }}
               >
-                <ArrowLeft size={14} /> Exit
+                <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <FileText size={18} /> Pages Content
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Navigation Links */}
-          <div className="admin-nav-links" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '6px 12px 2px' }}>
-              Platform
-            </div>
-            {[
-              { id: 'overview', label: 'Dashboard Overview', icon: <Activity size={18} /> },
-              { id: 'users', label: 'User Accounts', icon: <Users size={18} /> },
-              { id: 'files', label: 'Recently Converted', icon: <FileText size={18} /> },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  if (tab.id === 'menuset') setSelectedMenuTool(null);
-                }}
-                className={`admin-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 14px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  backgroundColor: activeTab === tab.id ? 'var(--primary-red)' : 'transparent',
-                  color: activeTab === tab.id ? '#ffffff' : 'var(--text-gray)',
-                  fontWeight: activeTab === tab.id ? '700' : '500',
-                  fontSize: '13.5px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.2s',
-                  width: '100%'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {tab.icon} {tab.label}
-                </span>
-                {tab.badge > 0 && (
-                  <span style={{
-                    backgroundColor: activeTab === tab.id ? '#ffffff' : 'var(--primary-red)',
-                    color: activeTab === tab.id ? 'var(--primary-red)' : '#ffffff',
-                    fontSize: '11px',
-                    fontWeight: '800',
-                    padding: '2px 7px',
-                    borderRadius: '10px'
-                  }}>
-                    {tab.badge}
-                  </span>
-                )}
-              </button>
-            ))}
-
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '14px 12px 2px' }}>
-              Settings
-            </div>
-            {[
-              { id: 'menuset', label: 'Tool Settings', icon: <Sliders size={18} /> },
-              { id: 'content', label: 'Pages Setting', icon: <Edit size={18} /> },
-              { id: 'settings', label: 'System Settings', icon: <Server size={18} /> },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  if (tab.id === 'menuset') setSelectedMenuTool(null);
-                }}
-                className={`admin-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 14px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  backgroundColor: activeTab === tab.id ? 'var(--primary-red)' : 'transparent',
-                  color: activeTab === tab.id ? '#ffffff' : 'var(--text-gray)',
-                  fontWeight: activeTab === tab.id ? '700' : '500',
-                  fontSize: '13.5px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.2s',
-                  width: '100%'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {tab.icon} {tab.label}
-                </span>
-              </button>
-            ))}
-
-            <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.8px', padding: '14px 12px 2px' }}>
-              Pages Management
-            </div>
+          {/* Actions Area: Exit to Site & Admin Logout */}
+          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
             <button
-              onClick={() => { setActiveTab('legal'); setLegalSubTab('security'); }}
-              className={`admin-nav-btn ${activeTab === 'legal' ? 'active' : ''}`}
+              onClick={onBack}
+              className="admin-exit-btn"
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '9px 14px',
-                borderRadius: '10px',
-                border: 'none',
-                backgroundColor: activeTab === 'legal' ? 'var(--primary-red)' : 'transparent',
-                color: activeTab === 'legal' ? '#ffffff' : 'var(--text-gray)',
-                fontWeight: activeTab === 'legal' ? '700' : '500',
-                fontSize: '13.5px',
+                gap: '10px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                color: 'var(--text-gray)',
+                fontSize: '13px',
+                fontWeight: '600',
                 cursor: 'pointer',
-                textAlign: 'left',
+                border: 'none',
+                backgroundColor: 'transparent',
                 transition: 'all 0.2s',
-                width: '100%'
+                width: '100%',
+                textAlign: 'left'
               }}
             >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <FileText size={18} /> Pages Content
-              </span>
+              <ArrowLeft size={16} /> Exit to Site Home
+            </button>
+
+            <button
+              onClick={() => {
+                if (onLogout) {
+                  onLogout();
+                } else {
+                  clearAdminSession();
+                  clearUserSession();
+                  navigate('/');
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                color: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                fontSize: '13px',
+                fontWeight: '700',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                width: '100%',
+                textAlign: 'left'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.backgroundColor = '#ef4444';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+                e.currentTarget.style.color = '#ef4444';
+              }}
+            >
+              <LogOut size={16} /> Admin Logout
             </button>
           </div>
-        </div>
+        </aside>
 
-        {/* Back Link to Home (Desktop) */}
-        <button
-          onClick={onBack}
-          className="admin-exit-btn"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            color: 'var(--text-gray)',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            border: 'none',
-            backgroundColor: 'transparent',
-            transition: 'color 0.2s',
-            marginTop: 'auto',
-            width: '100%',
-            textAlign: 'left'
-          }}
-        >
-          <ArrowLeft size={16} /> Exit to Site Home
-        </button>
-      </aside>
+        {/* Main Content Area */}
+        <main className="admin-main-content" style={{ flex: 1, padding: '36px 40px', overflowY: 'auto', boxSizing: 'border-box' }}>
 
-      {/* Main Content Area */}
-      <main className="admin-main-content" style={{ flex: 1, padding: '36px 40px', overflowY: 'auto', boxSizing: 'border-box' }}>
-
-        {/* === TAB 1: DASHBOARD OVERVIEW === */}
-        {activeTab === 'overview' && (
-          <div>
-            {/* Header section */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Platform Dashboard</h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Real-time telemetry, user signups, and document server stats.</p>
-              </div>
-
-              {/* Server Live Status Badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'var(--border-light)', padding: '6px 14px', borderRadius: '20px' }}>
-                <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>Server Online</span>
-              </div>
-            </div>
-
-            {/* Quick stats cards grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
-              {[
-                { label: 'Total Users', value: usersData.length, change: 'All registrations', color: '#2563eb', bg: 'var(--border-light)', icon: <Users size={20} /> },
-                { label: 'Banned Users', value: bannedCount, change: 'Suspended accounts', color: '#ef4444', bg: '#fef2f2', icon: <ShieldAlert size={20} /> },
-                { label: 'Free Users', value: freeCount, change: 'Standard plan', color: 'var(--text-gray)', bg: 'var(--border-light)', icon: <User size={20} /> },
-                { label: 'Premium Users', value: premiumCount, change: 'Subscription active', color: '#d97706', bg: '#fffbeb', icon: <Star size={20} /> }
-              ].map((stat, i) => (
-                <div key={i} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-gray)', display: 'block', marginBottom: '8px' }}>{stat.label}</span>
-                    <span style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', display: 'block', marginBottom: '4px' }}>{stat.value}</span>
-                    <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '500' }}>{stat.change}</span>
-                  </div>
-                  <div style={{ padding: '12px', backgroundColor: 'var(--bg-light)', color: stat.color, borderRadius: '12px' }}>
-                    {stat.icon}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Visual Charts & Live Server Metrics Section */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginBottom: '32px' }}>
-
-              {/* Analytics SVG Charts Card */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px' }}>Monthly Traffic & Usage Trend</h3>
-
-                <div style={{ position: 'relative', height: '180px', width: '100%', borderBottom: '1px solid var(--border-light)', marginBottom: '12px' }}>
-                  <svg viewBox="0 0 500 150" width="100%" height="100%" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
-                    <defs>
-                      <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--primary-red)" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="var(--primary-red)" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
-
-                    <line x1="0" y1="37" x2="500" y2="37" stroke="var(--border-light)" strokeWidth="1" />
-                    <line x1="0" y1="75" x2="500" y2="75" stroke="var(--border-light)" strokeWidth="1" />
-                    <line x1="0" y1="112" x2="500" y2="112" stroke="var(--border-light)" strokeWidth="1" />
-
-                    <path d="M 0 150 Q 80 80, 160 110 T 320 40 T 500 20 L 500 150 L 0 150 Z" fill="url(#chart-grad)" />
-                    <path d="M 0 150 Q 80 80, 160 110 T 320 40 T 500 20" fill="none" stroke="var(--primary-red)" strokeWidth="3" strokeLinecap="round" />
-
-                    <circle cx="160" cy="110" r="5" fill="#ffffff" stroke="var(--primary-red)" strokeWidth="2" />
-                    <circle cx="320" cy="40" r="5" fill="#ffffff" stroke="var(--primary-red)" strokeWidth="2" />
-                    <circle cx="500" cy="20" r="5" fill="#ffffff" stroke="var(--primary-red)" strokeWidth="2" />
-                  </svg>
+          {/* === TAB 1: DASHBOARD OVERVIEW === */}
+          {activeTab === 'overview' && (
+            <div>
+              {/* Header section */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                <div>
+                  <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Platform Dashboard</h1>
+                  <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Real-time telemetry, user signups, and document server stats.</p>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-gray)', fontWeight: '700' }}>
-                  <span>FEB 2026</span>
-                  <span>MAR 2026</span>
-                  <span>APR 2026</span>
-                  <span>MAY 2026</span>
-                  <span>JUN 2026</span>
-                  <span>JUL 2026 (Live)</span>
+                {/* Server Live Status Badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'var(--border-light)', padding: '6px 14px', borderRadius: '20px' }}>
+                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>Server Online</span>
                 </div>
               </div>
 
-              {/* Server Performance Ticker */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Server size={16} color="var(--primary-red)" /> Server Node Status
-                </h3>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
-                      <span>CPU Utilization</span>
-                      <span>{serverMetrics.cpu}%</span>
-                    </div>
-                    <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--border-light)', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div style={{ width: `${serverMetrics.cpu}%`, height: '100%', backgroundColor: serverMetrics.cpu > 75 ? '#ef4444' : '#10b981', transition: 'width 0.5s ease' }} />
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px' }}>
-                      <span>Memory Pool (Allocated)</span>
-                      <span>{serverMetrics.ram}%</span>
-                    </div>
-                    <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--border-light)', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div style={{ width: `${serverMetrics.ram}%`, height: '100%', backgroundColor: '#3b82f6', transition: 'width 0.5s ease' }} />
-                    </div>
-                  </div>
-
-                  <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {/* Quick stats cards grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+                {[
+                  { label: 'Total Users', value: usersData.length, change: 'All registrations', color: '#2563eb', bg: 'rgba(37,99,235,0.08)', icon: <Users size={20} /> },
+                  { label: 'Lifetime Converted', value: lifetimeConversions, change: 'Permanent (+1 count)', color: 'var(--primary-red)', bg: 'rgba(229,36,36,0.08)', icon: <Layers size={20} /> },
+                  { label: "Today's Conversions", value: todayConversions, change: 'Processed today', color: '#10b981', bg: 'rgba(16,185,129,0.08)', icon: <TrendingUp size={20} /> },
+                  { label: 'Premium Users', value: premiumCount, change: 'Subscription active', color: '#d97706', bg: 'rgba(217,119,6,0.08)', icon: <Star size={20} /> },
+                  { label: 'Banned Users', value: bannedCount, change: 'Suspended accounts', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', icon: <ShieldAlert size={20} /> }
+                ].map((stat, i) => (
+                  <div key={i} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '20px', boxShadow: 'var(--shadow-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-light-gray)', fontWeight: '700', textTransform: 'uppercase' }}>API Latency</span>
-                      <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', display: 'block', marginTop: '2px' }}>{serverMetrics.latency} ms</span>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', display: 'block', marginBottom: '6px' }}>{stat.label}</span>
+                      <span style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)', display: 'block', marginBottom: '4px' }}>{stat.value}</span>
+                      <span style={{ fontSize: '11px', color: stat.color, fontWeight: '700' }}>{stat.change}</span>
                     </div>
-                    <div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-light-gray)', fontWeight: '700', textTransform: 'uppercase' }}>Active Tasks</span>
-                      <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', display: 'block', marginTop: '2px' }}>{recentFiles.length > 0 ? '1 Idle' : '0 Idle'}</span>
+                    <div style={{ padding: '10px', backgroundColor: stat.bg, color: stat.color, borderRadius: '12px' }}>
+                      {stat.icon}
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
 
-            </div>
+              {/* Visual Charts: User Growth & PDF Conversions Side-by-Side */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: '24px', marginBottom: '28px' }}>
 
-            {/* Live Activity Ticker & Recent Users Preview */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
-
-              {/* Activity Log */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Live Security & Activity Log</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
-                  {logs.map(log => (
-                    <div key={log.id} style={{ display: 'flex', gap: '10px', fontSize: '13px', padding: '10px', backgroundColor: 'var(--bg-light)', borderRadius: '8px', borderLeft: '3px solid', borderLeftColor: log.type === 'warning' ? '#f59e0b' : log.type === 'success' ? '#10b981' : '#3b82f6' }}>
-                      <span style={{ color: 'var(--text-light-gray)', fontWeight: '700', flexShrink: 0 }}>{log.time}</span>
-                      <span style={{ color: 'var(--text-dark)', fontWeight: '500' }}>{log.text}</span>
+                {/* Chart 1: Daily User Registrations Chart Card */}
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Users size={18} color="#3b82f6" /> Daily User Registrations
+                      </h3>
+                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '4px 0 0' }}>
+                        Period Total: <strong style={{ color: 'var(--text-dark)' }}>{totalPeriodNewUsers} users</strong> | Today: <strong style={{ color: '#3b82f6' }}>{todayNewUsers} new</strong>
+                      </p>
                     </div>
-                  ))}
+
+                    {/* Timeframe Filter Tabs */}
+                    <div style={{ display: 'flex', backgroundColor: 'var(--bg-light)', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                      {[
+                        { id: '7d', label: '7 Days' },
+                        { id: '15d', label: '15 Days' },
+                        { id: '30d', label: '30 Days' },
+                        { id: 'all', label: 'Overall' }
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setUserChartRange(tab.id)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: userChartRange === tab.id ? '#3b82f6' : 'transparent',
+                            color: userChartRange === tab.id ? '#ffffff' : 'var(--text-gray)',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* SVG Line / Area Graph */}
+                  <div style={{ position: 'relative', height: '210px', width: '100%', marginBottom: '12px' }}>
+                    {(() => {
+                      const svgW = 600;
+                      const svgH = 190;
+                      const padLeft = 36;
+                      const padRight = 24;
+                      const padTop = 22;
+                      const padBottom = 28;
+                      const chartW = svgW - padLeft - padRight;
+                      const chartH = svgH - padTop - padBottom;
+                      const bottomY = padTop + chartH;
+                      const maxVal = Math.max(maxUserDailyCount, 3);
+                      const midVal = Math.round(maxVal / 2);
+
+                      const pts = userChartData.map((d, index) => {
+                        const x = userChartData.length > 1
+                          ? padLeft + (index / (userChartData.length - 1)) * chartW
+                          : padLeft + chartW / 2;
+                        const y = bottomY - (d.count / maxVal) * chartH;
+                        return { ...d, x, y };
+                      });
+
+                      let lineD = '';
+                      if (pts.length === 1) {
+                        lineD = `M ${pts[0].x} ${pts[0].y}`;
+                      } else if (pts.length > 1) {
+                        lineD = `M ${pts[0].x} ${pts[0].y}`;
+                        for (let i = 0; i < pts.length - 1; i++) {
+                          const p0 = pts[i];
+                          const p1 = pts[i + 1];
+                          const cpX = (p0.x + p1.x) / 2;
+                          lineD += ` C ${cpX} ${p0.y}, ${cpX} ${p1.y}, ${p1.x} ${p1.y}`;
+                        }
+                      }
+
+                      const areaD = pts.length > 0
+                        ? `${lineD} L ${pts[pts.length - 1].x} ${bottomY} L ${pts[0].x} ${bottomY} Z`
+                        : '';
+
+                      const hoveredPt = pts.find(p => activeHoverUserDay && p.date === activeHoverUserDay.date);
+
+                      return (
+                        <svg viewBox={`0 0 ${svgW} ${svgH}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
+                          <defs>
+                            <linearGradient id="user-chart-grad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.32" />
+                              <stop offset="85%" stopColor="#3b82f6" stopOpacity="0.04" />
+                              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                            </linearGradient>
+                            <filter id="user-chart-glow" x="-20%" y="-20%" width="140%" height="140%">
+                              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#3b82f6" floodOpacity="0.3" />
+                            </filter>
+                          </defs>
+
+                          {/* Horizontal Gridlines & Y-Axis values */}
+                          <line x1={padLeft} y1={padTop} x2={svgW - padRight} y2={padTop} stroke="var(--border-light)" strokeWidth="1" strokeDasharray="4 4" />
+                          <text x={padLeft - 8} y={padTop + 4} textAnchor="end" fill="var(--text-gray)" fontSize="10" fontWeight="600">
+                            {maxVal}
+                          </text>
+
+                          <line x1={padLeft} y1={padTop + chartH / 2} x2={svgW - padRight} y2={padTop + chartH / 2} stroke="var(--border-light)" strokeWidth="1" strokeDasharray="4 4" />
+                          <text x={padLeft - 8} y={padTop + chartH / 2 + 4} textAnchor="end" fill="var(--text-gray)" fontSize="10" fontWeight="600">
+                            {midVal}
+                          </text>
+
+                          <line x1={padLeft} y1={bottomY} x2={svgW - padRight} y2={bottomY} stroke="var(--border-light)" strokeWidth="1.2" />
+                          <text x={padLeft - 8} y={bottomY + 4} textAnchor="end" fill="var(--text-gray)" fontSize="10" fontWeight="600">
+                            0
+                          </text>
+
+                          {areaD && <path d={areaD} fill="url(#user-chart-grad)" />}
+
+                          {lineD && (
+                            <path
+                              d={lineD}
+                              fill="none"
+                              stroke="#3b82f6"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              filter="url(#user-chart-glow)"
+                            />
+                          )}
+
+                          {hoveredPt && (
+                            <line
+                              x1={hoveredPt.x}
+                              y1={padTop}
+                              x2={hoveredPt.x}
+                              y2={bottomY}
+                              stroke="#3b82f6"
+                              strokeWidth="1.5"
+                              strokeDasharray="3 3"
+                              opacity="0.75"
+                            />
+                          )}
+
+                          {pts.map((pt, i) => {
+                            const showLabel =
+                              userChartData.length <= 7 ||
+                              (userChartData.length <= 15 && (i % 2 === 0 || pt.isToday)) ||
+                              (userChartData.length > 15 && (i % 5 === 0 || pt.isToday));
+
+                            if (!showLabel) return null;
+
+                            return (
+                              <text
+                                key={`user-label-${i}`}
+                                x={pt.x}
+                                y={bottomY + 18}
+                                textAnchor="middle"
+                                fill={pt.isToday ? '#3b82f6' : activeHoverUserDay?.date === pt.date ? 'var(--text-dark)' : 'var(--text-gray)'}
+                                fontSize="10.5"
+                                fontWeight={pt.isToday || activeHoverUserDay?.date === pt.date ? '800' : '600'}
+                              >
+                                {userChartData.length <= 7 ? pt.dayName : pt.shortDate}
+                              </text>
+                            );
+                          })}
+
+                          {pts.map((pt, i) => {
+                            const isHovered = activeHoverUserDay?.date === pt.date;
+                            const isHighlighted = isHovered || pt.isToday;
+
+                            return (
+                              <g
+                                key={`user-pt-${i}`}
+                                style={{ cursor: 'pointer' }}
+                                onMouseEnter={() => setActiveHoverUserDay(pt)}
+                                onMouseLeave={() => setActiveHoverUserDay(null)}
+                              >
+                                <circle cx={pt.x} cy={pt.y} r={14} fill="transparent" />
+
+                                {isHighlighted && (
+                                  <circle
+                                    cx={pt.x}
+                                    cy={pt.y}
+                                    r={pt.isToday ? 8.5 : 7.5}
+                                    fill="rgba(59, 130, 246, 0.25)"
+                                  />
+                                )}
+
+                                <circle
+                                  cx={pt.x}
+                                  cy={pt.y}
+                                  r={pt.isToday ? 5.5 : 4}
+                                  fill={pt.isToday ? '#3b82f6' : '#ffffff'}
+                                  stroke="#2563eb"
+                                  strokeWidth={pt.isToday ? 2.5 : 2}
+                                />
+
+                                {isHighlighted && (
+                                  <g transform={`translate(${pt.x}, ${Math.max(14, pt.y - 12)})`}>
+                                    <rect
+                                      x="-14"
+                                      y="-13"
+                                      width="28"
+                                      height="16"
+                                      rx="5"
+                                      fill="var(--text-dark)"
+                                    />
+                                    <text
+                                      x="0"
+                                      y="-2"
+                                      textAnchor="middle"
+                                      fill="#ffffff"
+                                      fontSize="10"
+                                      fontWeight="800"
+                                    >
+                                      {pt.count}
+                                    </text>
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Day-by-day pills breakdown */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        userChartData.length <= 7
+                          ? 'repeat(7, minmax(0, 1fr))'
+                          : userChartData.length <= 15
+                          ? 'repeat(auto-fit, minmax(46px, 1fr))'
+                          : 'repeat(auto-fit, minmax(36px, 1fr))',
+                      gap: '8px',
+                      paddingTop: '12px',
+                      borderTop: '1px solid var(--border-light)',
+                      overflowX: userChartData.length > 7 ? 'auto' : 'visible'
+                    }}
+                  >
+                    {userChartData.map((d, i) => {
+                      const isHovered = activeHoverUserDay?.date === d.date;
+                      return (
+                        <div
+                          key={i}
+                          onMouseEnter={() => setActiveHoverUserDay(d)}
+                          onMouseLeave={() => setActiveHoverUserDay(null)}
+                          title={`${d.label}: ${d.count} user(s) registered`}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '8px 4px',
+                            borderRadius: '10px',
+                            backgroundColor: d.isToday
+                              ? 'rgba(59, 130, 246, 0.12)'
+                              : isHovered
+                              ? 'var(--bg-light)'
+                              : 'transparent',
+                            border: d.isToday
+                              ? '1.5px solid #3b82f6'
+                              : isHovered
+                              ? '1.5px solid #2563eb'
+                              : '1px solid var(--border-light)',
+                            boxShadow: d.isToday ? '0 2px 8px rgba(59, 130, 246, 0.15)' : 'none',
+                            transition: 'all 0.15s ease',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ fontSize: '11px', color: d.isToday ? '#3b82f6' : 'var(--text-gray)', fontWeight: '700' }}>
+                            {userChartData.length <= 7 ? d.dayName : d.shortDate}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: '800',
+                              color: d.count > 0 ? (d.isToday ? '#3b82f6' : 'var(--text-dark)') : 'var(--text-gray)',
+                              marginTop: '2px'
+                            }}
+                          >
+                            {d.count}
+                          </span>
+                          {d.isToday && (
+                            <span
+                              style={{
+                                fontSize: '8.5px',
+                                fontWeight: '800',
+                                color: '#3b82f6',
+                                textTransform: 'uppercase',
+                                marginTop: '1px',
+                                letterSpacing: '0.4px'
+                              }}
+                            >
+                              Today
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: '12px', fontSize: '11.5px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                    Live accounts registry counter & daily onboarding metrics.
+                  </div>
                 </div>
+
+                {/* Chart 2: Dynamic Daily PDF Conversions Chart Card */}
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <BarChart3 size={18} color="var(--primary-red)" /> Daily PDF Conversions
+                      </h3>
+                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '4px 0 0' }}>
+                        Period Total: <strong style={{ color: 'var(--text-dark)' }}>{totalPeriodConversions} files</strong> | Today: <strong style={{ color: '#10b981' }}>{todayConversions} files</strong>
+                      </p>
+                    </div>
+
+                    {/* Timeframe Filter Tabs */}
+                    <div style={{ display: 'flex', backgroundColor: 'var(--bg-light)', padding: '3px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                      {[
+                        { id: '7d', label: '7 Days' },
+                        { id: '15d', label: '15 Days' },
+                        { id: '30d', label: '30 Days' },
+                        { id: 'all', label: 'Overall' }
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setChartRange(tab.id)}
+                          style={{
+                            padding: '5px 10px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: chartRange === tab.id ? 'var(--primary-red)' : 'transparent',
+                            color: chartRange === tab.id ? '#ffffff' : 'var(--text-gray)',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* SVG Line / Area Graph */}
+                  <div style={{ position: 'relative', height: '210px', width: '100%', marginBottom: '12px' }}>
+                    {(() => {
+                      const svgW = 600;
+                      const svgH = 190;
+                      const padLeft = 36;
+                      const padRight = 24;
+                      const padTop = 22;
+                      const padBottom = 28;
+                      const chartW = svgW - padLeft - padRight;
+                      const chartH = svgH - padTop - padBottom;
+                      const bottomY = padTop + chartH;
+                      const maxVal = Math.max(maxDailyCount, 3);
+                      const midVal = Math.round(maxVal / 2);
+
+                      const pts = dailyChartData.map((d, index) => {
+                        const x = dailyChartData.length > 1
+                          ? padLeft + (index / (dailyChartData.length - 1)) * chartW
+                          : padLeft + chartW / 2;
+                        const y = bottomY - (d.count / maxVal) * chartH;
+                        return { ...d, x, y };
+                      });
+
+                      let lineD = '';
+                      if (pts.length === 1) {
+                        lineD = `M ${pts[0].x} ${pts[0].y}`;
+                      } else if (pts.length > 1) {
+                        lineD = `M ${pts[0].x} ${pts[0].y}`;
+                        for (let i = 0; i < pts.length - 1; i++) {
+                          const p0 = pts[i];
+                          const p1 = pts[i + 1];
+                          const cpX = (p0.x + p1.x) / 2;
+                          lineD += ` C ${cpX} ${p0.y}, ${cpX} ${p1.y}, ${p1.x} ${p1.y}`;
+                        }
+                      }
+
+                      const areaD = pts.length > 0
+                        ? `${lineD} L ${pts[pts.length - 1].x} ${bottomY} L ${pts[0].x} ${bottomY} Z`
+                        : '';
+
+                      const hoveredPt = pts.find(p => activeHoverDay && p.date === activeHoverDay.date);
+
+                      return (
+                        <svg viewBox={`0 0 ${svgW} ${svgH}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
+                          <defs>
+                            <linearGradient id="daily-chart-grad-modern" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--primary-red)" stopOpacity="0.32" />
+                              <stop offset="85%" stopColor="var(--primary-red)" stopOpacity="0.04" />
+                              <stop offset="100%" stopColor="var(--primary-red)" stopOpacity="0.0" />
+                            </linearGradient>
+                            <filter id="chart-glow" x="-20%" y="-20%" width="140%" height="140%">
+                              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="var(--primary-red)" floodOpacity="0.3" />
+                            </filter>
+                          </defs>
+
+                          {/* Horizontal Gridlines & Y-Axis values */}
+                          <line x1={padLeft} y1={padTop} x2={svgW - padRight} y2={padTop} stroke="var(--border-light)" strokeWidth="1" strokeDasharray="4 4" />
+                          <text x={padLeft - 8} y={padTop + 4} textAnchor="end" fill="var(--text-gray)" fontSize="10" fontWeight="600">
+                            {maxVal}
+                          </text>
+
+                          <line x1={padLeft} y1={padTop + chartH / 2} x2={svgW - padRight} y2={padTop + chartH / 2} stroke="var(--border-light)" strokeWidth="1" strokeDasharray="4 4" />
+                          <text x={padLeft - 8} y={padTop + chartH / 2 + 4} textAnchor="end" fill="var(--text-gray)" fontSize="10" fontWeight="600">
+                            {midVal}
+                          </text>
+
+                          <line x1={padLeft} y1={bottomY} x2={svgW - padRight} y2={bottomY} stroke="var(--border-light)" strokeWidth="1.2" />
+                          <text x={padLeft - 8} y={bottomY + 4} textAnchor="end" fill="var(--text-gray)" fontSize="10" fontWeight="600">
+                            0
+                          </text>
+
+                          {areaD && <path d={areaD} fill="url(#daily-chart-grad-modern)" />}
+
+                          {lineD && (
+                            <path
+                              d={lineD}
+                              fill="none"
+                              stroke="var(--primary-red)"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              filter="url(#chart-glow)"
+                            />
+                          )}
+
+                          {hoveredPt && (
+                            <line
+                              x1={hoveredPt.x}
+                              y1={padTop}
+                              x2={hoveredPt.x}
+                              y2={bottomY}
+                              stroke="var(--primary-red)"
+                              strokeWidth="1.5"
+                              strokeDasharray="3 3"
+                              opacity="0.75"
+                            />
+                          )}
+
+                          {pts.map((pt, i) => {
+                            const showLabel =
+                              dailyChartData.length <= 7 ||
+                              (dailyChartData.length <= 15 && (i % 2 === 0 || pt.isToday)) ||
+                              (dailyChartData.length > 15 && (i % 5 === 0 || pt.isToday));
+
+                            if (!showLabel) return null;
+
+                            return (
+                              <text
+                                key={`label-${i}`}
+                                x={pt.x}
+                                y={bottomY + 18}
+                                textAnchor="middle"
+                                fill={pt.isToday ? '#10b981' : activeHoverDay?.date === pt.date ? 'var(--text-dark)' : 'var(--text-gray)'}
+                                fontSize="10.5"
+                                fontWeight={pt.isToday || activeHoverDay?.date === pt.date ? '800' : '600'}
+                              >
+                                {dailyChartData.length <= 7 ? pt.dayName : pt.shortDate}
+                              </text>
+                            );
+                          })}
+
+                          {pts.map((pt, i) => {
+                            const isHovered = activeHoverDay?.date === pt.date;
+                            const isHighlighted = isHovered || pt.isToday;
+
+                            return (
+                              <g
+                                key={`pt-${i}`}
+                                style={{ cursor: 'pointer' }}
+                                onMouseEnter={() => setActiveHoverDay(pt)}
+                                onMouseLeave={() => setActiveHoverDay(null)}
+                              >
+                                <circle cx={pt.x} cy={pt.y} r={14} fill="transparent" />
+
+                                {isHighlighted && (
+                                  <circle
+                                    cx={pt.x}
+                                    cy={pt.y}
+                                    r={pt.isToday ? 8.5 : 7.5}
+                                    fill={pt.isToday ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}
+                                  />
+                                )}
+
+                                <circle
+                                  cx={pt.x}
+                                  cy={pt.y}
+                                  r={pt.isToday ? 5.5 : 4}
+                                  fill={pt.isToday ? '#10b981' : '#ffffff'}
+                                  stroke={pt.isToday ? '#059669' : 'var(--primary-red)'}
+                                  strokeWidth={pt.isToday ? 2.5 : 2}
+                                />
+
+                                {isHighlighted && (
+                                  <g transform={`translate(${pt.x}, ${Math.max(14, pt.y - 12)})`}>
+                                    <rect
+                                      x="-14"
+                                      y="-13"
+                                      width="28"
+                                      height="16"
+                                      rx="5"
+                                      fill="var(--text-dark)"
+                                    />
+                                    <text
+                                      x="0"
+                                      y="-2"
+                                      textAnchor="middle"
+                                      fill="#ffffff"
+                                      fontSize="10"
+                                      fontWeight="800"
+                                    >
+                                      {pt.count}
+                                    </text>
+                                  </g>
+                                )}
+                              </g>
+                            );
+                          })}
+                        </svg>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Day-by-day pills breakdown */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        dailyChartData.length <= 7
+                          ? 'repeat(7, minmax(0, 1fr))'
+                          : dailyChartData.length <= 15
+                          ? 'repeat(auto-fit, minmax(46px, 1fr))'
+                          : 'repeat(auto-fit, minmax(36px, 1fr))',
+                      gap: '8px',
+                      paddingTop: '12px',
+                      borderTop: '1px solid var(--border-light)',
+                      overflowX: dailyChartData.length > 7 ? 'auto' : 'visible'
+                    }}
+                  >
+                    {dailyChartData.map((d, i) => {
+                      const isHovered = activeHoverDay?.date === d.date;
+                      return (
+                        <div
+                          key={i}
+                          onMouseEnter={() => setActiveHoverDay(d)}
+                          onMouseLeave={() => setActiveHoverDay(null)}
+                          title={`${d.label}: ${d.count} file(s) converted`}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '8px 4px',
+                            borderRadius: '10px',
+                            backgroundColor: d.isToday
+                              ? 'rgba(16, 185, 129, 0.12)'
+                              : isHovered
+                              ? 'var(--bg-light)'
+                              : 'transparent',
+                            border: d.isToday
+                              ? '1.5px solid #10b981'
+                              : isHovered
+                              ? '1.5px solid var(--primary-red)'
+                              : '1px solid var(--border-light)',
+                            boxShadow: d.isToday ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none',
+                            transition: 'all 0.15s ease',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ fontSize: '11px', color: d.isToday ? '#10b981' : 'var(--text-gray)', fontWeight: '700' }}>
+                            {dailyChartData.length <= 7 ? d.dayName : d.shortDate}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: '800',
+                              color: d.count > 0 ? (d.isToday ? '#10b981' : 'var(--text-dark)') : 'var(--text-gray)',
+                              marginTop: '2px'
+                            }}
+                          >
+                            {d.count}
+                          </span>
+                          {d.isToday && (
+                            <span
+                              style={{
+                                fontSize: '8.5px',
+                                fontWeight: '800',
+                                color: '#10b981',
+                                textTransform: 'uppercase',
+                                marginTop: '1px',
+                                letterSpacing: '0.4px'
+                              }}
+                            >
+                              Today
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: '12px', fontSize: '11.5px', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ display: 'inline-block', width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    Permanent counter: Daily counts & lifetime totals persist even if recent files are cleared.
+                  </div>
+                </div>
+
               </div>
 
-              {/* Recent Users preview */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)' }}>Latest Registrations</h3>
-                  <button onClick={() => setActiveTab('users')} style={{ border: 'none', background: 'none', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>Manage Users →</button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {usersData.slice(0, 4).map(user => (
-                    <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', borderBottom: '1px solid var(--border-light)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: planMeta[user.plan].bg, color: planMeta[user.plan].color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', border: `1px solid ${planMeta[user.plan].color}30` }}>
-                          {user.avatar}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>{user.name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-light-gray)' }}>{user.email}</div>
-                        </div>
+              {/* Live Activity Ticker & Recent Users Preview */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+
+                {/* Activity Log */}
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Live Security & Activity Log</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '250px', overflowY: 'auto', paddingRight: '4px' }}>
+                    {logs.map(log => (
+                      <div key={log.id} style={{ display: 'flex', gap: '10px', fontSize: '13px', padding: '10px', backgroundColor: 'var(--bg-light)', borderRadius: '8px', borderLeft: '3px solid', borderLeftColor: log.type === 'warning' ? '#f59e0b' : log.type === 'success' ? '#10b981' : '#3b82f6' }}>
+                        <span style={{ color: 'var(--text-light-gray)', fontWeight: '700', flexShrink: 0 }}>{log.time}</span>
+                        <span style={{ color: 'var(--text-dark)', fontWeight: '500' }}>{log.text}</span>
                       </div>
-                      <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', backgroundColor: planMeta[user.plan].bg, color: planMeta[user.plan].color }}>
-                        {user.plan}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-
-        {/* === TAB: MENU SET (TOOL CONTENT & VISIBILITY MANAGER) === */}
-        {activeTab === 'menuset' && (
-          <div>
-            {!selectedMenuTool ? (
-              /* --- VIEW 1: TOOLS LIST WITH ON/OFF TOGGLE --- */
-              <div>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-                  <div>
-                    <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                      Tool Settings & Tool Content
-                    </h1>
-                    <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
-                      Manage all 31 PDF tool menu sheets, toggle descriptive content ON/OFF, and click on any tool to edit its "What is..." and "How to use..." content.
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ backgroundColor: 'var(--border-light)', color: 'var(--text-dark)', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: '700' }}>
-                      31 Total PDF Tools
-                    </span>
-                  </div>
-                </div>
-
-                {/* Search & Filter Bar */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '14px',
-                  padding: '16px 20px',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  gap: '16px',
-                  alignItems: 'center',
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ position: 'relative', flex: '1 1 280px' }}>
-                    <Search size={16} color="var(--text-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                    <input
-                      type="text"
-                      placeholder="Search menu tools by title, id, or description..."
-                      value={menuSetSearch}
-                      onChange={e => setMenuSetSearch(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 12px 10px 38px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-light)',
-                        backgroundColor: 'var(--bg-light)',
-                        color: 'var(--text-dark)',
-                        fontSize: '14px',
-                        outline: 'none'
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {['All', 'Active', 'Disabled'].map(f => (
-                      <button
-                        key={f}
-                        onClick={() => setMenuSetFilter(f)}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: '8px',
-                          border: '1.5px solid',
-                          borderColor: menuSetFilter === f ? 'var(--primary-red)' : 'var(--border-light)',
-                          backgroundColor: menuSetFilter === f ? 'rgba(229, 36, 36, 0.08)' : 'var(--bg-card)',
-                          color: menuSetFilter === f ? 'var(--primary-red)' : 'var(--text-gray)',
-                          fontWeight: '700',
-                          fontSize: '13px',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s'
-                        }}
-                      >
-                        {f === 'All' ? 'All Tools (31)' : f === 'Active' ? 'Active on Site' : 'Disabled / Offline'}
-                      </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Tools Records Table / Card List */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '16px',
-                  overflow: 'hidden',
-                  boxShadow: 'var(--shadow-sm)'
-                }}>
-                  {/* Table Header */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '2.2fr 0.9fr 2fr 0.9fr 1.1fr 1.1fr 1.1fr',
-                    padding: '14px 20px',
-                    backgroundColor: 'var(--bg-light)',
-                    borderBottom: '1.5px solid var(--border-light)',
-                    fontWeight: '800',
-                    fontSize: '12px',
-                    color: 'var(--text-gray)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
-                  }}>
-                    <span>PDF Tool & Details</span>
-                    <span>Category</span>
-                    <span>Content Snippet</span>
-                    <span style={{ textAlign: 'center' }}>Enabled</span>
-                    <span style={{ textAlign: 'center' }}>Display Content</span>
-                    <span style={{ textAlign: 'center' }}>Size Limit (MB)</span>
-                    <span style={{ textAlign: 'right', paddingRight: '8px' }}>Action</span>
+                {/* Recent Users preview */}
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)' }}>Latest Registrations</h3>
+                    <button onClick={() => setActiveTab('users')} style={{ border: 'none', background: 'none', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>Manage Users →</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {usersData.slice(0, 4).map(user => (
+                      <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', borderBottom: '1px solid var(--border-light)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: planMeta[user.plan].bg, color: planMeta[user.plan].color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '11px', border: `1px solid ${planMeta[user.plan].color}30` }}>
+                            {user.avatar}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)' }}>{user.name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-light-gray)' }}>{user.email}</div>
+                          </div>
+                        </div>
+                        <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', backgroundColor: planMeta[user.plan].bg, color: planMeta[user.plan].color }}>
+                          {user.plan}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Full-Width Server Node Status & Infrastructure Health Card at Bottom */}
+              <div style={{
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '16px',
+                padding: '24px',
+                boxShadow: 'var(--shadow-sm)',
+                marginTop: '28px',
+                width: '100%'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-red)' }}>
+                      <Server size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        Server Node Status & Infrastructure Health
+                      </h3>
+                      <p style={{ fontSize: '12.5px', color: 'var(--text-gray)', margin: '3px 0 0' }}>
+                        Live hardware performance, memory pool allocation, API response latency, and engine task queue
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      color: '#10b981',
+                      fontSize: '12px',
+                      fontWeight: '700'
+                    }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block', boxShadow: '0 0 8px #10b981' }} />
+                      All Systems Operational
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '20px' }}>
+                  {/* CPU Utilization */}
+                  <div style={{ padding: '16px 18px', borderRadius: '12px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '8px' }}>
+                      <span>CPU Utilization</span>
+                      <span style={{ color: serverMetrics.cpu > 75 ? '#ef4444' : 'var(--text-dark)', fontSize: '15px', fontWeight: '800' }}>{serverMetrics.cpu}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--border-light)', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
+                      <div style={{ width: `${serverMetrics.cpu}%`, height: '100%', backgroundColor: serverMetrics.cpu > 75 ? '#ef4444' : '#10b981', transition: 'width 0.5s ease' }} />
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-light-gray)', fontWeight: '600' }}>4 Cores @ 2.8GHz · Normal load</span>
                   </div>
 
-                  {/* Table Rows */}
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {filteredMenuTools.length === 0 ? (
-                      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-gray)', fontSize: '14px' }}>
-                        No tools match your query filters.
-                      </div>
-                    ) : (
-                      filteredMenuTools.map((tool, idx) => {
-                        const IconComponent = tool.icon;
-                        const custom = siteContent?.toolsInformation?.[tool.id];
-                        const def = TOOL_INFORMATION[tool.id];
-                        const displayedTitle = custom?.title || tool.title;
-                        const displayedDesc = custom?.desc || tool.desc || '';
-                        const displayedCategory = custom?.category || tool.category || 'General';
-                        const isToolActive = toolsConfig?.[tool.id]?.enabled !== undefined
-                          ? toolsConfig[tool.id].enabled
-                          : (custom?.toolActive !== undefined ? custom.toolActive : true);
-                        const isContentEnabled = custom?.enabled !== undefined ? custom.enabled : true;
-                        const whatIsHeading = custom?.whatIsHeading || def?.whatIsHeading || `What is a ${displayedTitle}?`;
-                        const whatIsParagraph = custom?.whatIsParagraph || def?.whatIsParagraph || '';
+                  {/* Memory Pool */}
+                  <div style={{ padding: '16px 18px', borderRadius: '12px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '8px' }}>
+                      <span>Memory Pool (Allocated)</span>
+                      <span style={{ color: 'var(--text-dark)', fontSize: '15px', fontWeight: '800' }}>{serverMetrics.ram}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', backgroundColor: 'var(--border-light)', borderRadius: '4px', overflow: 'hidden', marginBottom: '8px' }}>
+                      <div style={{ width: `${serverMetrics.ram}%`, height: '100%', backgroundColor: '#3b82f6', transition: 'width 0.5s ease' }} />
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-light-gray)', fontWeight: '600' }}>Allocated: 3.2 GB / 8.0 GB</span>
+                  </div>
 
-                        return (
-                          <div
-                            key={tool.id}
-                            onClick={() => handleOpenMenuTool(tool)}
-                            style={{
-                              display: 'grid',
-                    gridTemplateColumns: '2.2fr 0.9fr 2fr 0.9fr 1.1fr 1.1fr 1.1fr',
-                              padding: '16px 20px',
-                              alignItems: 'center',
-                              borderBottom: idx < filteredMenuTools.length - 1 ? '1px solid var(--border-light)' : 'none',
-                              cursor: 'pointer',
-                              transition: 'background-color 0.15s'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                          >
-                            {/* Tool Icon, Custom Title & Desc */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', overflow: 'hidden', paddingRight: '12px' }}>
-                              <div style={{
-                                width: '42px',
-                                height: '42px',
-                                borderRadius: '10px',
-                                backgroundColor: 'var(--bg-light)',
-                                border: '1px solid var(--border-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '8px',
-                                flexShrink: 0
-                              }}>
-                                {IconComponent && <IconComponent style={{ width: '100%', height: '100%' }} />}
-                              </div>
-                              <div style={{ overflow: 'hidden' }}>
-                                <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                  {displayedTitle}
-                                </div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-gray)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
-                                  {displayedDesc}
-                                </div>
-                              </div>
-                            </div>
+                  {/* API Latency */}
+                  <div style={{ padding: '16px 18px', borderRadius: '12px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>API Latency</div>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>
+                      {serverMetrics.latency} <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-light-gray)' }}>ms</span>
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: '#10b981', fontWeight: '700' }}>⚡ Sub-50ms optimal response</span>
+                  </div>
 
-                            {/* Category */}
-                            <div>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: '700',
-                                textTransform: 'capitalize',
-                                backgroundColor: 'var(--bg-light)',
-                                border: '1px solid var(--border-light)',
-                                color: 'var(--text-dark)'
-                              }}>
-                                {displayedCategory}
-                              </span>
-                            </div>
-
-                            {/* Description Snippet */}
-                            <div style={{ paddingRight: '16px', overflow: 'hidden' }}>
-                              <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {whatIsHeading}
-                              </div>
-                              <div style={{ fontSize: '12px', color: 'var(--text-gray)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
-                                {whatIsParagraph}
-                              </div>
-                            </div>
-
-                            {/* Tool Enabled Quick Toggle */}
-                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={(e) => handleToggleToolQuick(tool, e)}
-                                title={isToolActive ? "Enabled" : "Disabled"}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  padding: '6px',
-                                  borderRadius: '8px',
-                                  border: 'none',
-                                  backgroundColor: 'transparent',
-                                  color: isToolActive ? '#10b981' : 'var(--text-light-gray)',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s'
-                                }}
-                              >
-                                {isToolActive ? <Eye size={20} /> : <EyeOff size={20} />}
-                              </button>
-                            </div>
-
-                            {/* Content Display ON / OFF Switch */}
-                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                              <button
-                                type="button"
-                                onClick={(e) => handleToggleContentQuick(tool, e)}
-                                title={isContentEnabled ? "Click to hide bottom content section" : "Click to show bottom content section"}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  padding: '5px 12px',
-                                  borderRadius: '20px',
-                                  border: isContentEnabled ? '1.5px solid #10b981' : '1.5px solid var(--border-light)',
-                                  backgroundColor: isContentEnabled ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-light)',
-                                  color: isContentEnabled ? '#10b981' : 'var(--text-gray)',
-                                  fontSize: '11px',
-                                  fontWeight: '800',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s'
-                                }}
-                              >
-                                <span style={{
-                                  width: '7px',
-                                  height: '7px',
-                                  borderRadius: '50%',
-                                  backgroundColor: isContentEnabled ? '#10b981' : 'var(--text-gray)'
-                                }} />
-                                {isContentEnabled ? 'ON' : 'OFF'}
-                              </button>
-                            </div>
-
-                            {/* Upload Size Limit inline editor */}
-                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
-                              <input
-                                type="number"
-                                min="1"
-                                max="500"
-                                value={draftLimits[tool.id] ?? toolsConfig?.[tool.id]?.maxFileSizeMb ?? 50}
-                                onChange={e => setDraftLimits(p => ({ ...p, [tool.id]: e.target.value }))}
-                                style={{
-                                  width: '64px',
-                                  padding: '6px 8px',
-                                  borderRadius: '6px',
-                                  border: '1.5px solid var(--border-light)',
-                                  backgroundColor: 'var(--bg-card)',
-                                  color: 'var(--text-dark)',
-                                  fontSize: '13px',
-                                  fontWeight: '700',
-                                  textAlign: 'center',
-                                  outline: 'none'
-                                }}
-                              />
-                              <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '700' }}>MB</span>
-                              <button
-                                type="button"
-                                title="Save size limit"
-                                onClick={() => {
-                                  const limitVal = draftLimits[tool.id] ?? toolsConfig?.[tool.id]?.maxFileSizeMb ?? 50;
-                                  handleLimitChange(tool.id, limitVal);
-                                  setDraftLimits(p => { const n = { ...p }; delete n[tool.id]; return n; });
-                                  setSavedLimitId(tool.id);
-                                  addLog(`Upload size limit for "${tool.title}" set to ${limitVal} MB.`, 'success');
-                                  setTimeout(() => setSavedLimitId(null), 1500);
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  padding: '6px',
-                                  borderRadius: '8px',
-                                  border: '1px solid var(--border-light)',
-                                  backgroundColor: 'var(--bg-light)',
-                                  color: 'var(--primary-red)',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                {savedLimitId === tool.id ? <CheckCircle2 size={14} color="#10b981" /> : <Save size={14} />}
-                              </button>
-                            </div>
-
-                            {/* Action Button */}
-                            <div style={{ textAlign: 'right', paddingRight: '8px' }}>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); handleOpenMenuTool(tool); }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  padding: '7px 14px',
-                                  borderRadius: '8px',
-                                  backgroundColor: 'var(--bg-light)',
-                                  border: '1px solid var(--border-light)',
-                                  color: 'var(--primary-red)',
-                                  fontWeight: '700',
-                                  fontSize: '12px',
-                                  cursor: 'pointer',
-                                  transition: 'all 0.15s'
-                                }}
-                              >
-                                <Edit size={13} /> Edit Details
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                  {/* Active Tasks & Queue */}
+                  <div style={{ padding: '16px 18px', borderRadius: '12px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Active Engine Queue</div>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>
+                      {recentFiles.length > 0 ? '1 Idle' : '0 Idle'}
+                    </div>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-light-gray)', fontWeight: '600' }}>4 worker threads ready · 0 failed</span>
                   </div>
                 </div>
               </div>
-            ) : (
-              /* --- VIEW 2: INNER TOOL CONTENT & DETAILS EDITOR --- */
-              <div>
-                {/* Top Action Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '14px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMenuTool(null)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 16px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-card)',
-                      color: 'var(--text-dark)',
-                      fontWeight: '700',
-                      fontSize: '14px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <ArrowLeft size={16} /> Back to Tool Settings
-                  </button>
+            </div>
+          )}
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                    {/* Tool Active Toggle */}
+          {/* === TAB: MENU SET (TOOL CONTENT & VISIBILITY MANAGER) === */}
+          {activeTab === 'menuset' && (
+            <div>
+              {!selectedMenuTool ? (
+                /* --- VIEW 1: TOOLS LIST WITH ON/OFF TOGGLE --- */
+                <div>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
+                        Tool Settings & Tool Content
+                      </h1>
+                      <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
+                        Manage all 31 PDF tool menu sheets, toggle descriptive content ON/OFF, and click on any tool to edit its "What is..." and "How to use..." content.
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ backgroundColor: 'var(--border-light)', color: 'var(--text-dark)', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: '700' }}>
+                        31 Total PDF Tools
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Search & Filter Bar */}
+                  <div style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '14px',
+                    padding: '16px 20px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    gap: '16px',
+                    alignItems: 'center',
+                    flexWrap: 'wrap'
+                  }}>
+                    <div style={{ position: 'relative', flex: '1 1 280px' }}>
+                      <Search size={16} color="var(--text-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search menu tools by title, id, or description..."
+                        value={menuSetSearch}
+                        onChange={e => setMenuSetSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px 10px 38px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-light)',
+                          color: 'var(--text-dark)',
+                          fontSize: '14px',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {['All', 'Active', 'Disabled'].map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setMenuSetFilter(f)}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            border: '1.5px solid',
+                            borderColor: menuSetFilter === f ? 'var(--primary-red)' : 'var(--border-light)',
+                            backgroundColor: menuSetFilter === f ? 'rgba(229, 36, 36, 0.08)' : 'var(--bg-card)',
+                            color: menuSetFilter === f ? 'var(--primary-red)' : 'var(--text-gray)',
+                            fontWeight: '700',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                        >
+                          {f === 'All' ? 'All Tools (31)' : f === 'Active' ? 'Active on Site' : 'Disabled / Offline'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Tools Records Table / Card List */}
+                  <div style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    boxShadow: 'var(--shadow-sm)'
+                  }}>
+                    {/* Table Header */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2.2fr 0.9fr 2fr 0.9fr 1.1fr 1.1fr 1.1fr',
+                      padding: '14px 20px',
+                      backgroundColor: 'var(--bg-light)',
+                      borderBottom: '1.5px solid var(--border-light)',
+                      fontWeight: '800',
+                      fontSize: '12px',
+                      color: 'var(--text-gray)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      <span>PDF Tool & Details</span>
+                      <span>Category</span>
+                      <span>Content Snippet</span>
+                      <span style={{ textAlign: 'center' }}>Enabled</span>
+                      <span style={{ textAlign: 'center' }}>Display Content</span>
+                      <span style={{ textAlign: 'center' }}>Size Limit (MB)</span>
+                      <span style={{ textAlign: 'right', paddingRight: '8px' }}>Action</span>
+                    </div>
+
+                    {/* Table Rows */}
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {filteredMenuTools.length === 0 ? (
+                        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-gray)', fontSize: '14px' }}>
+                          No tools match your query filters.
+                        </div>
+                      ) : (
+                        filteredMenuTools.map((tool, idx) => {
+                          const IconComponent = tool.icon;
+                          const custom = siteContent?.toolsInformation?.[tool.id];
+                          const def = TOOL_INFORMATION[tool.id];
+                          const displayedTitle = custom?.title || tool.title;
+                          const displayedDesc = custom?.desc || tool.desc || '';
+                          const displayedCategory = custom?.category || tool.category || 'General';
+                          const isToolActive = toolsConfig?.[tool.id]?.enabled !== undefined
+                            ? toolsConfig[tool.id].enabled
+                            : (custom?.toolActive !== undefined ? custom.toolActive : true);
+                          const isContentEnabled = custom?.enabled !== undefined ? custom.enabled : true;
+                          const whatIsHeading = custom?.whatIsHeading || def?.whatIsHeading || `What is a ${displayedTitle}?`;
+                          const whatIsParagraph = custom?.whatIsParagraph || def?.whatIsParagraph || '';
+
+                          return (
+                            <div
+                              key={tool.id}
+                              onClick={() => handleOpenMenuTool(tool)}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '2.2fr 0.9fr 2fr 0.9fr 1.1fr 1.1fr 1.1fr',
+                                padding: '16px 20px',
+                                alignItems: 'center',
+                                borderBottom: idx < filteredMenuTools.length - 1 ? '1px solid var(--border-light)' : 'none',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.15s'
+                              }}
+                              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
+                              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              {/* Tool Icon, Custom Title & Desc */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', overflow: 'hidden', paddingRight: '12px' }}>
+                                <div style={{
+                                  width: '42px',
+                                  height: '42px',
+                                  borderRadius: '10px',
+                                  backgroundColor: 'var(--bg-light)',
+                                  border: '1px solid var(--border-light)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '8px',
+                                  flexShrink: 0
+                                }}>
+                                  {IconComponent && <IconComponent style={{ width: '100%', height: '100%' }} />}
+                                </div>
+                                <div style={{ overflow: 'hidden' }}>
+                                  <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {displayedTitle}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: 'var(--text-gray)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                                    {displayedDesc}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Category */}
+                              <div>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '4px 10px',
+                                  borderRadius: '12px',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  textTransform: 'capitalize',
+                                  backgroundColor: 'var(--bg-light)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-dark)'
+                                }}>
+                                  {displayedCategory}
+                                </span>
+                              </div>
+
+                              {/* Description Snippet */}
+                              <div style={{ paddingRight: '16px', overflow: 'hidden' }}>
+                                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {whatIsHeading}
+                                </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-gray)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                                  {whatIsParagraph}
+                                </div>
+                              </div>
+
+                              {/* Tool Enabled Quick Toggle */}
+                              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleToggleToolQuick(tool, e)}
+                                  title={isToolActive ? "Enabled" : "Disabled"}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '6px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    backgroundColor: 'transparent',
+                                    color: isToolActive ? '#10b981' : 'var(--text-light-gray)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  {isToolActive ? <Eye size={20} /> : <EyeOff size={20} />}
+                                </button>
+                              </div>
+
+                              {/* Content Display ON / OFF Switch */}
+                              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleToggleContentQuick(tool, e)}
+                                  title={isContentEnabled ? "Click to hide bottom content section" : "Click to show bottom content section"}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '5px 12px',
+                                    borderRadius: '20px',
+                                    border: isContentEnabled ? '1.5px solid #10b981' : '1.5px solid var(--border-light)',
+                                    backgroundColor: isContentEnabled ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-light)',
+                                    color: isContentEnabled ? '#10b981' : 'var(--text-gray)',
+                                    fontSize: '11px',
+                                    fontWeight: '800',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  <span style={{
+                                    width: '7px',
+                                    height: '7px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isContentEnabled ? '#10b981' : 'var(--text-gray)'
+                                  }} />
+                                  {isContentEnabled ? 'ON' : 'OFF'}
+                                </button>
+                              </div>
+
+                              {/* Upload Size Limit inline editor */}
+                              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="500"
+                                  value={draftLimits[tool.id] ?? toolsConfig?.[tool.id]?.maxFileSizeMb ?? 50}
+                                  onChange={e => setDraftLimits(p => ({ ...p, [tool.id]: e.target.value }))}
+                                  style={{
+                                    width: '64px',
+                                    padding: '6px 8px',
+                                    borderRadius: '6px',
+                                    border: '1.5px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-card)',
+                                    color: 'var(--text-dark)',
+                                    fontSize: '13px',
+                                    fontWeight: '700',
+                                    textAlign: 'center',
+                                    outline: 'none'
+                                  }}
+                                />
+                                <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '700' }}>MB</span>
+                                <button
+                                  type="button"
+                                  title="Save size limit"
+                                  onClick={() => {
+                                    const limitVal = draftLimits[tool.id] ?? toolsConfig?.[tool.id]?.maxFileSizeMb ?? 50;
+                                    handleLimitChange(tool.id, limitVal);
+                                    setDraftLimits(p => { const n = { ...p }; delete n[tool.id]; return n; });
+                                    setSavedLimitId(tool.id);
+                                    addLog(`Upload size limit for "${tool.title}" set to ${limitVal} MB.`, 'success');
+                                    setTimeout(() => setSavedLimitId(null), 1500);
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '6px',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-light)',
+                                    color: 'var(--primary-red)',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {savedLimitId === tool.id ? <CheckCircle2 size={14} color="#10b981" /> : <Save size={14} />}
+                                </button>
+                              </div>
+
+                              {/* Action Button */}
+                              <div style={{ textAlign: 'right', paddingRight: '8px' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleOpenMenuTool(tool); }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '7px 14px',
+                                    borderRadius: '8px',
+                                    backgroundColor: 'var(--bg-light)',
+                                    border: '1px solid var(--border-light)',
+                                    color: 'var(--primary-red)',
+                                    fontWeight: '700',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                >
+                                  <Edit size={13} /> Edit Details
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* --- VIEW 2: INNER TOOL CONTENT & DETAILS EDITOR --- */
+                <div>
+                  {/* Top Action Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '14px' }}>
                     <button
                       type="button"
-                      onClick={() => setMenuToolForm(prev => ({ ...prev, toolActive: !prev.toolActive }))}
+                      onClick={() => setSelectedMenuTool(null)}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 14px',
-                        borderRadius: '10px',
-                        border: menuToolForm.toolActive ? '1.5px solid #10b981' : '1.5px solid #ef4444',
-                        backgroundColor: menuToolForm.toolActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                        color: menuToolForm.toolActive ? '#059669' : '#dc2626',
-                        fontSize: '12px',
-                        fontWeight: '800',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: menuToolForm.toolActive ? '#10b981' : '#ef4444' }} />
-                      {menuToolForm.toolActive ? 'Tool Active on Site' : 'Tool Offline (Maintenance)'}
-                    </button>
-
-                    {/* Content Section ON / OFF Switch */}
-                    <button
-                      type="button"
-                      onClick={() => setMenuToolForm(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 14px',
-                        borderRadius: '10px',
-                        border: menuToolForm.enabled ? '1.5px solid #10b981' : '1.5px solid var(--border-light)',
-                        backgroundColor: menuToolForm.enabled ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-light)',
-                        color: menuToolForm.enabled ? '#10b981' : 'var(--text-gray)',
-                        fontSize: '12px',
-                        fontWeight: '800',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: menuToolForm.enabled ? '#10b981' : 'var(--text-gray)' }} />
-                      {menuToolForm.enabled ? 'Bottom Content Visible' : 'Bottom Content Hidden'}
-                    </button>
-
-                    {/* Visit Live Tool Page Link */}
-                    <a
-                      href={`/tool/${selectedMenuTool.id.replace('tool-', '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '8px 14px',
+                        gap: '8px',
+                        padding: '8px 16px',
                         borderRadius: '10px',
                         border: '1px solid var(--border-light)',
                         backgroundColor: 'var(--bg-card)',
                         color: 'var(--text-dark)',
-                        fontWeight: '600',
-                        fontSize: '13px',
-                        textDecoration: 'none'
+                        fontWeight: '700',
+                        fontSize: '14px',
+                        cursor: 'pointer'
                       }}
                     >
-                      Open Live Tool Page <ExternalLink size={14} />
-                    </a>
-                  </div>
-                </div>
+                      <ArrowLeft size={16} /> Back to Tool Settings
+                    </button>
 
-                {/* Notification toast if saved */}
-                {menuToolSuccessMsg && (
-                  <div style={{
-                    backgroundColor: menuToolSuccessMsg.includes('Failed') ? '#fef2f2' : '#ecfdf5',
-                    border: '1px solid',
-                    borderColor: menuToolSuccessMsg.includes('Failed') ? '#ef4444' : '#10b981',
-                    color: menuToolSuccessMsg.includes('Failed') ? '#b91c1c' : '#065f46',
-                    borderRadius: '12px',
-                    padding: '14px 20px',
-                    marginBottom: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    fontWeight: '700',
-                    fontSize: '14px'
-                  }}>
-                    {menuToolSuccessMsg.includes('Failed') ? (
-                      <AlertTriangle size={18} color="#ef4444" />
-                    ) : (
-                      <CheckCircle2 size={18} color="#10b981" />
-                    )}
-                    {menuToolSuccessMsg}
-                  </div>
-                )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      {/* Tool Active Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => setMenuToolForm(prev => ({ ...prev, toolActive: !prev.toolActive }))}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 14px',
+                          borderRadius: '10px',
+                          border: menuToolForm.toolActive ? '1.5px solid #10b981' : '1.5px solid #ef4444',
+                          backgroundColor: menuToolForm.toolActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                          color: menuToolForm.toolActive ? '#059669' : '#dc2626',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: menuToolForm.toolActive ? '#10b981' : '#ef4444' }} />
+                        {menuToolForm.toolActive ? 'Tool Active on Site' : 'Tool Offline (Maintenance)'}
+                      </button>
 
-                {/* Selected Tool Identity Card */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '16px',
-                  padding: '20px 24px',
-                  marginBottom: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '18px'
-                }}>
-                  <div style={{
-                    width: '54px',
-                    height: '54px',
-                    borderRadius: '12px',
-                    backgroundColor: 'var(--bg-light)',
-                    border: '1px solid var(--border-light)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '10px',
-                    flexShrink: 0
-                  }}>
-                    {selectedMenuTool.icon && React.createElement(selectedMenuTool.icon, { style: { width: '100%', height: '100%' } })}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                      <h2 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                        {menuToolForm.title || selectedMenuTool.title}
-                      </h2>
-                      <span style={{ fontSize: '11px', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', padding: '3px 8px', borderRadius: '6px', fontWeight: '700' }}>
-                        {selectedMenuTool.id}
-                      </span>
-                      <span style={{
-                        fontSize: '11px',
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        fontWeight: '800',
-                        backgroundColor: menuToolForm.toolActive ? '#ecfdf5' : '#fef2f2',
-                        color: menuToolForm.toolActive ? '#059669' : '#dc2626'
-                      }}>
-                        {menuToolForm.toolActive ? 'ACTIVE ON SITE' : 'OFFLINE (MAINTENANCE)'}
-                      </span>
+                      {/* Content Section ON / OFF Switch */}
+                      <button
+                        type="button"
+                        onClick={() => setMenuToolForm(prev => ({ ...prev, enabled: !prev.enabled }))}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 14px',
+                          borderRadius: '10px',
+                          border: menuToolForm.enabled ? '1.5px solid #10b981' : '1.5px solid var(--border-light)',
+                          backgroundColor: menuToolForm.enabled ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-light)',
+                          color: menuToolForm.enabled ? '#10b981' : 'var(--text-gray)',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: menuToolForm.enabled ? '#10b981' : 'var(--text-gray)' }} />
+                        {menuToolForm.enabled ? 'Bottom Content Visible' : 'Bottom Content Hidden'}
+                      </button>
+
+                      {/* Visit Live Tool Page Link */}
+                      <a
+                        href={`/tool/${selectedMenuTool.id.replace('tool-', '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 14px',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border-light)',
+                          backgroundColor: 'var(--bg-card)',
+                          color: 'var(--text-dark)',
+                          fontWeight: '600',
+                          fontSize: '13px',
+                          textDecoration: 'none'
+                        }}
+                      >
+                        Open Live Tool Page <ExternalLink size={14} />
+                      </a>
                     </div>
-                    <p style={{ fontSize: '13px', color: 'var(--text-gray)', margin: '4px 0 0 0' }}>
-                      {menuToolForm.desc || selectedMenuTool.desc}
-                    </p>
                   </div>
-                </div>
 
-                {/* 2-Column Responsive Layout: Editor Form + Live Preview */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px', alignItems: 'start' }}>
-                  
-                  {/* Column 1: Editable Content Fields */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    
-                    {/* Card 0: Tool Menu & Identity Settings */}
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
-                        <Sliders size={18} color="var(--primary-red)" />
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                          Tool Menu & Core Details
-                        </h3>
+                  {/* Notification toast if saved */}
+                  {menuToolSuccessMsg && (
+                    <div style={{
+                      backgroundColor: menuToolSuccessMsg.includes('Failed') ? '#fef2f2' : '#ecfdf5',
+                      border: '1px solid',
+                      borderColor: menuToolSuccessMsg.includes('Failed') ? '#ef4444' : '#10b981',
+                      color: menuToolSuccessMsg.includes('Failed') ? '#b91c1c' : '#065f46',
+                      borderRadius: '12px',
+                      padding: '14px 20px',
+                      marginBottom: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      fontWeight: '700',
+                      fontSize: '14px'
+                    }}>
+                      {menuToolSuccessMsg.includes('Failed') ? (
+                        <AlertTriangle size={18} color="#ef4444" />
+                      ) : (
+                        <CheckCircle2 size={18} color="#10b981" />
+                      )}
+                      {menuToolSuccessMsg}
+                    </div>
+                  )}
+
+                  {/* Selected Tool Identity Card */}
+                  <div style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    marginBottom: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '18px'
+                  }}>
+                    <div style={{
+                      width: '54px',
+                      height: '54px',
+                      borderRadius: '12px',
+                      backgroundColor: 'var(--bg-light)',
+                      border: '1px solid var(--border-light)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '10px',
+                      flexShrink: 0
+                    }}>
+                      {selectedMenuTool.icon && React.createElement(selectedMenuTool.icon, { style: { width: '100%', height: '100%' } })}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                        <h2 style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                          {menuToolForm.title || selectedMenuTool.title}
+                        </h2>
+                        <span style={{ fontSize: '11px', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', padding: '3px 8px', borderRadius: '6px', fontWeight: '700' }}>
+                          {selectedMenuTool.id}
+                        </span>
+                        <span style={{
+                          fontSize: '11px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontWeight: '800',
+                          backgroundColor: menuToolForm.toolActive ? '#ecfdf5' : '#fef2f2',
+                          color: menuToolForm.toolActive ? '#059669' : '#dc2626'
+                        }}>
+                          {menuToolForm.toolActive ? 'ACTIVE ON SITE' : 'OFFLINE (MAINTENANCE)'}
+                        </span>
                       </div>
+                      <p style={{ fontSize: '13px', color: 'var(--text-gray)', margin: '4px 0 0 0' }}>
+                        {menuToolForm.desc || selectedMenuTool.desc}
+                      </p>
+                    </div>
+                  </div>
 
-                      {/* Tool Title */}
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                          Tool Display Title / Name
-                        </label>
-                        <input
-                          type="text"
-                          value={menuToolForm.title}
-                          onChange={e => setMenuToolForm(prev => ({ ...prev, title: e.target.value }))}
-                          placeholder="e.g. Merge PDF, Convert PDF to Word"
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: '10px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-light)',
-                            color: 'var(--text-dark)',
-                            fontSize: '14px',
-                            fontWeight: '700',
-                            outline: 'none',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
+                  {/* 2-Column Responsive Layout: Editor Form + Live Preview */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px', alignItems: 'start' }}>
 
-                      {/* Upload Size Limit */}
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                          Upload Size Limit (MB)
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="500"
-                          value={toolsConfig?.[selectedMenuTool.id]?.maxFileSizeMb ?? 50}
-                          onChange={e => handleLimitChange(selectedMenuTool.id, e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: '10px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-light)',
-                            color: 'var(--text-dark)',
-                            fontSize: '14px',
-                            fontWeight: '700',
-                            outline: 'none',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
+                    {/* Column 1: Editable Content Fields */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                      {/* Tool Description / Subtitle */}
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                          Tool Short Tagline / Description
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={menuToolForm.desc}
-                          onChange={e => setMenuToolForm(prev => ({ ...prev, desc: e.target.value }))}
-                          placeholder="Short subtitle displayed on tool cards and workspace header..."
-                          style={{
-                            width: '100%',
-                            padding: '10px 14px',
-                            borderRadius: '10px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-light)',
-                            color: 'var(--text-dark)',
-                            fontSize: '13px',
-                            lineHeight: '1.5',
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                            resize: 'vertical'
-                          }}
-                        />
-                      </div>
+                      {/* Card 0: Tool Menu & Identity Settings */}
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+                          <Sliders size={18} color="var(--primary-red)" />
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                            Tool Menu & Core Details
+                          </h3>
+                        </div>
 
-                      {/* Category and Toggles Row */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'center' }}>
-                        <div>
+                        {/* Tool Title */}
+                        <div style={{ marginBottom: '16px' }}>
                           <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                            Tool Category
+                            Tool Display Title / Name
                           </label>
-                          <select
-                            value={menuToolForm.category}
-                            onChange={e => setMenuToolForm(prev => ({ ...prev, category: e.target.value }))}
+                          <input
+                            type="text"
+                            value={menuToolForm.title}
+                            onChange={e => setMenuToolForm(prev => ({ ...prev, title: e.target.value }))}
+                            placeholder="e.g. Merge PDF, Convert PDF to Word"
                             style={{
                               width: '100%',
-                              padding: '11px 14px',
+                              padding: '12px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        {/* Upload Size Limit */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                            Upload Size Limit (MB)
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="500"
+                            value={toolsConfig?.[selectedMenuTool.id]?.maxFileSizeMb ?? 50}
+                            onChange={e => handleLimitChange(selectedMenuTool.id, e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '12px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '14px',
+                              fontWeight: '700',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        {/* Tool Description / Subtitle */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                            Tool Short Tagline / Description
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={menuToolForm.desc}
+                            onChange={e => setMenuToolForm(prev => ({ ...prev, desc: e.target.value }))}
+                            placeholder="Short subtitle displayed on tool cards and workspace header..."
+                            style={{
+                              width: '100%',
+                              padding: '10px 14px',
                               borderRadius: '10px',
                               border: '1.5px solid var(--border-light)',
                               backgroundColor: 'var(--bg-light)',
                               color: 'var(--text-dark)',
                               fontSize: '13px',
-                              fontWeight: '700',
+                              lineHeight: '1.5',
                               outline: 'none',
                               boxSizing: 'border-box',
-                              cursor: 'pointer'
+                              resize: 'vertical'
                             }}
-                          >
-                            <option value="organize">Organize PDF</option>
-                            <option value="optimize">Optimize PDF</option>
-                            <option value="convert">Convert to/from PDF</option>
-                            <option value="edit">Edit PDF</option>
-                            <option value="security">Security & Protect</option>
-                            <option value="intelligence">AI & Intelligence</option>
-                          </select>
+                          />
+                        </div>
+
+                        {/* Category and Toggles Row */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'center' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                              Tool Category
+                            </label>
+                            <select
+                              value={menuToolForm.category}
+                              onChange={e => setMenuToolForm(prev => ({ ...prev, category: e.target.value }))}
+                              style={{
+                                width: '100%',
+                                padding: '11px 14px',
+                                borderRadius: '10px',
+                                border: '1.5px solid var(--border-light)',
+                                backgroundColor: 'var(--bg-light)',
+                                color: 'var(--text-dark)',
+                                fontSize: '13px',
+                                fontWeight: '700',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <option value="organize">Organize PDF</option>
+                              <option value="optimize">Optimize PDF</option>
+                              <option value="convert">Convert to/from PDF</option>
+                              <option value="edit">Edit PDF</option>
+                              <option value="security">Security & Protect</option>
+                              <option value="intelligence">AI & Intelligence</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                              Live on Website Status
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setMenuToolForm(prev => ({ ...prev, toolActive: !prev.toolActive }))}
+                              style={{
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                padding: '10px 14px',
+                                borderRadius: '10px',
+                                border: menuToolForm.toolActive ? '1.5px solid #10b981' : '1.5px solid #ef4444',
+                                backgroundColor: menuToolForm.toolActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                color: menuToolForm.toolActive ? '#059669' : '#dc2626',
+                                fontWeight: '800',
+                                fontSize: '13px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: menuToolForm.toolActive ? '#10b981' : '#ef4444' }} />
+                              {menuToolForm.toolActive ? 'ONLINE & ACTIVE' : 'OFFLINE (MAINTENANCE)'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card 1: What is a [Tool]? */}
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                          <BookOpen size={18} color="var(--primary-red)" />
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                            Section 1: "What is this Tool?"
+                          </h3>
+                        </div>
+
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                            Heading / Title
+                          </label>
+                          <input
+                            type="text"
+                            value={menuToolForm.whatIsHeading}
+                            onChange={e => setMenuToolForm(prev => ({ ...prev, whatIsHeading: e.target.value }))}
+                            placeholder="e.g. What is a PDF to Word Converter?"
+                            style={{
+                              width: '100%',
+                              padding: '12px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
                         </div>
 
                         <div>
                           <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                            Live on Website Status
+                            Description / Explanatory Paragraph
                           </label>
-                          <button
-                            type="button"
-                            onClick={() => setMenuToolForm(prev => ({ ...prev, toolActive: !prev.toolActive }))}
+                          <textarea
+                            rows={6}
+                            value={menuToolForm.whatIsParagraph}
+                            onChange={e => setMenuToolForm(prev => ({ ...prev, whatIsParagraph: e.target.value }))}
+                            placeholder="Describe what this tool does, its advantages, formatting preservation, etc."
                             style={{
                               width: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '8px',
-                              padding: '10px 14px',
+                              padding: '12px 14px',
                               borderRadius: '10px',
-                              border: menuToolForm.toolActive ? '1.5px solid #10b981' : '1.5px solid #ef4444',
-                              backgroundColor: menuToolForm.toolActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                              color: menuToolForm.toolActive ? '#059669' : '#dc2626',
-                              fontWeight: '800',
-                              fontSize: '13px',
-                              cursor: 'pointer'
+                              border: '1.5px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '14px',
+                              lineHeight: '1.6',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              resize: 'vertical'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Card 2: How to Use [Tool] */}
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                          <List size={18} color="var(--primary-red)" />
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                            Section 2: "How to Use this Tool"
+                          </h3>
+                        </div>
+
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                            Heading / Title
+                          </label>
+                          <input
+                            type="text"
+                            value={menuToolForm.howToHeading}
+                            onChange={e => setMenuToolForm(prev => ({ ...prev, howToHeading: e.target.value }))}
+                            placeholder="e.g. How to Use PDF to Word Converter"
+                            style={{
+                              width: '100%',
+                              padding: '12px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
+                            Step-by-Step Instructions / Text
+                          </label>
+                          <textarea
+                            rows={6}
+                            value={menuToolForm.howToParagraph}
+                            onChange={e => setMenuToolForm(prev => ({ ...prev, howToParagraph: e.target.value }))}
+                            placeholder="List steps e.g. 1. Click upload... 2. Configure... 3. Convert... 4. Download..."
+                            style={{
+                              width: '100%',
+                              padding: '12px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid var(--border-light)',
+                              backgroundColor: 'var(--bg-light)',
+                              color: 'var(--text-dark)',
+                              fontSize: '14px',
+                              lineHeight: '1.6',
+                              outline: 'none',
+                              boxSizing: 'border-box',
+                              resize: 'vertical'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={handleSaveMenuTool}
+                          disabled={isSavingMenuTool}
+                          style={{
+                            flex: 1,
+                            padding: '14px 24px',
+                            borderRadius: '12px',
+                            border: 'none',
+                            backgroundColor: 'var(--primary-red)',
+                            color: '#ffffff',
+                            fontWeight: '800',
+                            fontSize: '15px',
+                            cursor: isSavingMenuTool ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            boxShadow: '0 4px 15px rgba(229, 36, 36, 0.25)',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <Save size={18} />
+                          {isSavingMenuTool ? 'Saving to Node.js Backend...' : 'Save & Publish to Node.js'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleResetMenuTool}
+                          style={{
+                            padding: '14px 20px',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-dark)',
+                            fontWeight: '700',
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'background-color 0.15s'
+                          }}
+                        >
+                          <RotateCcw size={16} /> Reset Default
+                        </button>
+                      </div>
+
+                    </div>
+
+                    {/* Column 2: Interactive Real-time Mockup & Live Preview */}
+                    <div style={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '16px',
+                      padding: '28px',
+                      boxShadow: 'var(--shadow-sm)',
+                      position: 'sticky',
+                      top: '84px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          Live Website Preview
+                        </span>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: menuToolForm.toolActive ? '#ecfdf5' : '#fef2f2',
+                            color: menuToolForm.toolActive ? '#059669' : '#dc2626'
+                          }}>
+                            {menuToolForm.toolActive ? 'SITE ACTIVE' : 'SITE OFFLINE'}
+                          </span>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: menuToolForm.enabled ? '#ecfdf5' : '#fef2f2',
+                            color: menuToolForm.enabled ? '#059669' : '#dc2626'
+                          }}>
+                            {menuToolForm.enabled ? 'CONTENT ON' : 'CONTENT OFF'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Simulation Mockup Container */}
+                      <div style={{
+                        border: '1px dashed var(--border-light)',
+                        borderRadius: '14px',
+                        padding: '24px 20px',
+                        backgroundColor: 'var(--bg-light)',
+                        textAlign: 'center',
+                        opacity: menuToolForm.toolActive ? 1 : 0.5,
+                        transition: 'opacity 0.2s'
+                      }}>
+                        {/* Mockup Title & Desc */}
+                        <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
+                          {menuToolForm.title || selectedMenuTool.title}
+                        </h3>
+                        <p style={{ fontSize: '12px', color: 'var(--text-gray)', marginBottom: '18px', maxWidth: '380px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
+                          {menuToolForm.desc || selectedMenuTool.desc}
+                        </p>
+
+                        {/* Mockup Upload Button */}
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '10px 24px',
+                          borderRadius: '10px',
+                          backgroundColor: 'var(--primary-red)',
+                          color: '#fff',
+                          fontWeight: '700',
+                          fontSize: '14px',
+                          marginBottom: '8px',
+                          pointerEvents: 'none'
+                        }}>
+                          Upload from PC or Mobile
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>
+                          Uploaded and generated files are deleted 1 hour after upload
+                        </div>
+
+                        {/* Mockup Rating Pill */}
+
+                        {/* Preview: Section 1 */}
+                        <div style={{ textAlign: 'left', marginBottom: '28px', opacity: menuToolForm.enabled ? 1 : 0.35 }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px' }}>
+                            {menuToolForm.whatIsHeading || `What is a ${menuToolForm.title || selectedMenuTool.title}?`}
+                          </h3>
+                          <p style={{ fontSize: '13px', lineHeight: '1.7', color: 'var(--text-gray)', margin: 0 }}>
+                            {menuToolForm.whatIsParagraph || 'Description will appear here on the user facing tool page.'}
+                          </p>
+                        </div>
+
+                        {/* Preview: Section 2 */}
+                        <div style={{ textAlign: 'left', opacity: menuToolForm.enabled ? 1 : 0.35 }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px' }}>
+                            {menuToolForm.howToHeading || `How to Use ${menuToolForm.title || selectedMenuTool.title}`}
+                          </h3>
+                          <div style={{ fontSize: '13px', lineHeight: '1.7', color: 'var(--text-gray)', whiteSpace: 'pre-line' }}>
+                            {menuToolForm.howToParagraph || 'Step-by-step instructions will appear here.'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {!menuToolForm.toolActive && (
+                        <div style={{ marginTop: '14px', textAlign: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
+                          ⚠️ Notice: This tool is currently OFFLINE on the website and shows a maintenance warning to visitors.
+                        </div>
+                      )}
+                      {!menuToolForm.enabled && (
+                        <div style={{ marginTop: '10px', textAlign: 'center', fontSize: '12px', color: '#6b7280', fontWeight: '600' }}>
+                          ℹ️ Notice: The bottom explanatory content section is currently turned OFF.
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* === TAB 2: USER ACCOUNTS (CRUD) === */}
+          {activeTab === 'users' && (
+            <div>
+              {editingUser ? (
+                /* --- FULL PAGE PROFILE / DETAIL VIEW --- */
+                <div>
+                  {/* Back button and header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '28px' }}>
+                    <button
+                      onClick={() => setEditingUser(null)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        border: '1.5px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-gray)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}
+                      title="Back to User Accounts"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+                    <div>
+                      <h1 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>User Profile details</h1>
+                      <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Configure parameters, inspect metrics, and review system audit records for this account.</p>
+                    </div>
+                  </div>
+
+                  {/* Profile Grid Layout */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '28px' }}>
+
+                    {/* Left Side: Avatar & Card overview */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{
+                          width: '90px',
+                          height: '90px',
+                          borderRadius: '50%',
+                          backgroundColor: editingUser.plan === 'Premium' ? '#fffbeb' : 'var(--bg-light)',
+                          color: editingUser.plan === 'Premium' ? '#d97706' : 'var(--text-gray)',
+                          fontSize: '32px',
+                          fontWeight: '800',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto 16px auto',
+                          border: `2px solid ${editingUser.plan === 'Premium' ? '#fde047' : 'var(--border-light)'}`
+                        }}>
+                          {editingUser.avatar || editingUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                        </div>
+
+                        <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>{editingUser.name}</h2>
+                        <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '16px' }}>{editingUser.email}</p>
+
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '20px', backgroundColor: editingUser.plan === 'Premium' ? '#fffbeb' : 'var(--bg-light)', color: editingUser.plan === 'Premium' ? '#d97706' : 'var(--text-gray)', fontSize: '11px', fontWeight: '800' }}>
+                            {editingUser.plan === 'Premium' ? <Star size={12} /> : <User size={12} />} {editingUser.plan} Plan
+                          </span>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '6px 12px',
+                            borderRadius: '20px',
+                            fontSize: '11px',
+                            fontWeight: '800',
+                            backgroundColor: editingUser.status === 'Active' ? '#ecfdf5' : editingUser.status === 'Inactive' ? 'var(--bg-light)' : '#fef2f2',
+                            color: editingUser.status === 'Active' ? '#10b981' : editingUser.status === 'Inactive' ? 'var(--text-gray)' : '#ef4444'
+                          }}>
+                            {editingUser.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Stats Card */}
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Usage</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                            <span style={{ color: 'var(--text-gray)' }}>Files Processed:</span>
+                            <span style={{ fontWeight: '700', color: 'var(--text-dark)' }}>{editingUser.files}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                            <span style={{ color: 'var(--text-gray)' }}>Estimated Cache:</span>
+                            <span style={{ fontWeight: '700', color: 'var(--text-dark)' }}>{(editingUser.files * 1.8).toFixed(1)} MB</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                            <span style={{ color: 'var(--text-gray)' }}>Join Date:</span>
+                            <span style={{ fontWeight: '700', color: 'var(--text-dark)' }}>{editingUser.joinDate}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                            <span style={{ color: 'var(--text-gray)' }}>Last Session:</span>
+                            <span style={{ fontWeight: '700', color: '#059669' }}>Online</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Side: Account details form & Mock Activities */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                      {/* Settings Form Card */}
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '20px' }}>Modify Account Specifications</h3>
+                        <form onSubmit={handleUpdateUser} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Full Name</label>
+                              <input
+                                type="text"
+                                value={editingUser.name}
+                                onChange={e => setEditingUser(p => ({ ...p, name: e.target.value }))}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Email Address (Non-editable)</label>
+                              <input
+                                type="email"
+                                value={editingUser.email}
+                                readOnly
+                                disabled
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', outline: 'none', fontSize: '14px', boxSizing: 'border-box', cursor: 'not-allowed' }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Subscription Plan</label>
+                              <select
+                                value={editingUser.plan}
+                                onChange={e => setEditingUser(p => ({ ...p, plan: e.target.value }))}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
+                              >
+                                <option value="Free">Free</option>
+                                <option value="Basic">Basic</option>
+                                <option value="Premium">Premium</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Account Status</label>
+                              <select
+                                value={editingUser.status}
+                                onChange={e => setEditingUser(p => ({ ...p, status: e.target.value }))}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
+                              >
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                                <option value="Banned">Banned</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingUser(null)}
+                              style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                            >
+                              Discard
+                            </button>
+                            <button
+                              type="submit"
+                              style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(229, 36, 36, 0.2)' }}
+                            >
+                              Save Changes
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+
+                      {/* Mock Action History */}
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User Action History</h3>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {[
+                            { text: 'Merged contract_signed.pdf with annual_sheet.pdf', time: '1 hour ago' },
+                            { text: 'Extracted text content from project_doc.pdf', time: '2 hours ago' },
+                            { text: 'Compressed design_portfolio_high_res.pdf (saved 4.2 MB)', time: 'Yesterday' },
+                            { text: 'Changed account billing structure from Free to Premium', time: '3 days ago' },
+                          ].map((act, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', padding: '8px 12px', backgroundColor: 'var(--bg-light)', borderRadius: '8px' }}>
+                              <span style={{ color: 'var(--text-dark)', fontWeight: '500' }}>{act.text}</span>
+                              <span style={{ fontSize: '11px', color: 'var(--text-light-gray)' }}>{act.time}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* --- STANDARD TABULAR USERS LIST VIEW --- */
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+                    <div>
+                      <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Manage User Accounts</h1>
+                      <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Provision users, update licenses, and supervise activity logs.</p>
+                    </div>
+
+                    {/* Create User Button */}
+                    <button
+                      onClick={() => setShowAddUserModal(true)}
+                      style={{
+                        padding: '12px 20px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        backgroundColor: 'var(--primary-red)',
+                        color: '#ffffff',
+                        fontWeight: '700',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 15px rgba(229, 36, 36, 0.2)'
+                      }}
+                    >
+                      <Plus size={16} /> Add User Manually
+                    </button>
+                  </div>
+
+                  {/* Quick summary numbers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                    {[
+                      { label: 'Total Users', value: usersData.length, color: 'var(--text-dark)', bg: 'var(--bg-light)', icon: <Users size={18} /> },
+                      { label: 'Banned Users', value: bannedCount, color: '#ef4444', bg: '#fef2f2', icon: <ShieldAlert size={18} /> },
+                      { label: 'Free Users', value: freeCount, color: 'var(--text-gray)', bg: 'var(--border-light)', icon: <User size={18} /> },
+                      { label: 'Premium Users', value: premiumCount, color: '#d97706', bg: '#fffbeb', icon: <Star size={18} /> }
+                    ].map((card, idx) => (
+                      <div key={idx} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ padding: '8px', backgroundColor: card.bg, borderRadius: '8px', color: card.color }}>
+                          {card.icon}
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-gray)', fontWeight: '700', textTransform: 'uppercase' }}>{card.label}</span>
+                          <span style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', display: 'block' }}>{card.value}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Filtering toolbar */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <Search size={16} color="var(--text-light-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search users by name or email..."
+                        value={userSearch}
+                        onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
+                        style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {['All', 'Free', 'Basic', 'Premium'].map(f => (
+                        <button
+                          key={f}
+                          onClick={() => { setUserPlanFilter(f); setUserPage(1); }}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: '1.5px solid var(--border-light)',
+                            borderColor: userPlanFilter === f ? 'var(--primary-red)' : 'var(--border-light)',
+                            backgroundColor: userPlanFilter === f ? '#fff1f2' : 'var(--bg-card)',
+                            color: userPlanFilter === f ? 'var(--primary-red)' : 'var(--text-gray)',
+                            fontWeight: '700',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                        >{f}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Bulk Selection Action Toolbar */}
+                  {selectedUserIds.length > 0 && (
+                    <div style={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1.5px solid var(--primary-red)',
+                      borderRadius: '14px',
+                      padding: '12px 20px',
+                      marginBottom: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      boxShadow: '0 4px 16px rgba(229, 36, 36, 0.08)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
+                          borderRadius: '20px',
+                          padding: '4px 12px',
+                          fontWeight: '800',
+                          fontSize: '13px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          <CheckCircle2 size={15} />
+                          {selectedUserIds.length} {selectedUserIds.length === 1 ? 'user' : 'users'} selected
+                        </div>
+                        <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>
+                          Bulk operations:
+                        </span>
+                        <button
+                          onClick={() => setSelectedUserIds([])}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--text-gray)',
+                            textDecoration: 'underline',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            padding: '0'
+                          }}
+                        >
+                          Clear selection
+                        </button>
+                        {filteredUsers.length > paginatedUsers.length && selectedUserIds.length >= paginatedUsers.length && selectedUserIds.length < filteredUsers.length && (
+                          <button
+                            onClick={() => setSelectedUserIds(filteredUsers.map(u => u.id))}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--primary-red)',
+                              textDecoration: 'underline',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                              padding: '0'
                             }}
                           >
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: menuToolForm.toolActive ? '#10b981' : '#ef4444' }} />
-                            {menuToolForm.toolActive ? 'ONLINE & ACTIVE' : 'OFFLINE (MAINTENANCE)'}
+                            Select all {filteredUsers.length} users across all pages
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* Activate Selected */}
+                        <button
+                          onClick={handleBulkActivateUsers}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #a7f3d0',
+                            backgroundColor: '#ecfdf5',
+                            color: '#059669',
+                            fontWeight: '700',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                          title="Set all selected users to Active"
+                        >
+                          <UserCheck size={16} />
+                          Set Active ({selectedUserIds.length})
+                        </button>
+
+                        {/* Ban Selected */}
+                        <button
+                          onClick={handleBulkBanUsers}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #fecaca',
+                            backgroundColor: '#fef2f2',
+                            color: '#dc2626',
+                            fontWeight: '700',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                          title="Ban all selected users"
+                        >
+                          <UserX size={16} />
+                          Ban Users ({selectedUserIds.length})
+                        </button>
+
+                        {/* Delete Selected */}
+                        <button
+                          onClick={handleBulkDeleteUsers}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            backgroundColor: '#ef4444',
+                            color: '#ffffff',
+                            fontWeight: '700',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
+                            transition: 'all 0.15s'
+                          }}
+                          title="Permanently delete all selected users"
+                        >
+                          <Trash2 size={16} />
+                          Delete Selected ({selectedUserIds.length})
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Top Pagination */}
+                  <div style={{ marginBottom: '14px' }}>
+                    {renderPagination(currentUserPage, totalUserPages, setUserPage, filteredUsers.length, usersPerPage, 'users')}
+                  </div>
+
+                  {/* User Records Table */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+
+                    {/* Table Header */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '44px 2fr 2.5fr 1fr 1fr 1fr 1fr 1fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1.5px solid var(--border-light)', fontWeight: '800', fontSize: '12px', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={allPageUsersSelected}
+                          ref={el => { if (el) el.indeterminate = isUserIndeterminate; }}
+                          onChange={toggleSelectAllUsers}
+                          title={allPageUsersSelected ? "Deselect all on this page" : "Select all on this page"}
+                          style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary-red)' }}
+                        />
+                      </div>
+                      <span>Registered User</span>
+                      <span>Email Address</span>
+                      <span>License</span>
+                      <span>Files</span>
+                      <span>Join Date</span>
+                      <span>Status Toggle</span>
+                      <span style={{ textAlign: 'right', paddingRight: '8px' }}>Action</span>
+                    </div>
+
+                    {/* Table Body */}
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {paginatedUsers.length === 0 ? (
+                        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-gray)', fontSize: '14px' }}>No records match your query filters.</div>
+                      ) : (
+                        paginatedUsers.map((user, idx) => {
+                          const meta = planMeta[user.plan];
+                          const isSelected = selectedUserIds.includes(user.id);
+                          return (
+                            <div
+                              key={user.id}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '44px 2fr 2.5fr 1fr 1fr 1fr 1fr 1fr',
+                                padding: '16px 24px',
+                                alignItems: 'center',
+                                borderBottom: idx < paginatedUsers.length - 1 ? '1px solid var(--border-light)' : 'none',
+                                backgroundColor: isSelected ? (theme === 'dark' ? 'rgba(239, 68, 68, 0.12)' : '#fff5f5') : 'transparent',
+                                transition: 'background 0.15s'
+                              }}
+                              onMouseEnter={e => {
+                                if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-light)';
+                              }}
+                              onMouseLeave={e => {
+                                e.currentTarget.style.backgroundColor = isSelected
+                                  ? (theme === 'dark' ? 'rgba(239, 68, 68, 0.12)' : '#fff5f5')
+                                  : 'transparent';
+                              }}
+                            >
+                              {/* Checkbox */}
+                              <div style={{ display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelectUser(user.id)}
+                                  title={`Select ${user.name}`}
+                                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary-red)' }}
+                                />
+                              </div>
+
+                              {/* Avatar & Name */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '12px', border: `1px solid ${meta.color}30` }}>
+                                  {user.avatar}
+                                </div>
+                                <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>{user.name}</span>
+                              </div>
+
+                              {/* Email */}
+                              <span style={{ fontSize: '13px', color: 'var(--text-gray)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</span>
+
+                              {/* Plan badge */}
+                              <div>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', backgroundColor: meta.bg, color: meta.color, fontSize: '11px', fontWeight: '800' }}>
+                                  {meta.icon} {user.plan}
+                                </span>
+                              </div>
+
+                              {/* Files processed */}
+                              <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', paddingLeft: '8px' }}>{user.files}</span>
+
+                              {/* Join Date */}
+                              <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>{user.joinDate}</span>
+
+                              {/* Status Toggle Switch */}
+                              <div>
+                                <button
+                                  onClick={() => {
+                                    const newStatus = user.status === 'Banned' ? 'Active' : 'Banned';
+                                    setUsersData(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
+                                    addLog(`User status for ${user.name} changed to ${newStatus}.`, newStatus === 'Banned' ? 'warning' : 'success');
+                                  }}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    backgroundColor: user.status === 'Banned' ? '#fef2f2' : '#ecfdf5',
+                                    border: `1.5px solid ${user.status === 'Banned' ? '#fca5a5' : '#a7f3d0'}`,
+                                    cursor: 'pointer',
+                                    fontSize: '11px',
+                                    fontWeight: '800',
+                                    color: user.status === 'Banned' ? '#ef4444' : '#10b981',
+                                    transition: 'all 0.2s',
+                                  }}
+                                  title={user.status === 'Banned' ? "Click to Unban User (Set Active)" : "Click to Ban User"}
+                                >
+                                  {/* Toggle Switch indicator */}
+                                  <div style={{
+                                    width: '28px',
+                                    height: '14px',
+                                    borderRadius: '7px',
+                                    backgroundColor: user.status === 'Banned' ? '#ef4444' : '#10b981',
+                                    position: 'relative',
+                                    transition: 'background-color 0.2s',
+                                    display: 'inline-block'
+                                  }}>
+                                    <div style={{
+                                      position: 'absolute',
+                                      width: '10px',
+                                      height: '10px',
+                                      borderRadius: '50%',
+                                      backgroundColor: '#ffffff',
+                                      top: '2px',
+                                      left: user.status === 'Banned' ? '2px' : '16px',
+                                      transition: 'left 0.2s',
+                                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                    }} />
+                                  </div>
+                                  <span>{user.status}</span>
+                                </button>
+                              </div>
+
+                              {/* Actions */}
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  onClick={() => handleOpenEditUser(user)}
+                                  style={{ padding: '6px', borderRadius: '6px', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', cursor: 'pointer', border: 'none' }}
+                                  title="Edit User Details"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(user.id, user.name)}
+                                  style={{ padding: '6px', borderRadius: '6px', backgroundColor: '#fef2f2', color: '#ef4444', cursor: 'pointer', border: 'none' }}
+                                  title="Delete User"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bottom Pagination */}
+                  <div style={{ marginTop: '16px' }}>
+                    {renderPagination(currentUserPage, totalUserPages, setUserPage, filteredUsers.length, usersPerPage, 'users')}
+                  </div>
+
+                  {/* Custom Bulk Delete Confirmation Modal */}
+                  {bulkDeleteConfirmOpen && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+                      <div style={{ backgroundColor: 'var(--bg-card)', width: '380px', borderRadius: '16px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)', padding: '24px', textAlign: 'center' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                          <Trash2 size={24} />
+                        </div>
+                        <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px' }}>
+                          Delete {selectedUserIds.length} {selectedUserIds.length === 1 ? 'User' : 'Users'}?
+                        </h3>
+                        <p style={{ fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.5', marginBottom: '20px' }}>
+                          Are you sure you want to permanently delete <strong>{selectedUserIds.length} selected {selectedUserIds.length === 1 ? 'user account' : 'user accounts'}</strong>? This action cannot be undone.
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                          <button onClick={() => setBulkDeleteConfirmOpen(false)} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+                          <button onClick={confirmBulkDeleteUsers} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>
+                            Delete All ({selectedUserIds.length})
                           </button>
                         </div>
                       </div>
                     </div>
+                  )}
 
-                    {/* Card 1: What is a [Tool]? */}
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <BookOpen size={18} color="var(--primary-red)" />
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                          Section 1: "What is this Tool?"
-                        </h3>
-                      </div>
-
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                          Heading / Title
-                        </label>
-                        <input
-                          type="text"
-                          value={menuToolForm.whatIsHeading}
-                          onChange={e => setMenuToolForm(prev => ({ ...prev, whatIsHeading: e.target.value }))}
-                          placeholder="e.g. What is a PDF to Word Converter?"
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: '10px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-light)',
-                            color: 'var(--text-dark)',
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            outline: 'none',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                          Description / Explanatory Paragraph
-                        </label>
-                        <textarea
-                          rows={6}
-                          value={menuToolForm.whatIsParagraph}
-                          onChange={e => setMenuToolForm(prev => ({ ...prev, whatIsParagraph: e.target.value }))}
-                          placeholder="Describe what this tool does, its advantages, formatting preservation, etc."
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: '10px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-light)',
-                            color: 'var(--text-dark)',
-                            fontSize: '14px',
-                            lineHeight: '1.6',
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                            resize: 'vertical'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Card 2: How to Use [Tool] */}
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                        <List size={18} color="var(--primary-red)" />
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                          Section 2: "How to Use this Tool"
-                        </h3>
-                      </div>
-
-                      <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                          Heading / Title
-                        </label>
-                        <input
-                          type="text"
-                          value={menuToolForm.howToHeading}
-                          onChange={e => setMenuToolForm(prev => ({ ...prev, howToHeading: e.target.value }))}
-                          placeholder="e.g. How to Use PDF to Word Converter"
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: '10px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-light)',
-                            color: 'var(--text-dark)',
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            outline: 'none',
-                            boxSizing: 'border-box'
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase' }}>
-                          Step-by-Step Instructions / Text
-                        </label>
-                        <textarea
-                          rows={6}
-                          value={menuToolForm.howToParagraph}
-                          onChange={e => setMenuToolForm(prev => ({ ...prev, howToParagraph: e.target.value }))}
-                          placeholder="List steps e.g. 1. Click upload... 2. Configure... 3. Convert... 4. Download..."
-                          style={{
-                            width: '100%',
-                            padding: '12px 14px',
-                            borderRadius: '10px',
-                            border: '1.5px solid var(--border-light)',
-                            backgroundColor: 'var(--bg-light)',
-                            color: 'var(--text-dark)',
-                            fontSize: '14px',
-                            lineHeight: '1.6',
-                            outline: 'none',
-                            boxSizing: 'border-box',
-                            resize: 'vertical'
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                      <button
-                        type="button"
-                        onClick={handleSaveMenuTool}
-                        disabled={isSavingMenuTool}
-                        style={{
-                          flex: 1,
-                          padding: '14px 24px',
-                          borderRadius: '12px',
-                          border: 'none',
-                          backgroundColor: 'var(--primary-red)',
-                          color: '#ffffff',
-                          fontWeight: '800',
-                          fontSize: '15px',
-                          cursor: isSavingMenuTool ? 'not-allowed' : 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '8px',
-                          boxShadow: '0 4px 15px rgba(229, 36, 36, 0.25)',
-                          transition: 'all 0.2s ease'
-                        }}
-                      >
-                        <Save size={18} />
-                        {isSavingMenuTool ? 'Saving to Node.js Backend...' : 'Save & Publish to Node.js'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleResetMenuTool}
-                        style={{
-                          padding: '14px 20px',
-                          borderRadius: '12px',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-dark)',
-                          fontWeight: '700',
-                          fontSize: '14px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'background-color 0.15s'
-                        }}
-                      >
-                        <RotateCcw size={16} /> Reset Default
-                      </button>
-                    </div>
-
-                  </div>
-
-                  {/* Column 2: Interactive Real-time Mockup & Live Preview */}
-                  <div style={{
-                    backgroundColor: 'var(--bg-card)',
-                    border: '1px solid var(--border-light)',
-                    borderRadius: '16px',
-                    padding: '28px',
-                    boxShadow: 'var(--shadow-sm)',
-                    position: 'sticky',
-                    top: '84px'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        Live Website Preview
-                      </span>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          backgroundColor: menuToolForm.toolActive ? '#ecfdf5' : '#fef2f2',
-                          color: menuToolForm.toolActive ? '#059669' : '#dc2626'
-                        }}>
-                          {menuToolForm.toolActive ? 'SITE ACTIVE' : 'SITE OFFLINE'}
-                        </span>
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          padding: '3px 8px',
-                          borderRadius: '6px',
-                          backgroundColor: menuToolForm.enabled ? '#ecfdf5' : '#fef2f2',
-                          color: menuToolForm.enabled ? '#059669' : '#dc2626'
-                        }}>
-                          {menuToolForm.enabled ? 'CONTENT ON' : 'CONTENT OFF'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Simulation Mockup Container */}
-                    <div style={{
-                      border: '1px dashed var(--border-light)',
-                      borderRadius: '14px',
-                      padding: '24px 20px',
-                      backgroundColor: 'var(--bg-light)',
-                      textAlign: 'center',
-                      opacity: menuToolForm.toolActive ? 1 : 0.5,
-                      transition: 'opacity 0.2s'
-                    }}>
-                      {/* Mockup Title & Desc */}
-                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                        {menuToolForm.title || selectedMenuTool.title}
-                      </h3>
-                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', marginBottom: '18px', maxWidth: '380px', margin: '0 auto 18px auto', lineHeight: '1.5' }}>
-                        {menuToolForm.desc || selectedMenuTool.desc}
-                      </p>
-
-                      {/* Mockup Upload Button */}
-                      <div style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '10px 24px',
-                        borderRadius: '10px',
-                        backgroundColor: 'var(--primary-red)',
-                        color: '#fff',
-                        fontWeight: '700',
-                        fontSize: '14px',
-                        marginBottom: '8px',
-                        pointerEvents: 'none'
-                      }}>
-                        Upload from PC or Mobile
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>
-                        Uploaded and generated files are deleted 1 hour after upload
-                      </div>
-
-                      {/* Mockup Rating Pill */}
-
-                      {/* Preview: Section 1 */}
-                      <div style={{ textAlign: 'left', marginBottom: '28px', opacity: menuToolForm.enabled ? 1 : 0.35 }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px' }}>
-                          {menuToolForm.whatIsHeading || `What is a ${menuToolForm.title || selectedMenuTool.title}?`}
-                        </h3>
-                        <p style={{ fontSize: '13px', lineHeight: '1.7', color: 'var(--text-gray)', margin: 0 }}>
-                          {menuToolForm.whatIsParagraph || 'Description will appear here on the user facing tool page.'}
+                  {/* Custom Delete Confirmation Modal */}
+                  {deleteConfirmUser && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+                      <div style={{ backgroundColor: 'var(--bg-card)', width: '360px', borderRadius: '16px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)', padding: '24px', textAlign: 'center' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
+                          <Trash2 size={24} />
+                        </div>
+                        <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px' }}>Delete User Account?</h3>
+                        <p style={{ fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.5', marginBottom: '20px' }}>
+                          Are you sure you want to delete <strong>{deleteConfirmUser.name}</strong>? This action cannot be undone.
                         </p>
-                      </div>
-
-                      {/* Preview: Section 2 */}
-                      <div style={{ textAlign: 'left', opacity: menuToolForm.enabled ? 1 : 0.35 }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '10px' }}>
-                          {menuToolForm.howToHeading || `How to Use ${menuToolForm.title || selectedMenuTool.title}`}
-                        </h3>
-                        <div style={{ fontSize: '13px', lineHeight: '1.7', color: 'var(--text-gray)', whiteSpace: 'pre-line' }}>
-                          {menuToolForm.howToParagraph || 'Step-by-step instructions will appear here.'}
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                          <button onClick={() => setDeleteConfirmUser(null)} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+                          <button onClick={confirmDeleteUser} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>Delete User</button>
                         </div>
                       </div>
                     </div>
+                  )}
 
-                    {!menuToolForm.toolActive && (
-                      <div style={{ marginTop: '14px', textAlign: 'center', fontSize: '12px', color: '#ef4444', fontWeight: '700' }}>
-                        ⚠️ Notice: This tool is currently OFFLINE on the website and shows a maintenance warning to visitors.
-                      </div>
-                    )}
-                    {!menuToolForm.enabled && (
-                      <div style={{ marginTop: '10px', textAlign: 'center', fontSize: '12px', color: '#6b7280', fontWeight: '600' }}>
-                        ℹ️ Notice: The bottom explanatory content section is currently turned OFF.
-                      </div>
-                    )}
-                  </div>
-
-                </div>
-
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* === TAB 2: USER ACCOUNTS (CRUD) === */}
-        {activeTab === 'users' && (
-          <div>
-            {editingUser ? (
-              /* --- FULL PAGE PROFILE / DETAIL VIEW --- */
-              <div>
-                {/* Back button and header */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '28px' }}>
-                  <button
-                    onClick={() => setEditingUser(null)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '50%',
-                      border: '1.5px solid var(--border-light)',
-                      backgroundColor: 'var(--bg-card)',
-                      color: 'var(--text-gray)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      boxShadow: 'var(--shadow-sm)'
-                    }}
-                    title="Back to User Accounts"
-                  >
-                    <ArrowLeft size={18} />
-                  </button>
-                  <div>
-                    <h1 style={{ fontSize: '26px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>User Profile details</h1>
-                    <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Configure parameters, inspect metrics, and review system audit records for this account.</p>
-                  </div>
-                </div>
-
-                {/* Profile Grid Layout */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '28px' }}>
-
-                  {/* Left Side: Avatar & Card overview */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{
-                        width: '90px',
-                        height: '90px',
-                        borderRadius: '50%',
-                        backgroundColor: editingUser.plan === 'Premium' ? '#fffbeb' : 'var(--bg-light)',
-                        color: editingUser.plan === 'Premium' ? '#d97706' : 'var(--text-gray)',
-                        fontSize: '32px',
-                        fontWeight: '800',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 16px auto',
-                        border: `2px solid ${editingUser.plan === 'Premium' ? '#fde047' : 'var(--border-light)'}`
-                      }}>
-                        {editingUser.avatar || editingUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                      </div>
-
-                      <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>{editingUser.name}</h2>
-                      <p style={{ fontSize: '13px', color: 'var(--text-gray)', marginBottom: '16px' }}>{editingUser.email}</p>
-
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '20px', backgroundColor: editingUser.plan === 'Premium' ? '#fffbeb' : 'var(--bg-light)', color: editingUser.plan === 'Premium' ? '#d97706' : 'var(--text-gray)', fontSize: '11px', fontWeight: '800' }}>
-                          {editingUser.plan === 'Premium' ? <Star size={12} /> : <User size={12} />} {editingUser.plan} Plan
-                        </span>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '6px 12px',
-                          borderRadius: '20px',
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          backgroundColor: editingUser.status === 'Active' ? '#ecfdf5' : editingUser.status === 'Inactive' ? 'var(--bg-light)' : '#fef2f2',
-                          color: editingUser.status === 'Active' ? '#10b981' : editingUser.status === 'Inactive' ? 'var(--text-gray)' : '#ef4444'
-                        }}>
-                          {editingUser.status}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Stats Card */}
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Platform Usage</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: 'var(--text-gray)' }}>Files Processed:</span>
-                          <span style={{ fontWeight: '700', color: 'var(--text-dark)' }}>{editingUser.files}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: 'var(--text-gray)' }}>Estimated Cache:</span>
-                          <span style={{ fontWeight: '700', color: 'var(--text-dark)' }}>{(editingUser.files * 1.8).toFixed(1)} MB</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: 'var(--text-gray)' }}>Join Date:</span>
-                          <span style={{ fontWeight: '700', color: 'var(--text-dark)' }}>{editingUser.joinDate}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                          <span style={{ color: 'var(--text-gray)' }}>Last Session:</span>
-                          <span style={{ fontWeight: '700', color: '#059669' }}>Online</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Side: Account details form & Mock Activities */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-                    {/* Settings Form Card */}
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '20px' }}>Modify Account Specifications</h3>
-                      <form onSubmit={handleUpdateUser} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {/* Modal: Add User */}
+                  {showAddUserModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+                      <div style={{ backgroundColor: 'var(--bg-card)', width: '420px', borderRadius: '16px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)', padding: '24px' }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '18px', color: 'var(--text-dark)' }}>Add New User Account</h3>
+                        {userFormError && <div style={{ fontSize: '13px', color: '#ef4444', backgroundColor: '#fef2f2', padding: '8px 12px', borderRadius: '6px', marginBottom: '14px', fontWeight: '600' }}>{userFormError}</div>}
+                        <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                           <div>
-                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Full Name</label>
-                            <input
-                              type="text"
-                              value={editingUser.name}
-                              onChange={e => setEditingUser(p => ({ ...p, name: e.target.value }))}
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
-                            />
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Full Name</label>
+                            <input type="text" placeholder="John Doe" value={newUserForm.name} onChange={e => setNewUserForm(p => ({ ...p, name: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }} />
                           </div>
                           <div>
-                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Email Address (Non-editable)</label>
-                            <input
-                              type="email"
-                              value={editingUser.email}
-                              readOnly
-                              disabled
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', outline: 'none', fontSize: '14px', boxSizing: 'border-box', cursor: 'not-allowed' }}
-                            />
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Email Address</label>
+                            <input type="email" placeholder="john@company.com" value={newUserForm.email} onChange={e => setNewUserForm(p => ({ ...p, email: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }} />
                           </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                           <div>
-                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Subscription Plan</label>
-                            <select
-                              value={editingUser.plan}
-                              onChange={e => setEditingUser(p => ({ ...p, plan: e.target.value }))}
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
-                            >
-                              <option value="Free">Free</option>
-                              <option value="Basic">Basic</option>
-                              <option value="Premium">Premium</option>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Licensing Plan</label>
+                            <select value={newUserForm.plan} onChange={e => setNewUserForm(p => ({ ...p, plan: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }}>
+                              <option value="Free">Free Account</option>
+                              <option value="Basic">Basic Account</option>
+                              <option value="Premium">Premium Account</option>
                             </select>
                           </div>
                           <div>
-                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Account Status</label>
-                            <select
-                              value={editingUser.status}
-                              onChange={e => setEditingUser(p => ({ ...p, status: e.target.value }))}
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px', boxSizing: 'border-box' }}
-                            >
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Initial Status</label>
+                            <select value={newUserForm.status} onChange={e => setNewUserForm(p => ({ ...p, status: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }}>
                               <option value="Active">Active</option>
                               <option value="Inactive">Inactive</option>
                               <option value="Banned">Banned</option>
                             </select>
                           </div>
-                        </div>
 
-                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                          <button
-                            type="button"
-                            onClick={() => setEditingUser(null)}
-                            style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
-                          >
-                            Discard
-                          </button>
-                          <button
-                            type="submit"
-                            style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(229, 36, 36, 0.2)' }}
-                          >
-                            Save Changes
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-
-                    {/* Mock Action History */}
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '28px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '10px', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>User Action History</h3>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {[
-                          { text: 'Merged contract_signed.pdf with annual_sheet.pdf', time: '1 hour ago' },
-                          { text: 'Extracted text content from project_doc.pdf', time: '2 hours ago' },
-                          { text: 'Compressed design_portfolio_high_res.pdf (saved 4.2 MB)', time: 'Yesterday' },
-                          { text: 'Changed account billing structure from Free to Premium', time: '3 days ago' },
-                        ].map((act, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', padding: '8px 12px', backgroundColor: 'var(--bg-light)', borderRadius: '8px' }}>
-                            <span style={{ color: 'var(--text-dark)', fontWeight: '500' }}>{act.text}</span>
-                            <span style={{ fontSize: '11px', color: 'var(--text-light-gray)' }}>{act.time}</span>
+                          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                            <button type="button" onClick={() => { setShowAddUserModal(false); setUserFormError(''); }} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+                            <button type="submit" style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Add User</button>
                           </div>
-                        ))}
+                        </form>
                       </div>
                     </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
+          {activeTab === 'files' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
+                <div>
+                  <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Recently Converted Files</h1>
+                  <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>All recently converted files across the platform.</p>
+                </div>
+
+                {/* Cache Clean Action */}
+                <button
+                  onClick={handleAutoCleanup}
+                  disabled={isCleaning}
+                  style={{
+                    padding: '12px 20px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: 'var(--text-dark)',
+                    color: 'var(--bg-card)',
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: 'var(--shadow-sm)',
+                    opacity: isCleaning ? 0.7 : 1
+                  }}
+                >
+                  <RefreshCw size={16} style={{ animation: isCleaning ? 'spin 1.5s linear infinite' : 'none' }} />
+                  {isCleaning ? 'Cleaning Cache...' : 'Auto-Cleanup Cache'}
+                </button>
+              </div>
+
+              {/* Conversion Metrics Highlight Banner */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '16px',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '14px',
+                padding: '16px 20px',
+                marginBottom: '24px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Lifetime Total Converted
+                    </span>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--text-dark)', marginTop: '2px' }}>
+                      {lifetimeConversions} <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-gray)' }}>files</span>
+                    </div>
                   </div>
+                  <div style={{ width: '1px', height: '36px', backgroundColor: 'var(--border-light)' }} />
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Active Records in Table
+                    </span>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: 'var(--primary-red)', marginTop: '2px' }}>
+                      {recentFiles.length} <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-gray)' }}>records</span>
+                    </div>
+                  </div>
+                  <div style={{ width: '1px', height: '36px', backgroundColor: 'var(--border-light)' }} />
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Converted Today
+                    </span>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: '#10b981', marginTop: '2px' }}>
+                      {todayConversions} <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-gray)' }}>files today</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '12px', color: 'var(--text-gray)', maxWidth: '360px', lineHeight: '1.4' }}>
+                  🛡️ <strong>Permanent Counting:</strong> Deleting files from this list cleans storage records, but lifetime conversion counters and daily charts stay permanently preserved.
                 </div>
               </div>
-            ) : (
-              /* --- STANDARD TABULAR USERS LIST VIEW --- */
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-                  <div>
-                    <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Manage User Accounts</h1>
-                    <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Provision users, update licenses, and supervise activity logs.</p>
-                  </div>
 
-                  {/* Create User Button */}
-                  <button
-                    onClick={() => setShowAddUserModal(true)}
-                    style={{
-                      padding: '12px 20px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      backgroundColor: 'var(--primary-red)',
-                      color: '#ffffff',
-                      fontWeight: '700',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 15px rgba(229, 36, 36, 0.2)'
-                    }}
-                  >
-                    <Plus size={16} /> Add User Manually
-                  </button>
+              {/* Cleaning Ticker Overlay Alert */}
+              {isCleaning && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 20px', backgroundColor: '#fffbeb', border: '1px solid #fde047', borderRadius: '10px', marginBottom: '20px' }}>
+                  <Clock size={18} color="#d97706" style={{ animation: 'spin 3s linear infinite' }} />
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#d97706' }}>{cleanupMessage}</span>
                 </div>
+              )}
 
-                {/* Quick summary numbers */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                  {[
-                    { label: 'Total Users', value: usersData.length, color: 'var(--text-dark)', bg: 'var(--bg-light)', icon: <Users size={18} /> },
-                    { label: 'Banned Users', value: bannedCount, color: '#ef4444', bg: '#fef2f2', icon: <ShieldAlert size={18} /> },
-                    { label: 'Free Users', value: freeCount, color: 'var(--text-gray)', bg: 'var(--border-light)', icon: <User size={18} /> },
-                    { label: 'Premium Users', value: premiumCount, color: '#d97706', bg: '#fffbeb', icon: <Star size={18} /> }
-                  ].map((card, idx) => (
-                    <div key={idx} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ padding: '8px', backgroundColor: card.bg, borderRadius: '8px', color: card.color }}>
-                        {card.icon}
-                      </div>
-                      <div>
-                        <span style={{ fontSize: '11px', color: 'var(--text-gray)', fontWeight: '700', textTransform: 'uppercase' }}>{card.label}</span>
-                        <span style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', display: 'block' }}>{card.value}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Filtering toolbar */}
-                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
+              {/* Filter toolbar */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
                     <Search size={16} color="var(--text-light-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
                     <input
                       type="text"
-                      placeholder="Search users by name or email..."
-                      value={userSearch}
-                      onChange={e => setUserSearch(e.target.value)}
+                      placeholder="Search file database by filename, tool or user..."
+                      value={fileSearch}
+                      onChange={e => { setFileSearch(e.target.value); setFilePage(1); }}
                       style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {['All', 'Free', 'Basic', 'Premium'].map(f => (
-                      <button
-                        key={f}
-                        onClick={() => setUserPlanFilter(f)}
-                        style={{
-                          padding: '8px 14px',
-                          borderRadius: '8px',
-                          border: '1.5px solid var(--border-light)',
-                          borderColor: userPlanFilter === f ? 'var(--primary-red)' : 'var(--border-light)',
-                          backgroundColor: userPlanFilter === f ? '#fff1f2' : 'var(--bg-card)',
-                          color: userPlanFilter === f ? 'var(--primary-red)' : 'var(--text-gray)',
-                          fontWeight: '700',
-                          fontSize: '13px',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s'
-                        }}
-                      >{f}</button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* User Records Table */}
-                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-
-                  {/* Table Header */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 2.5fr 1fr 1fr 1fr 1fr 1fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1.5px solid var(--border-light)', fontWeight: '800', fontSize: '12px', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    <span>Registered User</span>
-                    <span>Email Address</span>
-                    <span>License</span>
-                    <span>Files</span>
-                    <span>Join Date</span>
-                    <span>Status Toggle</span>
-                    <span style={{ textAlign: 'right', paddingRight: '8px' }}>Action</span>
-                  </div>
-
-                  {/* Table Body */}
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {filteredUsers.length === 0 ? (
-                      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-gray)', fontSize: '14px' }}>No records match your query filters.</div>
-                    ) : (
-                      filteredUsers.map((user, idx) => {
-                        const meta = planMeta[user.plan];
-                        return (
-                          <div
-                            key={user.id}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '2fr 2.5fr 1fr 1fr 1fr 1fr 1fr',
-                              padding: '16px 24px',
-                              alignItems: 'center',
-                              borderBottom: idx < filteredUsers.length - 1 ? '1px solid var(--border-light)' : 'none',
-                              transition: 'background 0.15s'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                          >
-                            {/* Avatar & Name */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '12px', border: `1px solid ${meta.color}30` }}>
-                                {user.avatar}
-                              </div>
-                              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>{user.name}</span>
-                            </div>
-
-                            {/* Email */}
-                            <span style={{ fontSize: '13px', color: 'var(--text-gray)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</span>
-
-                            {/* Plan badge */}
-                            <div>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', backgroundColor: meta.bg, color: meta.color, fontSize: '11px', fontWeight: '800' }}>
-                                {meta.icon} {user.plan}
-                              </span>
-                            </div>
-
-                            {/* Files processed */}
-                            <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', paddingLeft: '8px' }}>{user.files}</span>
-
-                            {/* Join Date */}
-                            <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>{user.joinDate}</span>
-
-                            {/* Status Toggle Switch */}
-                            <div>
-                              <button
-                                onClick={() => {
-                                  const newStatus = user.status === 'Banned' ? 'Active' : 'Banned';
-                                  setUsersData(prev => prev.map(u => u.id === user.id ? { ...u, status: newStatus } : u));
-                                  addLog(`User status for ${user.name} changed to ${newStatus}.`, newStatus === 'Banned' ? 'warning' : 'success');
-                                }}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  padding: '4px 10px',
-                                  borderRadius: '20px',
-                                  backgroundColor: user.status === 'Banned' ? '#fef2f2' : '#ecfdf5',
-                                  border: `1.5px solid ${user.status === 'Banned' ? '#fca5a5' : '#a7f3d0'}`,
-                                  cursor: 'pointer',
-                                  fontSize: '11px',
-                                  fontWeight: '800',
-                                  color: user.status === 'Banned' ? '#ef4444' : '#10b981',
-                                  transition: 'all 0.2s',
-                                }}
-                                title={user.status === 'Banned' ? "Click to Unban User (Set Active)" : "Click to Ban User"}
-                              >
-                                {/* Toggle Switch indicator */}
-                                <div style={{
-                                  width: '28px',
-                                  height: '14px',
-                                  borderRadius: '7px',
-                                  backgroundColor: user.status === 'Banned' ? '#ef4444' : '#10b981',
-                                  position: 'relative',
-                                  transition: 'background-color 0.2s',
-                                  display: 'inline-block'
-                                }}>
-                                  <div style={{
-                                    position: 'absolute',
-                                    width: '10px',
-                                    height: '10px',
-                                    borderRadius: '50%',
-                                    backgroundColor: '#ffffff',
-                                    top: '2px',
-                                    left: user.status === 'Banned' ? '2px' : '16px',
-                                    transition: 'left 0.2s',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                                  }} />
-                                </div>
-                                <span>{user.status}</span>
-                              </button>
-                            </div>
-
-                            {/* Actions */}
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button
-                                onClick={() => handleOpenEditUser(user)}
-                                style={{ padding: '6px', borderRadius: '6px', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', cursor: 'pointer', border: 'none' }}
-                                title="Edit User Details"
-                              >
-                                <Edit size={14} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(user.id, user.name)}
-                                style={{ padding: '6px', borderRadius: '6px', backgroundColor: '#fef2f2', color: '#ef4444', cursor: 'pointer', border: 'none' }}
-                                title="Delete User"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {/* Custom Delete Confirmation Modal */}
-                {deleteConfirmUser && (
-                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-                    <div style={{ backgroundColor: 'var(--bg-card)', width: '360px', borderRadius: '16px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)', padding: '24px', textAlign: 'center' }}>
-                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px auto' }}>
-                        <Trash2 size={24} />
-                      </div>
-                      <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '8px' }}>Delete User Account?</h3>
-                      <p style={{ fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.5', marginBottom: '20px' }}>
-                        Are you sure you want to delete <strong>{deleteConfirmUser.name}</strong>? This action cannot be undone.
-                      </p>
-                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                        <button onClick={() => setDeleteConfirmUser(null)} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
-                        <button onClick={confirmDeleteUser} style={{ flex: 1, padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}>Delete User</button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Modal: Add User */}
-                {showAddUserModal && (
-                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-                    <div style={{ backgroundColor: 'var(--bg-card)', width: '420px', borderRadius: '16px', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-lg)', padding: '24px' }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '18px', color: 'var(--text-dark)' }}>Add New User Account</h3>
-                      {userFormError && <div style={{ fontSize: '13px', color: '#ef4444', backgroundColor: '#fef2f2', padding: '8px 12px', borderRadius: '6px', marginBottom: '14px', fontWeight: '600' }}>{userFormError}</div>}
-                      <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Full Name</label>
-                          <input type="text" placeholder="John Doe" value={newUserForm.name} onChange={e => setNewUserForm(p => ({ ...p, name: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Email Address</label>
-                          <input type="email" placeholder="john@company.com" value={newUserForm.email} onChange={e => setNewUserForm(p => ({ ...p, email: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Licensing Plan</label>
-                          <select value={newUserForm.plan} onChange={e => setNewUserForm(p => ({ ...p, plan: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }}>
-                            <option value="Free">Free Account</option>
-                            <option value="Basic">Basic Account</option>
-                            <option value="Premium">Premium Account</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>Initial Status</label>
-                          <select value={newUserForm.status} onChange={e => setNewUserForm(p => ({ ...p, status: e.target.value }))} style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', outline: 'none', fontSize: '14px' }}>
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                            <option value="Banned">Banned</option>
-                          </select>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                          <button type="button" onClick={() => { setShowAddUserModal(false); setUserFormError(''); }} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
-                          <button type="submit" style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: 'var(--primary-red)', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>Add User</button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'files' && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Recently Converted Files</h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>All recently converted files across the platform.</p>
-              </div>
-
-              {/* Cache Clean Action */}
-              <button
-                onClick={handleAutoCleanup}
-                disabled={isCleaning}
-                style={{
-                  padding: '12px 20px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  backgroundColor: 'var(--text-dark)',
-                  color: 'var(--bg-card)',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: 'var(--shadow-sm)',
-                  opacity: isCleaning ? 0.7 : 1
-                }}
-              >
-                <RefreshCw size={16} style={{ animation: isCleaning ? 'spin 1.5s linear infinite' : 'none' }} />
-                {isCleaning ? 'Cleaning Cache...' : 'Auto-Cleanup Cache'}
-              </button>
-            </div>
-
-            {/* Cleaning Ticker Overlay Alert */}
-            {isCleaning && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 20px', backgroundColor: '#fffbeb', border: '1px solid #fde047', borderRadius: '10px', marginBottom: '20px' }}>
-                <Clock size={18} color="#d97706" style={{ animation: 'spin 3s linear infinite' }} />
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#d97706' }}>{cleanupMessage}</span>
-              </div>
-            )}
-
-            {/* Filter toolbar */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
-                  <Search size={16} color="var(--text-light-gray)" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                  <input
-                    type="text"
-                    placeholder="Search file database by filename, tool or user..."
-                    value={fileSearch}
-                    onChange={e => { setFileSearch(e.target.value); setFilePage(1); }}
-                    style={{ width: '100%', padding: '10px 10px 10px 36px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                  />
-                </div>
-                <select
-                  value={fileToolFilter}
-                  onChange={e => { setFileToolFilter(e.target.value); setFilePage(1); }}
-                  style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                >
-                  {fileTools.map(t => <option key={t} value={t}>{t === 'All' ? 'All Tools' : t}</option>)}
-                </select>
-                <select
-                  value={fileDateFilter}
-                  onChange={e => { setFileDateFilter(e.target.value); setFilePage(1); }}
-                  style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                >
-                  {fileDates.map(d => <option key={d} value={d}>{d === 'All' ? 'All Dates' : d}</option>)}
-                </select>
-                {selectedFileIds.length > 0 && (
-                  <button
-                    onClick={handleDeleteSelectedFiles}
-                    style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                  <select
+                    value={fileToolFilter}
+                    onChange={e => { setFileToolFilter(e.target.value); setFilePage(1); }}
+                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
                   >
-                    Delete Selected ({selectedFileIds.length})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Platform files list (Table) */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '40px 3fr 1.6fr 1.8fr 0.8fr 1.4fr 0.9fr 0.7fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1px solid var(--border-light)', alignItems: 'center' }}>
-                <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAllFiles} title="Select all" />
-                {['Document Filename', 'User', 'Tool Mode', 'Size', 'Processing Date', 'Status', 'Action'].map((h, i) => (
-                  <div key={i} style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
-                ))}
-              </div>
-
-              {filteredFiles.length === 0 ? (
-                <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light-gray)' }}>No records logged in memory.</div>
-              ) : (
-                paginatedFiles.map((file, idx) => (
-                  <div
-                    key={file.id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '40px 3fr 1.6fr 1.8fr 0.8fr 1.4fr 0.9fr 0.7fr',
-                      padding: '16px 24px',
-                      alignItems: 'center',
-                      borderBottom: idx < paginatedFiles.length - 1 ? '1px solid var(--border-light)' : 'none',
-                      transition: 'background 0.15s'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    {fileTools.map(t => <option key={t} value={t}>{t === 'All' ? 'All Tools' : t}</option>)}
+                  </select>
+                  <select
+                    value={fileDateFilter}
+                    onChange={e => { setFileDateFilter(e.target.value); setFilePage(1); }}
+                    style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
                   >
-                    {/* Checkbox */}
-                    <input type="checkbox" checked={selectedFileIds.includes(file.id)} onChange={() => toggleSelectFile(file.id)} />
-
-                    {/* Filename & Type */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                      <span style={{ fontSize: '18px', flexShrink: 0 }}>📄</span>
-                      <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.name}</span>
-                    </div>
-
-                    {/* User */}
-                    <div style={{ overflow: 'hidden' }}>
-                      <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.userName || 'Guest'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-gray)' }}>ID: {file.userId ?? '—'}</div>
-                    </div>
-
-                    {/* Tool */}
-                    <div>
-                      <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '700' }}>
-                        {file.tool}
-                      </span>
-                    </div>
-
-                    {/* Size */}
-                    <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>{file.size}</span>
-
-                    {/* Processed Date */}
-                    <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>{file.date}</span>
-
-                    {/* Status */}
-                    <div>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', backgroundColor: '#ecfdf5', color: '#10b981' }}>
-                        ✓ OK
-                      </span>
-                    </div>
-
-                    {/* Action delete */}
-                    <div>
-                      <button
-                        onClick={() => handleDeleteFile(file.id, file.name)}
-                        style={{ padding: '6px', borderRadius: '6px', backgroundColor: '#fef2f2', color: '#ef4444', cursor: 'pointer', border: 'none' }}
-                        title="Delete permanently"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div style={{ marginTop: '12px', fontSize: '13px', color: 'var(--text-light-gray)', textAlign: 'right' }}>
-              Logged storage count: {filteredFiles.length} files
-            </div>
-
-            {/* Pagination */}
-            {totalFilePages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '14px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-gray)', marginRight: '8px' }}>
-                  Page {currentFilePage} of {totalFilePages}
-                </span>
-                <button onClick={() => setFilePage(p => Math.max(1, p - 1))} disabled={currentFilePage === 1} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', fontSize: '13px', fontWeight: '700', cursor: currentFilePage === 1 ? 'not-allowed' : 'pointer', color: 'var(--text-dark)' }}>Prev</button>
-                {Array.from({ length: totalFilePages }, (_, i) => i + 1).map(n => (
-                  <button key={n} onClick={() => setFilePage(n)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: n === currentFilePage ? 'var(--primary-red)' : 'var(--bg-card)', color: n === currentFilePage ? '#fff' : 'var(--text-dark)', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>{n}</button>
-                ))}
-                <button onClick={() => setFilePage(p => Math.min(totalFilePages, p + 1))} disabled={currentFilePage === totalFilePages} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', fontSize: '13px', fontWeight: '700', cursor: currentFilePage === totalFilePages ? 'not-allowed' : 'pointer', color: 'var(--text-dark)' }}>Next</button>
-              </div>
-            )}
-
-          </div>
-        )}
-
-        {/* === TAB: CONTACT MESSAGES & INQUIRIES === */}
-        {activeTab === 'messages' && (
-          <div style={{ maxWidth: '1100px' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(229, 36, 36, 0.1)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Mail size={22} />
-                  </div>
-                  <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Customer Inquiries & Messages</h1>
-                </div>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)', margin: 0 }}>
-                  Real-time inquiries and enterprise sales leads submitted from the /contact page.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={fetchContactMessages}
-                disabled={isLoadingMessages}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border-light)',
-                  backgroundColor: 'var(--bg-card)',
-                  color: 'var(--text-dark)',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  cursor: isLoadingMessages ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: 'var(--shadow-sm)',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <RefreshCw size={15} style={isLoadingMessages ? { animation: 'spin 1s linear infinite' } : {}} />
-                Refresh Messages
-              </button>
-            </div>
-
-            {/* Quick Metrics Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: 'rgba(37, 99, 235, 0.1)', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MessageSquare size={22} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Inquiries</div>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)' }}>{contactMessages.length}</div>
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: unreadMessagesCount > 0 ? '#fef3c7' : 'var(--bg-light)', color: unreadMessagesCount > 0 ? '#d97706' : 'var(--text-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Mail size={22} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unread Inquiries</div>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: unreadMessagesCount > 0 ? '#d97706' : 'var(--text-dark)' }}>{unreadMessagesCount}</div>
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <CheckCircle size={22} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Replied / Handled</div>
-                  <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)' }}>
-                    {contactMessages.filter(m => m.status === 'Replied').length}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Filter & Search Bar */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
-              {/* Search Box */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '8px 14px' }}>
-                <Search size={16} color="var(--text-gray)" />
-                <input
-                  type="text"
-                  value={messageSearch}
-                  onChange={e => setMessageSearch(e.target.value)}
-                  placeholder="Search by name, email, company, subject, or message..."
-                  style={{ border: 'none', background: 'transparent', outline: 'none', color: 'var(--text-dark)', fontSize: '13px', width: '100%' }}
-                />
-                {messageSearch && (
-                  <button onClick={() => setMessageSearch('')} style={{ background: 'none', border: 'none', color: 'var(--text-gray)', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-                )}
-              </div>
-
-              {/* Status Tabs */}
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {[
-                  { id: 'All', label: `All (${contactMessages.length})` },
-                  { id: 'Unread', label: `Unread (${unreadMessagesCount})` },
-                  { id: 'Read', label: `Read (${contactMessages.filter(m => m.status === 'Read').length})` },
-                  { id: 'Replied', label: `Replied (${contactMessages.filter(m => m.status === 'Replied').length})` }
-                ].map(filter => (
-                  <button
-                    key={filter.id}
-                    onClick={() => setMessageStatusFilter(filter.id)}
-                    style={{
-                      padding: '7px 14px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-light)',
-                      fontSize: '12px',
-                      fontWeight: messageStatusFilter === filter.id ? '800' : '600',
-                      backgroundColor: messageStatusFilter === filter.id ? 'var(--primary-red)' : 'var(--bg-light)',
-                      color: messageStatusFilter === filter.id ? '#ffffff' : 'var(--text-gray)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Messages Cards List */}
-            {filteredMessages.length === 0 ? (
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '60px 20px', textAlign: 'center' }}>
-                <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                  <Mail size={28} />
-                </div>
-                <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                  No Inquiries Found
-                </h3>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)', maxWidth: '400px', margin: '0 auto' }}>
-                  {messageSearch || messageStatusFilter !== 'All'
-                    ? 'No messages match your search or filter criteria.'
-                    : 'Customer messages submitted via the /contact page will appear here immediately in real time.'}
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {filteredMessages.map(msg => {
-                  const isExpanded = expandedMessageId === msg.id;
-                  const initials = (msg.name || 'User').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-                  const isUnread = msg.status === 'Unread';
-
-                  return (
-                    <div
-                      key={msg.id}
-                      style={{
-                        backgroundColor: 'var(--bg-card)',
-                        border: isUnread ? '1.5px solid #f59e0b' : '1px solid var(--border-light)',
-                        borderRadius: '16px',
-                        padding: '20px 24px',
-                        boxShadow: isUnread ? '0 4px 15px rgba(245, 158, 11, 0.12)' : 'var(--shadow-sm)',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {/* Message Card Top Row */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
-                        {/* Sender info */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '50%',
-                            backgroundColor: isUnread ? '#fef3c7' : 'var(--bg-light)',
-                            color: isUnread ? '#d97706' : 'var(--primary-red)',
-                            fontWeight: '800',
-                            fontSize: '15px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '1px solid var(--border-light)',
-                            flexShrink: 0
-                          }}>
-                            {initials}
-                          </div>
-
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                                {msg.name || 'Anonymous User'}
-                              </h3>
-                              {msg.company && (
-                                <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  <Building size={11} /> {msg.company}
-                                </span>
-                              )}
-                              {msg.team_size && (
-                                <span style={{ fontSize: '11px', fontWeight: '600', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', padding: '2px 8px', borderRadius: '6px' }}>
-                                  👥 {msg.team_size}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Contact coordinates */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '4px', flexWrap: 'wrap' }}>
-                              <a
-                                href={`mailto:${msg.email}`}
-                                style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}
-                              >
-                                <Mail size={13} /> {msg.email}
-                              </a>
-                              {msg.phone && (
-                                <a
-                                  href={`tel:${msg.phone}`}
-                                  style={{ fontSize: '13px', color: 'var(--text-gray)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                >
-                                  <Phone size={13} /> {msg.phone}
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Status & Date */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: '800',
-                            backgroundColor: msg.status === 'Unread' ? '#fef3c7' : msg.status === 'Replied' ? '#eff6ff' : '#dcfce7',
-                            color: msg.status === 'Unread' ? '#b45309' : msg.status === 'Replied' ? '#1d4ed8' : '#15803d'
-                          }}>
-                            {msg.status === 'Unread' && '● '}
-                            {msg.status === 'Replied' && '💬 '}
-                            {msg.status === 'Read' && '✓ '}
-                            {msg.status}
-                          </span>
-
-                          <span style={{ fontSize: '12px', color: 'var(--text-gray)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <Calendar size={12} />
-                            {new Date(msg.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Subject Banner */}
-                      <div style={{ backgroundColor: 'var(--bg-light)', padding: '10px 14px', borderRadius: '10px', marginBottom: '12px', border: '1px solid var(--border-light)' }}>
-                        <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '2px' }}>
-                          Subject:
-                        </div>
-                        <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>
-                          {msg.subject || 'Direct Inquiry'}
-                        </div>
-                      </div>
-
-                      {/* Message Content */}
-                      <div style={{
-                        fontSize: '14px',
-                        color: 'var(--text-dark)',
-                        lineHeight: '1.6',
-                        whiteSpace: 'pre-wrap',
-                        marginBottom: '16px',
-                        maxHeight: isExpanded ? 'none' : '90px',
-                        overflow: 'hidden',
-                        position: 'relative'
-                      }}>
-                        {msg.message}
-                        {!isExpanded && msg.message && msg.message.length > 200 && (
-                          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35px', background: 'linear-gradient(transparent, var(--bg-card))' }} />
-                        )}
-                      </div>
-
-                      {msg.message && msg.message.length > 200 && (
-                        <button
-                          onClick={() => setExpandedMessageId(isExpanded ? null : msg.id)}
-                          style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0, marginBottom: '14px', display: 'block' }}
-                        >
-                          {isExpanded ? 'Show less ▲' : 'Read full message ▼'}
-                        </button>
-                      )}
-
-                      {/* Sent Reply Display if exists */}
-                      {msg.reply_text && (
-                        <div style={{
-                          marginTop: '14px',
-                          marginBottom: '16px',
-                          padding: '14px 18px',
-                          borderRadius: '12px',
-                          backgroundColor: '#f0fdf4',
-                          border: '1px solid #bbf7d0'
-                        }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                              <CheckCircle size={15} /> Sent Email Response
-                            </span>
-                            {msg.replied_at && (
-                              <span style={{ fontSize: '11px', color: '#166534', fontWeight: '600' }}>
-                                Replied on {new Date(msg.replied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: '13px', color: '#14532d', whiteSpace: 'pre-wrap', lineHeight: '1.6', backgroundColor: '#ffffff', padding: '12px 14px', borderRadius: '8px', border: '1px solid #dcfce7' }}>
-                            {msg.reply_text}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Actions Bar */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border-light)', flexWrap: 'wrap', gap: '10px' }}>
-                        {/* Status Toggles */}
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          {msg.status !== 'Read' && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateMessageStatus(msg.id, 'Read')}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <Check size={13} /> Mark as Read
-                            </button>
-                          )}
-                          {msg.status !== 'Unread' && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateMessageStatus(msg.id, 'Unread')}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
-                            >
-                              Mark as Unread
-                            </button>
-                          )}
-                          {msg.status !== 'Replied' && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateMessageStatus(msg.id, 'Replied')}
-                              style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <Reply size={13} /> Mark as Replied
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Reply & Delete */}
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => openReplyModal(msg)}
-                            style={{
-                              padding: '8px 16px',
-                              borderRadius: '8px',
-                              backgroundColor: 'var(--primary-red)',
-                              color: '#ffffff',
-                              border: 'none',
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              boxShadow: '0 2px 8px rgba(229, 36, 36, 0.25)',
-                              transition: 'all 0.15s'
-                            }}
-                          >
-                            <Send size={13} /> {msg.reply_text ? 'Send Another Reply' : 'Reply via Email'}
-                          </button>
-
-                          <a
-                            href={`mailto:${msg.email}?subject=${encodeURIComponent('Re: ' + (msg.subject || 'Your azPDF Inquiry'))}&body=${encodeURIComponent(`Hi ${msg.name},\n\nThank you for reaching out to us!\n\nRegarding your message:\n"${msg.message}"\n\n`)}`}
-                            title="Open in your external email app"
-                            style={{
-                              padding: '7px 11px',
-                              borderRadius: '8px',
-                              backgroundColor: 'var(--bg-light)',
-                              color: 'var(--text-gray)',
-                              border: '1px solid var(--border-light)',
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              textDecoration: 'none',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <ExternalLink size={12} /> Mail App
-                          </a>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMessage(msg.id)}
-                            style={{
-                              padding: '7px 12px',
-                              borderRadius: '8px',
-                              backgroundColor: '#fee2e2',
-                              color: '#ef4444',
-                              border: 'none',
-                              fontSize: '12px',
-                              fontWeight: '700',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                            title="Delete this message"
-                          >
-                            <Trash2 size={13} /> Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* EMAIL REPLY MODAL (Direct Client Email Dispatch) */}
-            {replyModalMsg && (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundColor: 'rgba(15, 23, 42, 0.65)',
-                  backdropFilter: 'blur(5px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 99999,
-                  padding: '16px'
-                }}
-                onClick={(e) => {
-                  if (e.target === e.currentTarget && !isSendingReply) {
-                    setReplyModalMsg(null);
-                  }
-                }}
-              >
-                <div
-                  style={{
-                    backgroundColor: 'var(--bg-card)',
-                    borderRadius: '20px',
-                    width: '100%',
-                    maxWidth: '680px',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-                    border: '1px solid var(--border-light)',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    maxHeight: '92vh'
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Modal Header */}
-                  <div
-                    style={{
-                      padding: '18px 24px',
-                      borderBottom: '1px solid var(--border-light)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      backgroundColor: 'var(--bg-light)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(229, 36, 36, 0.12)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Send size={18} />
-                      </div>
-                      <div>
-                        <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                          Reply via Email to Client
-                        </h2>
-                        <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>
-                          Dispatch an official branded email response straight to the client's inbox
-                        </p>
-                      </div>
-                    </div>
+                    {fileDates.map(d => <option key={d} value={d}>{d === 'All' ? 'All Dates' : d}</option>)}
+                  </select>
+                  {selectedFileIds.length > 0 && (
                     <button
-                      type="button"
-                      onClick={() => setReplyModalMsg(null)}
-                      disabled={isSendingReply}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-gray)',
-                        fontSize: '22px',
-                        cursor: 'pointer',
-                        padding: '4px 8px',
-                        borderRadius: '6px'
-                      }}
+                      onClick={handleDeleteSelectedFiles}
+                      style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ef4444', color: '#fff', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                     >
-                      ✕
+                      Delete Selected ({selectedFileIds.length})
                     </button>
-                  </div>
-
-                  {/* Modal Body / Form */}
-                  <form onSubmit={handleSendEmailReply} style={{ padding: '22px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {/* Recipient Details Pill */}
-                    <div style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-                      <div>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          Recipient:
-                        </span>{' '}
-                        <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>{replyModalMsg.name}</strong>{' '}
-                        <span style={{ fontSize: '13px', color: '#2563eb', fontWeight: '600' }}>&lt;{replyModalMsg.email}&gt;</span>
-                      </div>
-                      {replyModalMsg.company && (
-                        <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
-                          🏢 {replyModalMsg.company}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Client's Original Message Preview */}
-                    <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(0,0,0,0.02)', borderLeft: '3px solid var(--primary-red)', fontSize: '12px', color: 'var(--text-gray)' }}>
-                      <strong style={{ color: 'var(--text-dark)' }}>Client's Original Message:</strong>
-                      <div style={{ marginTop: '4px', fontStyle: 'italic', maxHeight: '55px', overflowY: 'auto', lineHeight: '1.5' }}>
-                        "{replyModalMsg.message}"
-                      </div>
-                    </div>
-
-                    {/* Subject Line */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>
-                        Email Subject Line:
-                      </label>
-                      <input
-                        type="text"
-                        value={replySubject}
-                        onChange={(e) => setReplySubject(e.target.value)}
-                        required
-                        style={{
-                          width: '100%',
-                          padding: '10px 14px',
-                          borderRadius: '10px',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-dark)',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          outline: 'none',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-
-                    {/* Quick Response Templates */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                        Quick One-Click Templates:
-                      </label>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplySubject(`Enterprise License & Volume Pricing - azPDF`);
-                            setReplyBody(`Hi ${replyModalMsg.name},\n\nThank you for reaching out regarding azPDF Enterprise solutions!\n\nWe would be thrilled to support ${replyModalMsg.company || 'your organization'} with dedicated server capacity, unlimited team seats, priority SLA, and custom volume discounts.\n\nCould you let us know your estimated team size and processing requirements? I can also arrange a quick 15-minute product demonstration for you.\n\nBest regards,\nEnterprise Sales Team\nazPDF Technologies`);
-                          }}
-                          style={{ fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', cursor: 'pointer' }}
-                        >
-                          💼 Enterprise Inquiry
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplySubject(`Support Update: Regarding your azPDF Inquiry`);
-                            setReplyBody(`Hi ${replyModalMsg.name},\n\nThank you for contacting azPDF Technical Support.\n\nWe have reviewed your inquiry regarding:\n"${replyModalMsg.message}"\n\nOur engineering team is actively investigating this. To help us resolve it quickly, could you reply with your browser version and the file format you are working with?\n\nBest regards,\nTechnical Support Team\nazPDF`);
-                          }}
-                          style={{ fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', cursor: 'pointer' }}
-                        >
-                          🛠️ Technical Support
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setReplySubject(`Re: ${replyModalMsg.subject || 'Your Inquiry'}`);
-                            setReplyBody(`Hi ${replyModalMsg.name},\n\nThank you for contacting azPDF! We have received your inquiry and our team is reviewing it.\n\nPlease let us know if you need any additional assistance or have further questions in the meantime.\n\nBest regards,\nCustomer Success Team\nazPDF`);
-                          }}
-                          style={{ fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', cursor: 'pointer' }}
-                        >
-                          ✉️ General Thank You
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Reply Textarea */}
-                    <div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>
-                        Your Official Email Message:
-                      </label>
-                      <textarea
-                        rows={7}
-                        value={replyBody}
-                        onChange={(e) => setReplyBody(e.target.value)}
-                        required
-                        placeholder="Write your email reply here..."
-                        style={{
-                          width: '100%',
-                          padding: '12px 14px',
-                          borderRadius: '10px',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-card)',
-                          color: 'var(--text-dark)',
-                          fontSize: '13px',
-                          lineHeight: '1.6',
-                          outline: 'none',
-                          resize: 'vertical',
-                          fontFamily: 'inherit',
-                          boxSizing: 'border-box'
-                        }}
-                      />
-                    </div>
-
-                    {/* Result / Notification Alert */}
-                    {replyResult && (
-                      <div
-                        style={{
-                          padding: '14px 18px',
-                          borderRadius: '12px',
-                          backgroundColor: replyResult.success ? '#f0fdf4' : '#fef2f2',
-                          border: replyResult.success ? '1px solid #86efac' : '1px solid #fca5a5',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {replyResult.success ? (
-                            <CheckCircle size={18} color="#16a34a" />
-                          ) : (
-                            <AlertTriangle size={18} color="#dc2626" />
-                          )}
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: replyResult.success ? '#15803d' : '#b91c1c' }}>
-                            {replyResult.message}
-                          </span>
-                        </div>
-                        {replyResult.previewUrl && (
-                          <div style={{ marginTop: '4px', fontSize: '12px' }}>
-                            <a
-                              href={replyResult.previewUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ color: '#2563eb', fontWeight: '700', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                            >
-                              <ExternalLink size={13} /> View Live Dispatched Email (Ethereal Mailbox Preview)
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Modal Footer / Buttons */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginTop: '6px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
-                      <button
-                        type="button"
-                        onClick={() => setReplyModalMsg(null)}
-                        disabled={isSendingReply}
-                        style={{
-                          padding: '10px 18px',
-                          borderRadius: '10px',
-                          border: '1px solid var(--border-light)',
-                          backgroundColor: 'var(--bg-light)',
-                          color: 'var(--text-dark)',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {replyResult?.success ? 'Done' : 'Cancel'}
-                      </button>
-
-                      <button
-                        type="submit"
-                        disabled={isSendingReply || !replyBody.trim()}
-                        style={{
-                          padding: '10px 22px',
-                          borderRadius: '10px',
-                          backgroundColor: isSendingReply ? '#94a3b8' : 'var(--primary-red)',
-                          color: '#ffffff',
-                          fontSize: '13px',
-                          fontWeight: '700',
-                          border: 'none',
-                          cursor: isSendingReply ? 'not-allowed' : 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          boxShadow: '0 4px 12px rgba(229, 36, 36, 0.3)'
-                        }}
-                      >
-                        <Send size={15} style={isSendingReply ? { animation: 'spin 1s linear infinite' } : {}} />
-                        {isSendingReply ? 'Sending Email...' : 'Send Email Reply Now'}
-                      </button>
-                    </div>
-                  </form>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* === TAB: HOME PAGE CONTENT MANAGER === */}
-        {activeTab === 'content' && (
-          <div style={{ width: '100%' }}>
-            <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Pages Setting</h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Manage and edit all logo, titles, headings, descriptions, pricing text, and footer elements across the entire home page.</p>
+              {/* Top Pagination */}
+              <div style={{ marginBottom: '14px' }}>
+                {renderPagination(currentFilePage, totalFilePages, setFilePage, filteredFiles.length, filesPerPage, 'files')}
               </div>
-              <button
-                type="button"
-                onClick={handleSaveContent}
-                disabled={isSavingContent}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: '12px',
-                  border: 'none',
-                  backgroundColor: 'var(--primary-red)',
-                  color: '#ffffff',
-                  fontWeight: '800',
-                  fontSize: '14px',
-                  cursor: isSavingContent ? 'not-allowed' : 'pointer',
-                  opacity: isSavingContent ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 15px rgba(229, 36, 36, 0.25)',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                {isSavingContent ? (
-                  <>
-                    <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Updating...
-                  </>
+
+              {/* Platform files list (Table) */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '40px 3fr 1.6fr 1.8fr 0.8fr 1.4fr 0.9fr 0.7fr', padding: '14px 24px', backgroundColor: 'var(--bg-light)', borderBottom: '1px solid var(--border-light)', alignItems: 'center' }}>
+                  <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAllFiles} title="Select all" />
+                  {['Document Filename', 'User', 'Tool Mode', 'Size', 'Processing Date', 'Status', 'Action'].map((h, i) => (
+                    <div key={i} style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
+                  ))}
+                </div>
+
+                {filteredFiles.length === 0 ? (
+                  <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-light-gray)' }}>No records logged in memory.</div>
                 ) : (
-                  <>
-                    <Save size={16} /> Save All Changes
-                  </>
-                )}
-              </button>
-            </div>
-
-            {contentSaved && (
-              <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '14px 18px', borderRadius: '12px', marginBottom: '24px', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CheckCircle size={18} color="#059669" />
-                Home Page logo, titles, headings, and text updated successfully!
-              </div>
-            )}
-
-            <form onSubmit={handleSaveContent} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-              {/* Section Tabs */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                {[
-                  { id: 'header', label: 'Header' },
-                  { id: 'hero', label: 'Hero Section' },
-                  { id: 'tools', label: 'Tools Section' },
-                  { id: 'pricing', label: 'Pricing' },
-                  { id: 'footer', label: 'Footer Section' },
-                  { id: 'badges', label: 'App Badges' },
-                ].map(t => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setContentSection(t.id)}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      border: contentSection === t.id ? 'none' : '1px solid var(--border-light)',
-                      backgroundColor: contentSection === t.id ? 'var(--primary-red)' : 'var(--bg-card)',
-                      color: contentSection === t.id ? '#ffffff' : 'var(--text-gray)',
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {contentSection === 'header' && (<>
-              {/* 1. Header & Logo Branding */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🎨 Site Logo & Header Brand
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Brand Prefix Text</label>
-                    <input
-                      type="text"
-                      value={contentForm.brandPrefix}
-                      onChange={e => setContentForm(p => ({ ...p, brandPrefix: e.target.value }))}
-                      placeholder="e.g. I"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Logo Heart / Icon</label>
-                    <input
-                      type="text"
-                      value={contentForm.brandIcon}
-                      onChange={e => setContentForm(p => ({ ...p, brandIcon: e.target.value }))}
-                      placeholder="e.g. ❤️"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Brand Suffix Text</label>
-                    <input
-                      type="text"
-                      value={contentForm.brandName}
-                      onChange={e => setContentForm(p => ({ ...p, brandName: e.target.value }))}
-                      placeholder="e.g. PDF"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                    />
-                  </div>
-                </div>
-                <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-gray)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>Live Preview:</span>
-                  <span style={{ fontWeight: '900', color: 'var(--text-dark)', backgroundColor: 'var(--bg-light)', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
-                    {contentForm.brandPrefix} {contentForm.brandIcon} {contentForm.brandName}
-                  </span>
-                </div>
-              </div>
-              </>)}
-
-              {contentSection === 'hero' && (<>
-              {/* 2. Hero Section Content */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🚀 Main Hero Banner
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Hero Main Title Heading</label>
-                    <input
-                      type="text"
-                      value={contentForm.heroTitle}
-                      onChange={e => setContentForm(p => ({ ...p, heroTitle: e.target.value }))}
-                      placeholder="Hero Title"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Hero Subtitle / Description Paragraph</label>
-                    <textarea
-                      rows={3}
-                      value={contentForm.heroSubtitle}
-                      onChange={e => setContentForm(p => ({ ...p, heroSubtitle: e.target.value }))}
-                      placeholder="Hero Subtitle"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', resize: 'vertical' }}
-                    />
-                  </div>
-                </div>
-              </div>
-              </>)}
-
-              {contentSection === 'tools' && (<>
-              {/* 3. Tools Section Content */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🛠️ PDF Tools Section Headings
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tools Section Heading</label>
-                    <input
-                      type="text"
-                      value={contentForm.toolsTitle}
-                      onChange={e => setContentForm(p => ({ ...p, toolsTitle: e.target.value }))}
-                      placeholder="Tools Section Heading"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tools Section Subtitle</label>
-                    <input
-                      type="text"
-                      value={contentForm.toolsSubtitle}
-                      onChange={e => setContentForm(p => ({ ...p, toolsSubtitle: e.target.value }))}
-                      placeholder="Tools Section Subtitle"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                    />
-                  </div>
-                </div>
-              </div>
-              </>)}
-
-              {contentSection === 'pricing' && (<>
-              {/* 4. Pricing Section Content */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  💳 Pricing Section & Plan Text
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Category Badge</label>
-                      <input
-                        type="text"
-                        value={contentForm.pricingBadge}
-                        onChange={e => setContentForm(p => ({ ...p, pricingBadge: e.target.value }))}
-                        placeholder="Pricing Badge"
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Main Heading</label>
-                      <input
-                        type="text"
-                        value={contentForm.pricingTitle}
-                        onChange={e => setContentForm(p => ({ ...p, pricingTitle: e.target.value }))}
-                        placeholder="Pricing Title"
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Subtitle / Description</label>
-                    <input
-                      type="text"
-                      value={contentForm.pricingSubtitle}
-                      onChange={e => setContentForm(p => ({ ...p, pricingSubtitle: e.target.value }))}
-                      placeholder="Pricing Subtitle"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                    />
-                  </div>
-
-                  <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '4px 0' }} />
-
-                  {/* Plan Cards — Free / Basic / Premium */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
-                    {/* Free */}
-                    <div style={{ backgroundColor: 'var(--bg-light)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border-light)' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🆓 Free Plan</div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
-                      <input
-                        type="text"
-                        value={contentForm.freePlanTitle}
-                        onChange={e => setContentForm(p => ({ ...p, freePlanTitle: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
-                      />
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
-                      <textarea
-                        rows={3}
-                        value={contentForm.freePlanDesc}
-                        onChange={e => setContentForm(p => ({ ...p, freePlanDesc: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                    {/* Basic */}
-                    <div style={{ backgroundColor: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>⭐ Basic Plan</div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
-                      <input
-                        type="text"
-                        value={contentForm.basicPlanTitle}
-                        onChange={e => setContentForm(p => ({ ...p, basicPlanTitle: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
-                      />
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
-                      <textarea
-                        rows={3}
-                        value={contentForm.basicPlanDesc}
-                        onChange={e => setContentForm(p => ({ ...p, basicPlanDesc: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                    {/* Premium */}
-                    <div style={{ backgroundColor: '#fffbeb', borderRadius: '10px', padding: '14px', border: '1px solid #fde68a' }}>
-                      <div style={{ fontSize: '11px', fontWeight: '800', color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🔥 Premium Plan</div>
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
-                      <input
-                        type="text"
-                        value={contentForm.premiumPlanTitle}
-                        onChange={e => setContentForm(p => ({ ...p, premiumPlanTitle: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fde68a', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
-                      />
-                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
-                      <textarea
-                        rows={3}
-                        value={contentForm.premiumPlanDesc}
-                        onChange={e => setContentForm(p => ({ ...p, premiumPlanDesc: e.target.value }))}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fde68a', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              </>)}
-
-              {contentSection === 'footer' && (<>
-              {/* Footer Section Content & Dynamic Links */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🌐 Footer Branding, Links & Buttons
-                </h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '0 0 18px 0' }}>
-                  App Store download badges are managed in the separate <strong>App Badges</strong> tab.
-                </p>
-
-                {/* Footer Bottom Quick Buttons Manager */}
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div>
-                      <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Footer Bottom Quick Links / Buttons</h4>
-                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>Inline links shown next to the copyright text (e.g., Terms, Privacy, Help).</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAddFooterButton}
-                      style={{ padding: '6px 14px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  paginatedFiles.map((file, idx) => (
+                    <div
+                      key={file.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '40px 3fr 1.6fr 1.8fr 0.8fr 1.4fr 0.9fr 0.7fr',
+                        padding: '16px 24px',
+                        alignItems: 'center',
+                        borderBottom: idx < paginatedFiles.length - 1 ? '1px solid var(--border-light)' : 'none',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-light)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
-                      <Plus size={14} /> Add Quick Button
-                    </button>
-                  </div>
+                      {/* Checkbox */}
+                      <input type="checkbox" checked={selectedFileIds.includes(file.id)} onChange={() => toggleSelectFile(file.id)} />
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
-                    {contentForm.footerButtons.map((btn, btnIdx) => (
-                      <div key={btnIdx} style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: 'var(--bg-light)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                        <input
-                          type="text"
-                          value={btn.label}
-                          onChange={e => handleFooterButtonChange(btnIdx, 'label', e.target.value)}
-                          placeholder="Button Label"
-                          style={{ width: '40%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
-                        />
-                        <input
-                          type="text"
-                          value={btn.url}
-                          onChange={e => handleFooterButtonChange(btnIdx, 'url', e.target.value)}
-                          placeholder="Path (e.g. /terms)"
-                          style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
-                        />
+                      {/* Filename & Type */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                        <span style={{ fontSize: '18px', flexShrink: 0 }}>📄</span>
+                        <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.name}</span>
+                      </div>
+
+                      {/* User */}
+                      <div style={{ overflow: 'hidden' }}>
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{file.userName || 'Guest'}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-gray)' }}>ID: {file.userId ?? '—'}</div>
+                      </div>
+
+                      {/* Tool */}
+                      <div>
+                        <span style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '700' }}>
+                          {file.tool}
+                        </span>
+                      </div>
+
+                      {/* Size */}
+                      <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '600' }}>{file.size}</span>
+
+                      {/* Processed Date */}
+                      <span style={{ fontSize: '13px', color: 'var(--text-gray)' }}>{file.date}</span>
+
+                      {/* Status */}
+                      <div>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', backgroundColor: '#ecfdf5', color: '#10b981' }}>
+                          ✓ OK
+                        </span>
+                      </div>
+
+                      {/* Action delete */}
+                      <div>
                         <button
-                          type="button"
-                          onClick={() => handleDeleteFooterButton(btnIdx)}
-                          style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
+                          onClick={() => handleDeleteFile(file.id, file.name)}
+                          style={{ padding: '6px', borderRadius: '6px', backgroundColor: '#fef2f2', color: '#ef4444', cursor: 'pointer', border: 'none' }}
+                          title="Delete permanently"
                         >
                           <Trash2 size={14} />
                         </button>
                       </div>
-                    ))}
-                  </div>
-                </div>
 
-                <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '20px 0' }} />
-
+                    </div>
+                  ))
+                )}
               </div>
 
-              {/* 1. Footer Navigation Columns & Links (FULL CRUD) */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                  <div>
-                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      📋 Footer Navigation Columns (CRUD)
-                    </h3>
-                    <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>
-                      Create, edit, reorder or delete entire columns and links. Click any preset button to quickly add real working links.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddFooterColumn}
-                    style={{
-                      padding: '8px 18px',
-                      borderRadius: '10px',
-                      backgroundColor: 'var(--primary-red)',
-                      border: 'none',
-                      color: '#ffffff',
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 8px rgba(229, 36, 36, 0.2)'
-                    }}
-                  >
-                    <Plus size={16} /> + Add New Column
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {contentForm.footerColumns.map((col, colIdx) => (
-                    <div
-                      key={col.id || colIdx}
-                      style={{
-                        backgroundColor: 'var(--bg-light)',
-                        border: '1.5px solid var(--border-light)',
-                        borderRadius: '14px',
-                        padding: '18px'
-                      }}
-                    >
-                      {/* Column Header */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                          <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-gray)', minWidth: '70px' }}>
-                            COLUMN {colIdx + 1}:
-                          </span>
-                          <input
-                            type="text"
-                            value={col.title}
-                            onChange={e => handleColumnTitleChange(colIdx, e.target.value)}
-                            placeholder="Column Heading (e.g. PRODUCT)"
-                            style={{
-                              flex: 1,
-                              maxWidth: '320px',
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: '1.5px solid var(--border-light)',
-                              backgroundColor: 'var(--bg-card)',
-                              color: 'var(--text-dark)',
-                              fontSize: '14px',
-                              fontWeight: '800',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.5px'
-                            }}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Delete column "${col.title}" and all its links?`)) {
-                              handleDeleteFooterColumn(colIdx);
-                            }
-                          }}
-                          style={{
-                            padding: '6px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: '#fee2e2',
-                            color: '#ef4444',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                          title="Delete this entire column"
-                        >
-                          <Trash2 size={14} /> Delete Column
-                        </button>
-                      </div>
-
-                      {/* Quick Presets for this Column */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '14px', padding: '8px 12px', backgroundColor: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Quick Add:</span>
-                        {[
-                          { label: 'Home', url: '/' },
-                          { label: 'Features', url: '/#features' },
-                          { label: 'Pricing', url: '/#pricing' },
-                          { label: 'Tools', url: '/#tools' },
-                          { label: 'FAQ', url: '/#faq' },
-                          { label: 'About us', url: '/#about' },
-                          { label: 'Terms & conditions', url: '/terms' },
-                          { label: 'Privacy policy', url: '/privacy' },
-                          { label: 'Contact us', url: '/contact' },
-                          { label: 'Help & Support', url: '/help' },
-                        ].map((preset, pIdx) => (
-                          <button
-                            key={pIdx}
-                            type="button"
-                            onClick={() => handleAddPresetLinkToColumn(colIdx, preset.label, preset.url)}
-                            style={{
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              backgroundColor: 'var(--bg-light)',
-                              border: '1px solid var(--border-light)',
-                              color: 'var(--text-dark)',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s'
-                            }}
-                            title={`Add "${preset.label}" (${preset.url}) to this column`}
-                          >
-                            + {preset.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Links List for this column */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {col.links && col.links.map((link, linkIdx) => (
-                          <div
-                            key={linkIdx}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              backgroundColor: 'var(--bg-card)',
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-light)'
-                            }}
-                          >
-                            <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '700', minWidth: '22px' }}>
-                              #{linkIdx + 1}
-                            </span>
-                            <input
-                              type="text"
-                              value={link.label}
-                              onChange={e => handleLinkChange(colIdx, linkIdx, 'label', e.target.value)}
-                              placeholder="Link Text (e.g. Home)"
-                              style={{
-                                width: '38%',
-                                padding: '6px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-light)',
-                                color: 'var(--text-dark)',
-                                fontSize: '13px'
-                              }}
-                            />
-                            <input
-                              type="text"
-                              value={link.url}
-                              onChange={e => handleLinkChange(colIdx, linkIdx, 'url', e.target.value)}
-                              placeholder="Target URL / Path (e.g. /#features or /terms)"
-                              style={{
-                                flex: 1,
-                                padding: '6px 10px',
-                                borderRadius: '6px',
-                                border: '1px solid var(--border-light)',
-                                backgroundColor: 'var(--bg-light)',
-                                color: 'var(--text-dark)',
-                                fontSize: '13px'
-                              }}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteLinkFromColumn(colIdx, linkIdx)}
-                              style={{
-                                color: '#ef4444',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '4px',
-                                borderRadius: '4px'
-                              }}
-                              title="Delete Link"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        ))}
-
-                        <button
-                          type="button"
-                          onClick={() => handleAddLinkToColumn(colIdx)}
-                          style={{
-                            marginTop: '6px',
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            backgroundColor: 'transparent',
-                            border: '1.5px dashed var(--border-light)',
-                            color: 'var(--text-gray)',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px'
-                          }}
-                        >
-                          <Plus size={14} /> Add Custom Link to {col.title || 'Column'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {/* Bottom Pagination */}
+              <div style={{ marginTop: '16px' }}>
+                {renderPagination(currentFilePage, totalFilePages, setFilePage, filteredFiles.length, filesPerPage, 'files')}
               </div>
 
-              {/* 2. Footer Social Profiles (6 Networks) */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🌐 Social Media Profiles (Footer Icons)
-                </h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-gray)', marginBottom: '16px' }}>
-                  Enter external profile URLs for the 6 social icons shown in the footer bottom bar.
-                </p>
+            </div>
+          )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-                  {[
-                    { key: 'twitter', label: 'Twitter / X URL', icon: '𝕏', ph: 'https://twitter.com/yourhandle' },
-                    { key: 'facebook', label: 'Facebook URL', icon: '📘', ph: 'https://facebook.com/yourpage' },
-                    { key: 'linkedin', label: 'LinkedIn URL', icon: '💼', ph: 'https://linkedin.com/company/yourcompany' },
-                    { key: 'instagram', label: 'Instagram URL', icon: '📸', ph: 'https://instagram.com/yourprofile' },
-                    { key: 'tiktok', label: 'TikTok URL', icon: '🎵', ph: 'https://tiktok.com/@yourchannel' },
-                    { key: 'reddit', label: 'Reddit URL', icon: '👾', ph: 'https://reddit.com/r/yourcommunity' },
-                  ].map(net => (
-                    <div key={net.key}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>
-                        <span>{net.icon}</span> {net.label}
-                      </label>
-                      <input
-                        type="text"
-                        value={contentForm.socialLinks[net.key] || ''}
-                        onChange={e => handleSocialLinkChange(net.key, e.target.value)}
-                        placeholder={net.ph}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px' }}
-                      />
+          {/* === TAB: CONTACT MESSAGES & INQUIRIES === */}
+          {activeTab === 'messages' && (
+            <div style={{ maxWidth: '1100px' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: 'rgba(229, 36, 36, 0.1)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Mail size={22} />
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 3. Footer Branding & Copyright */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  ⚖️ Footer Branding & Copyright Text
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Footer Brand Title</label>
-                    <input
-                      type="text"
-                      value={contentForm.footerBrand}
-                      onChange={e => setContentForm(p => ({ ...p, footerBrand: e.target.value }))}
-                      placeholder="Footer Brand (e.g. I ❤️ PDF)"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }}
-                    />
+                    <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Customer Inquiries & Messages</h1>
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Footer Copyright Text</label>
-                    <input
-                      type="text"
-                      value={contentForm.footerCopyright}
-                      onChange={e => setContentForm(p => ({ ...p, footerCopyright: e.target.value }))}
-                      placeholder="Copyright Text (e.g. © 2026 iLovePDF. All Rights Reserved.)"
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. Live Footer Preview */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    👁️ Live Real-Time Footer Preview
-                  </h3>
-                  <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                    Live Preview
-                  </span>
+                  <p style={{ fontSize: '14px', color: 'var(--text-gray)', margin: 0 }}>
+                    Real-time inquiries and enterprise sales leads submitted from the /contact page.
+                  </p>
                 </div>
 
-                {/* Dark Preview Container */}
-                <div style={{ backgroundColor: '#24252e', borderRadius: '14px', padding: '32px 28px 20px', color: '#ffffff', overflowX: 'auto' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '32px', flexWrap: 'wrap', marginBottom: '28px' }}>
-                    {/* Columns Preview */}
-                    <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', flex: 1 }}>
-                      {contentForm.footerColumns.map((col, idx) => (
-                        <div key={idx} style={{ minWidth: '110px' }}>
-                          <div style={{ fontSize: '12px', fontWeight: '800', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
-                            {col.title || 'COLUMN'}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {col.links && col.links.map((link, lIdx) => (
-                              <div key={lIdx} style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                                {link.label}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Store Badges Preview */}
-                    {contentForm.appStoreBadges?.enabled !== false && (
-                      <div>
-                        <StoreBadges config={contentForm.appStoreBadges} layout="vertical" isPreview={true} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.12)', margin: '20px 0 16px 0' }} />
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-                    {/* Brand + configured social icons */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                      {contentForm.footerBrand && (
-                        <span style={{ fontSize: '14px', fontWeight: '800', color: '#ffffff' }}>
-                          {contentForm.footerBrand}
-                        </span>
-                      )}
-                      <div style={{ display: 'flex', gap: '12px', color: '#cbd5e1', fontSize: '13px', alignItems: 'center' }}>
-                        {[
-                          { key: 'twitter', glyph: '𝕏' },
-                          { key: 'facebook', glyph: 'f' },
-                          { key: 'linkedin', glyph: 'in' },
-                          { key: 'instagram', glyph: '📸' },
-                          { key: 'tiktok', glyph: '🎵' },
-                          { key: 'reddit', glyph: '👾' },
-                        ].filter(net => contentForm.socialLinks?.[net.key]).map(net => (
-                          <span key={net.key}>{net.glyph}</span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Quick links + copyright */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-                      {contentForm.footerButtons.filter(btn => btn && btn.label).map((btn, btnIdx) => (
-                        <span key={btnIdx} style={{ fontSize: '13px', color: '#cbd5e1' }}>{btn.label}</span>
-                      ))}
-                      <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-                        {contentForm.footerCopyright}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              </>)}
-
-              {contentSection === 'badges' && (<>
-              {/* App Store & Mobile Badges Manager (Image/Store Icons matching screenshot) */}
-              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(229,36,36,0.1)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Smartphone size={20} />
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
-                        App Store & Mobile Badges Manager
-                      </h3>
-                      <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>
-                        Manage Google Play, Apple App Store, Mac App Store, and Microsoft Store download badges displayed in the footer.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Master Toggle */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: '700', color: contentForm.appStoreBadges?.enabled !== false ? '#059669' : 'var(--text-gray)' }}>
-                      {contentForm.appStoreBadges?.enabled !== false ? '● Visible on Site' : '○ Section Hidden'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleAppStoreToggle('master')}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '20px',
-                        fontSize: '12px',
-                        fontWeight: '800',
-                        border: 'none',
-                        cursor: 'pointer',
-                        backgroundColor: contentForm.appStoreBadges?.enabled !== false ? '#d1fae5' : '#f3f4f6',
-                        color: contentForm.appStoreBadges?.enabled !== false ? '#065f46' : '#6b7280',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {contentForm.appStoreBadges?.enabled !== false ? (
-                        <>
-                          <Eye size={14} /> Active
-                        </>
-                      ) : (
-                        <>
-                          <EyeOff size={14} /> Hidden
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Section Title & Subtitle */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Section Heading Title</label>
-                    <input
-                      type="text"
-                      value={contentForm.appStoreBadges?.title || ''}
-                      onChange={e => handleAppStoreTextChange('title', e.target.value)}
-                      placeholder="e.g. Download azPDF Desktop & Mobile App"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Section Subtitle</label>
-                    <input
-                      type="text"
-                      value={contentForm.appStoreBadges?.subtitle || ''}
-                      onChange={e => handleAppStoreTextChange('subtitle', e.target.value)}
-                      placeholder="e.g. Work with PDFs directly on Windows, Mac, Android and iOS devices."
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
-                    />
-                  </div>
-                </div>
-
-                <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '16px 0 20px 0' }} />
-
-                {/* 4 App Store Badges Management Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                  
-                  {/* Google Play */}
-                  <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '18px' }}>▶️</span>
-                        <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>Google Play</strong>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAppStoreToggle('googlePlay')}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '16px',
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          border: 'none',
-                          cursor: 'pointer',
-                          backgroundColor: contentForm.appStoreBadges?.googlePlay?.enabled !== false ? '#d1fae5' : '#fee2e2',
-                          color: contentForm.appStoreBadges?.googlePlay?.enabled !== false ? '#065f46' : '#991b1b',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        {contentForm.appStoreBadges?.googlePlay?.enabled !== false ? 'Visible' : 'Hidden'}
-                      </button>
-                    </div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Google Play Store URL</label>
-                    <input
-                      type="text"
-                      value={contentForm.appStoreBadges?.googlePlay?.url || ''}
-                      onChange={e => handleAppStoreUrlChange('googlePlay', e.target.value)}
-                      placeholder="https://play.google.com/store/apps/..."
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
-                    />
-                  </div>
-
-                  {/* Apple App Store */}
-                  <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '18px' }}>🍎</span>
-                        <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>App Store (iOS)</strong>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAppStoreToggle('appStore')}
-                        style={{
-                          padding: '4px 12px',
-                          borderRadius: '16px',
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          border: 'none',
-                          cursor: 'pointer',
-                          backgroundColor: contentForm.appStoreBadges?.appStore?.enabled !== false ? '#d1fae5' : '#fee2e2',
-                          color: contentForm.appStoreBadges?.appStore?.enabled !== false ? '#065f46' : '#991b1b',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}
-                      >
-                        {contentForm.appStoreBadges?.appStore?.enabled !== false ? 'Visible' : 'Hidden'}
-                      </button>
-                    </div>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Apple App Store URL</label>
-                    <input
-                      type="text"
-                      value={contentForm.appStoreBadges?.appStore?.url || ''}
-                      onChange={e => handleAppStoreUrlChange('appStore', e.target.value)}
-                      placeholder="https://apps.apple.com/app/..."
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
-                    />
-                  </div>
-
-                </div>
-
-                {/* Live Preview Card */}
-                <div style={{ backgroundColor: '#0f172a', borderRadius: '14px', padding: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.8px', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span>👁️ Real Footer Badges Live Preview:</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                    <div style={{ textAlign: 'left' }}>
-                      <div style={{ color: '#ffffff', fontWeight: '800', fontSize: '15px' }}>
-                        {contentForm.appStoreBadges?.title || 'Download azPDF Desktop & Mobile App'}
-                      </div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '2px' }}>
-                        {contentForm.appStoreBadges?.subtitle || 'Work with PDFs directly on Windows, Mac, Android and iOS devices.'}
-                      </div>
-                    </div>
-                    <StoreBadges config={contentForm.appStoreBadges} isPreview={true} />
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Submit Button */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button
-                  type="submit"
-                  disabled={isSavingContent}
-                  style={{
-                    padding: '14px 32px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    backgroundColor: 'var(--primary-red)',
-                    color: '#ffffff',
-                    fontWeight: '800',
-                    fontSize: '15px',
-                    cursor: isSavingContent ? 'not-allowed' : 'pointer',
-                    opacity: isSavingContent ? 0.7 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    boxShadow: '0 6px 20px rgba(229, 36, 36, 0.3)',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {isSavingContent ? (
-                    <>
-                      <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} /> Updating Content...
-                    </>
-                  ) : (
-                    <>
-                      <Save size={18} /> Save Home Page Changes
-                    </>
-                  )}
-                </button>
-              </div>
-              </>)}
-
-            </form>
-          </div>
-        )}
-
-        {/* === TAB: PRIVACY POLICY & TERMS AND CONDITIONS CONTENT MANAGER === */}
-        {activeTab === 'legal' && (
-          <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
-
-            {/* Back Button Navigation Bar */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '20px',
-              flexWrap: 'wrap',
-              gap: '12px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('overview')}
+                  onClick={fetchContactMessages}
+                  disabled={isLoadingMessages}
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '9px 18px',
+                    padding: '10px 18px',
                     borderRadius: '10px',
                     border: '1px solid var(--border-light)',
                     backgroundColor: 'var(--bg-card)',
                     color: 'var(--text-dark)',
                     fontWeight: '700',
                     fontSize: '13px',
-                    cursor: 'pointer',
-                    boxShadow: 'var(--shadow-sm)',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseOver={e => e.currentTarget.style.backgroundColor = 'var(--border-light)'}
-                  onMouseOut={e => e.currentTarget.style.backgroundColor = 'var(--bg-card)'}
-                >
-                  <ArrowLeft size={16} /> Back to Dashboard
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onBack}
-                  style={{
-                    display: 'inline-flex',
+                    cursor: isLoadingMessages ? 'not-allowed' : 'pointer',
+                    display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '9px 18px',
-                    borderRadius: '10px',
-                    border: '1px solid var(--border-light)',
-                    backgroundColor: 'var(--bg-light)',
-                    color: 'var(--text-gray)',
-                    fontWeight: '600',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseOver={e => {
-                    e.currentTarget.style.backgroundColor = 'var(--border-light)';
-                    e.currentTarget.style.color = 'var(--text-dark)';
-                  }}
-                  onMouseOut={e => {
-                    e.currentTarget.style.backgroundColor = 'var(--bg-light)';
-                    e.currentTarget.style.color = 'var(--text-gray)';
-                  }}
-                >
-                  Exit to Website
-                </button>
-              </div>
-
-              <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>
-                Managing: <strong style={{ color: 'var(--text-dark)' }}>
-                  {legalSubTab === 'security' ? 'Security & Data Protection' :
-                   legalSubTab === 'privacy' ? 'Privacy Policy' :
-                   legalSubTab === 'terms' ? 'Terms & Conditions' :
-                   legalSubTab === 'about' ? 'About Us' :
-                   legalSubTab === 'blog' ? 'Blog & Articles' : ''}
-                </strong>
-              </div>
-            </div>
-
-            {/* Top Bar / Header */}
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '16px',
-              marginBottom: '24px'
-            }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
-                  Pages & Legal Content Manager
-                </h1>
-                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
-                  Customize, update clauses, add or remove sections, and manage live pages with full Node.js & SQLite database persistence.
-                </p>
-              </div>
-
-              {/* Sub-tabs: 6 Dedicated Pages */}
-              <div style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-light)',
-                borderRadius: '12px',
-                padding: '4px',
-                boxShadow: 'var(--shadow-sm)'
-              }}>
-                {[
-                  { id: 'security', label: 'Security', icon: <Shield size={15} /> },
-                  { id: 'privacy', label: 'Privacy Policy', icon: <Lock size={15} /> },
-                  { id: 'terms', label: 'Terms', icon: <Scale size={15} /> },
-                  { id: 'about', label: 'About Us', icon: <Heart size={15} /> },
-                  { id: 'blog', label: 'Blog Posts', icon: <BookOpen size={15} /> },
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setLegalSubTab(tab.id)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '8px 14px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      backgroundColor: legalSubTab === tab.id ? 'var(--primary-red)' : 'transparent',
-                      color: legalSubTab === tab.id ? '#ffffff' : 'var(--text-gray)',
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {tab.icon} {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Success notification banner */}
-            {legalSuccessMsg && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '12px 18px',
-                backgroundColor: '#ecfdf5',
-                border: '1px solid #10b981',
-                borderRadius: '12px',
-                color: '#065f46',
-                fontSize: '13px',
-                fontWeight: '700',
-                marginBottom: '24px'
-              }}>
-                <CheckCircle2 size={18} color="#10b981" />
-                <span>{legalSuccessMsg}</span>
-              </div>
-            )}
-
-            {/* Main 2-Column Layout: Left Editor, Right Live Preview */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)',
-              gap: '28px',
-              alignItems: 'start'
-            }}>
-
-              {/* ─── LEFT COLUMN: EDITING FORM ─── */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-                {/* 1. SECURITY SUB-TAB */}
-                {legalSubTab === 'security' && (
-                  <>
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>
-                        Security Page Header & Contact
-                      </h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
-                          <input type="text" value={securityForm.title || ''} onChange={e => setSecurityForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated / Subtitle</label>
-                          <input type="text" value={securityForm.lastUpdated || ''} onChange={e => setSecurityForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Security Contact Email</label>
-                          <input type="email" value={securityForm.contactEmail || ''} onChange={e => setSecurityForm(p => ({ ...p, contactEmail: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>
-                        Security Badges & Compliance Standards
-                      </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        {(securityForm.badges || []).map((b) => (
-                          <div key={b.id} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                            <input type="text" value={b.title || ''} onChange={e => handleUpdateSecurityBadge(b.id, 'title', e.target.value)} placeholder="Badge Title" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '12px', fontWeight: '700', boxSizing: 'border-box' }} />
-                            <input type="text" value={b.desc || ''} onChange={e => handleUpdateSecurityBadge(b.id, 'desc', e.target.value)} placeholder="Badge Description" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '11px', boxSizing: 'border-box' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Security Protocol Sections</h3>
-                        <button type="button" onClick={handleAddSecuritySection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                          <Plus size={14} /> Add Section
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {(securityForm.sections || []).map((sec, idx) => (
-                          <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Section #{idx + 1}</span>
-                              <button type="button" onClick={() => handleRemoveSecuritySection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Trash2 size={13} /> Delete
-                              </button>
-                            </div>
-                            <input type="text" value={sec.title || ''} onChange={e => handleUpdateSecuritySection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
-                            <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdateSecuritySection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 2. PRIVACY SUB-TAB */}
-                {legalSubTab === 'privacy' && (
-                  <>
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Privacy Policy Meta</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
-                          <input type="text" value={privacyForm.title || ''} onChange={e => setPrivacyForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated Note</label>
-                          <input type="text" value={privacyForm.lastUpdated || ''} onChange={e => setPrivacyForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Privacy Officer Email</label>
-                          <input type="email" value={privacyForm.contactEmail || ''} onChange={e => setPrivacyForm(p => ({ ...p, contactEmail: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Privacy Clauses</h3>
-                        <button type="button" onClick={handleAddPrivacySection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                          <Plus size={14} /> Add Clause
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {(privacyForm.sections || []).map((sec, idx) => (
-                          <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Clause #{idx + 1}</span>
-                              <button type="button" onClick={() => handleRemovePrivacySection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Trash2 size={13} /> Delete
-                              </button>
-                            </div>
-                            <input type="text" value={sec.title || ''} onChange={e => handleUpdatePrivacySection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
-                            <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdatePrivacySection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 3. TERMS SUB-TAB */}
-                {legalSubTab === 'terms' && (
-                  <>
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Terms & Conditions Meta</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Terms Title</label>
-                          <input type="text" value={termsForm.title || ''} onChange={e => setTermsForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated Note</label>
-                          <input type="text" value={termsForm.lastUpdated || ''} onChange={e => setTermsForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Terms Sections</h3>
-                        <button type="button" onClick={handleAddTermsSection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                          <Plus size={14} /> Add Section
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {(termsForm.sections || []).map((sec, idx) => (
-                          <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Clause #{idx + 1}</span>
-                              <button type="button" onClick={() => handleRemoveTermsSection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Trash2 size={13} /> Delete
-                              </button>
-                            </div>
-                            <input type="text" value={sec.title || ''} onChange={e => handleUpdateTermsSection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
-                            <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdateTermsSection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 4. ABOUT US SUB-TAB */}
-                {legalSubTab === 'about' && (
-                  <>
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>About Us Story & Mission</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
-                          <input type="text" value={aboutForm.title || ''} onChange={e => setAboutForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tagline</label>
-                          <input type="text" value={aboutForm.tagline || ''} onChange={e => setAboutForm(p => ({ ...p, tagline: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Mission Statement</label>
-                          <textarea rows={3} value={aboutForm.mission || ''} onChange={e => setAboutForm(p => ({ ...p, mission: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Our Story</label>
-                          <textarea rows={4} value={aboutForm.story || ''} onChange={e => setAboutForm(p => ({ ...p, story: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Platform Statistics</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        {(aboutForm.stats || []).map((s) => (
-                          <div key={s.id} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
-                            <input type="text" value={s.value || ''} onChange={e => handleUpdateAboutStat(s.id, 'value', e.target.value)} placeholder="Stat Value (e.g. 100M+)" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '13px', fontWeight: '800', color: 'var(--primary-red)', boxSizing: 'border-box' }} />
-                            <input type="text" value={s.label || ''} onChange={e => handleUpdateAboutStat(s.id, 'label', e.target.value)} placeholder="Label" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Core Principles & Values</h3>
-                        <button type="button" onClick={handleAddAboutValue} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                          <Plus size={14} /> Add Principle
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        {(aboutForm.values || []).map((v, idx) => (
-                          <div key={v.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Principle #{idx + 1}</span>
-                              <button type="button" onClick={() => handleRemoveAboutValue(v.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Trash2 size={13} /> Delete
-                              </button>
-                            </div>
-                            <input type="text" value={v.title || ''} onChange={e => handleUpdateAboutValue(v.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
-                            <textarea rows={2} value={v.desc || ''} onChange={e => handleUpdateAboutValue(v.id, 'desc', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 5. BLOG MANAGER SUB-TAB */}
-                {legalSubTab === 'blog' && (
-                  <>
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Blog Header</h3>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Blog Title</label>
-                          <input type="text" value={blogForm.title || ''} onChange={e => setBlogForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Blog Subtitle</label>
-                          <input type="text" value={blogForm.subtitle || ''} onChange={e => setBlogForm(p => ({ ...p, subtitle: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Published Articles ({blogForm.posts?.length || 0})</h3>
-                        <button type="button" onClick={handleAddBlogPost} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', backgroundColor: 'var(--primary-red)', color: '#ffffff', border: 'none', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
-                          <Plus size={14} /> Add New Article
-                        </button>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {(blogForm.posts || []).map((post, idx) => (
-                          <div key={post.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                              <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary-red)', textTransform: 'uppercase' }}>{post.category || 'Tutorials'}</span>
-                              <button type="button" onClick={() => handleRemoveBlogPost(post.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Trash2 size={13} /> Delete
-                              </button>
-                            </div>
-                            <input type="text" value={post.title || ''} onChange={e => handleUpdateBlogPost(post.id, 'title', e.target.value)} placeholder="Article Title" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                              <input type="text" value={post.category || ''} onChange={e => handleUpdateBlogPost(post.id, 'category', e.target.value)} placeholder="Category" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
-                              <input type="text" value={post.author || ''} onChange={e => handleUpdateBlogPost(post.id, 'author', e.target.value)} placeholder="Author" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
-                              <input type="text" value={post.readTime || ''} onChange={e => handleUpdateBlogPost(post.id, 'readTime', e.target.value)} placeholder="Read Time" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
-                            </div>
-                            <textarea rows={2} value={post.summary || ''} onChange={e => handleUpdateBlogPost(post.id, 'summary', e.target.value)} placeholder="Summary preview" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '12px', boxSizing: 'border-box' }} />
-                            <textarea rows={4} value={post.body || ''} onChange={e => handleUpdateBlogPost(post.id, 'body', e.target.value)} placeholder="Full Article Body" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', lineHeight: '1.6', boxSizing: 'border-box' }} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 6. PRESS & MEDIA SUB-TAB */}
-
-                {/* Save & Reset Action Card */}
-                <div style={{
-                  backgroundColor: 'var(--bg-card)',
-                  border: '1px solid var(--border-light)',
-                  borderRadius: '16px',
-                  padding: '20px 24px',
-                  boxShadow: 'var(--shadow-sm)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '14px',
-                  position: 'sticky',
-                  bottom: '20px',
-                  zIndex: 10
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => handleResetLegal(legalSubTab)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 18px',
-                      borderRadius: '10px',
-                      backgroundColor: 'var(--bg-light)',
-                      color: 'var(--text-gray)',
-                      border: '1px solid var(--border-light)',
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <RotateCcw size={15} /> Reset {legalSubTab.toUpperCase()} to Defaults
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isSavingLegal}
-                    onClick={() => handleSaveLegal(legalSubTab)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '12px 28px',
-                      borderRadius: '10px',
-                      backgroundColor: 'var(--primary-red)',
-                      color: '#ffffff',
-                      border: 'none',
-                      fontWeight: '800',
-                      fontSize: '14px',
-                      cursor: isSavingLegal ? 'not-allowed' : 'pointer',
-                      opacity: isSavingLegal ? 0.7 : 1,
-                      boxShadow: '0 4px 12px rgba(230, 0, 0, 0.25)'
-                    }}
-                  >
-                    {isSavingLegal ? (
-                      <>
-                        <RefreshCw size={16} className="spin-animation" />
-                        Saving to Database...
-                      </>
-                    ) : (
-                      <>
-                        <Save size={16} />
-                        Save & Publish Changes
-                      </>
-                    )}
-                  </button>
-                </div>
-
-              </div>
-
-              {/* ─── RIGHT COLUMN: LIVE REAL-TIME PREVIEW ─── */}
-              <div style={{
-                position: 'sticky',
-                top: '84px',
-                backgroundColor: 'var(--bg-card)',
-                border: '1px solid var(--border-light)',
-                borderRadius: '18px',
-                padding: '24px',
-                boxShadow: 'var(--shadow-sm)',
-                maxHeight: 'calc(100vh - 110px)',
-                overflowY: 'auto'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '18px',
-                  paddingBottom: '12px',
-                  borderBottom: '1px solid var(--border-light)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: '#10b981',
-                      display: 'inline-block'
-                    }} />
-                    <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-dark)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Live User-Facing Preview
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '11px', color: 'var(--text-light-gray)', fontWeight: '700' }}>
-                    /{legalSubTab}
-                  </span>
-                </div>
-
-                {/* Simulated Visitor Back Button */}
-                <div style={{ textAlign: 'left', marginBottom: '16px' }}>
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-light)',
-                    backgroundColor: 'var(--bg-light)',
-                    color: 'var(--text-gray)',
-                    fontSize: '12px',
-                    fontWeight: '700',
-                    cursor: 'default'
-                  }}>
-                    <ArrowLeft size={13} /> Back
-                  </div>
-                </div>
-
-                {/* Simulated Preview Rendering based on active subtab */}
-                {legalSubTab === 'security' && (
-                  <div>
-                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{securityForm.title}</h3>
-                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{securityForm.lastUpdated}</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '18px' }}>
-                      {(securityForm.badges || []).map(b => (
-                        <div key={b.id} style={{ backgroundColor: 'var(--bg-light)', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                          <div style={{ fontSize: '11px', fontWeight: '700' }}>{b.title}</div>
-                          <div style={{ fontSize: '10px', color: 'var(--text-gray)' }}>{b.desc}</div>
-                        </div>
-                      ))}
-                    </div>
-                    {(securityForm.sections || []).map(s => (
-                      <div key={s.id} style={{ borderLeft: '2px solid var(--primary-red)', paddingLeft: '10px', marginBottom: '12px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {legalSubTab === 'privacy' && (
-                  <div>
-                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{privacyForm.title}</h3>
-                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{privacyForm.lastUpdated}</p>
-                    {(privacyForm.sections || []).map(s => (
-                      <div key={s.id} style={{ marginBottom: '14px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {legalSubTab === 'terms' && (
-                  <div>
-                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{termsForm.title}</h3>
-                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{termsForm.lastUpdated}</p>
-                    {(termsForm.sections || []).map(s => (
-                      <div key={s.id} style={{ marginBottom: '14px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {legalSubTab === 'about' && (
-                  <div>
-                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{aboutForm.title}</h3>
-                    <p style={{ fontSize: '12px', color: 'var(--primary-red)', fontWeight: '700', marginBottom: '14px' }}>{aboutForm.tagline}</p>
-                    <div style={{ backgroundColor: 'rgba(229,36,36,0.05)', padding: '12px', borderRadius: '10px', fontSize: '12px', lineHeight: '1.5', marginBottom: '14px' }}>
-                      <strong>Mission:</strong> {aboutForm.mission}
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
-                      {(aboutForm.stats || []).map(s => (
-                        <div key={s.id} style={{ backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '16px', fontWeight: '900', color: 'var(--primary-red)' }}>{s.value}</div>
-                          <div style={{ fontSize: '10px', fontWeight: '700' }}>{s.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {legalSubTab === 'blog' && (
-                  <div>
-                    <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{blogForm.title}</h3>
-                    <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '14px' }}>{blogForm.subtitle}</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {(blogForm.posts || []).slice(0, 3).map(p => (
-                        <div key={p.id} style={{ backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                          <span style={{ fontSize: '9px', fontWeight: '800', color: 'var(--primary-red)' }}>{p.category}</span>
-                          <div style={{ fontSize: '12px', fontWeight: '700', marginTop: '2px' }}>{p.title}</div>
-                          <div style={{ fontSize: '10px', color: 'var(--text-gray)', marginTop: '4px' }}>{p.summary}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-
-                {/* Simulated Contact Notice */}
-                <div style={{
-                  marginTop: '20px',
-                  backgroundColor: 'var(--bg-light)',
-                  borderLeft: '3px solid var(--primary-red)',
-                  borderRadius: '6px',
-                  padding: '12px',
-                  fontSize: '11px',
-                  color: 'var(--text-gray)',
-                  textAlign: 'left'
-                }}>
-                  Legal questions? Contact us at <strong style={{ color: 'var(--primary-red)' }}>
-                    {legalSubTab === 'privacy' ? (privacyForm.contactEmail || 'privacy@ilovepdf.com') : (termsForm.contactEmail || 'legal@ilovepdf.com')}
-                  </strong>
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-        )}
-
-        {/* === TAB 5: SYSTEM SETTINGS === */}
-        {activeTab === 'settings' && (
-          <div style={{ maxWidth: '720px' }}>
-            <div style={{ marginBottom: '28px' }}>
-              <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>System Control Settings</h1>
-              <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Manage subscription price lists, server caches, and active maintenance mode overlays.</p>
-            </div>
-
-            {/* 1. Maintenance mode block */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1.5px solid var(--border-light)', borderRadius: '18px', padding: '24px', marginBottom: '24px', boxShadow: 'var(--shadow-sm)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ maxWidth: '420px' }}>
-                  <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <AlertTriangle size={18} color={systemSettings.maintenanceMode ? 'var(--primary-red)' : 'var(--text-gray)'} />
-                    Platform Maintenance Mode
-                  </h3>
-                  <p style={{ fontSize: '13px', color: 'var(--text-gray)', lineHeight: '1.5' }}>
-                    Activating Maintenance Mode blocks standard visitors with an informational splash screen, disabling document uploads while keeping Admin controls open.
-                  </p>
-                </div>
-                <button
-                  onClick={handleToggleMaintenance}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: '10px',
-                    border: '1.5px solid',
-                    borderColor: systemSettings.maintenanceMode ? 'var(--primary-red)' : 'var(--border-light)',
-                    backgroundColor: systemSettings.maintenanceMode ? 'rgba(229,36,36,0.06)' : 'var(--bg-card)',
-                    color: systemSettings.maintenanceMode ? 'var(--primary-red)' : 'var(--text-gray)',
-                    fontWeight: '700',
-                    fontSize: '13px',
-                    cursor: 'pointer',
+                    boxShadow: 'var(--shadow-sm)',
                     transition: 'all 0.2s'
                   }}
                 >
-                  {systemSettings.maintenanceMode ? 'Deactivate Maintenance' : 'Activate Maintenance'}
+                  <RefreshCw size={15} style={isLoadingMessages ? { animation: 'spin 1s linear infinite' } : {}} />
+                  Refresh Messages
                 </button>
               </div>
-            </div>
 
-            {/* 2. Parameters editing form */}
-            <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '30px', boxShadow: 'var(--shadow-sm)' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '24px' }}>Global Configuration Values</h3>
-
-              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-
-                {/* Pricing section */}
-                <div>
-                  <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px', marginBottom: '14px' }}>Licensing Pricing Rates ($)</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '700', marginBottom: '6px' }}>Premium Subscription Rate (Monthly)</label>
-                      <div style={{ position: 'relative', maxWidth: '340px' }}>
-                        <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light-gray)', fontSize: '14px', fontWeight: '700' }}>$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={settingsForm.monthlyPremiumPrice}
-                          onChange={e => setSettingsForm(p => ({ ...p, monthlyPremiumPrice: e.target.value }))}
-                          style={{ width: '100%', padding: '10px 12px 10px 24px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                        />
-                      </div>
-                    </div>
+              {/* Quick Metrics Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: 'rgba(37, 99, 235, 0.1)', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <MessageSquare size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total Inquiries</div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)' }}>{contactMessages.length}</div>
                   </div>
                 </div>
 
-                {/* Storage & Limits section */}
-                <div style={{ marginTop: '10px' }}>
-                  <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px', marginBottom: '14px' }}>Server Cache Retention Policies</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '700', marginBottom: '6px' }}>File Auto-Cleanup Lifetime</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input
-                          type="number"
-                          value={settingsForm.autoCleanupHours}
-                          onChange={e => setSettingsForm(p => ({ ...p, autoCleanupHours: e.target.value }))}
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                        />
-                        <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '700' }}>Hours</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '700', marginBottom: '6px' }}>Max Target Storage Pool</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input
-                          type="number"
-                          value={settingsForm.maxStoragePoolGb}
-                          onChange={e => setSettingsForm(p => ({ ...p, maxStoragePoolGb: e.target.value }))}
-                          style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
-                        />
-                        <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '700' }}>GB</span>
-                      </div>
-                    </div>
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: unreadMessagesCount > 0 ? '#fef3c7' : 'var(--bg-light)', color: unreadMessagesCount > 0 ? '#d97706' : 'var(--text-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Mail size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Unread Inquiries</div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: unreadMessagesCount > 0 ? '#d97706' : 'var(--text-dark)' }}>{unreadMessagesCount}</div>
                   </div>
                 </div>
 
-                {/* Save button and alerts */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '16px' }}>
-                  <button
-                    type="submit"
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '14px', padding: '18px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                  <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <CheckCircle size={22} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Replied / Handled</div>
+                    <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--text-dark)' }}>
+                      {contactMessages.filter(m => m.status === 'Replied').length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter & Search Bar */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', boxShadow: 'var(--shadow-sm)' }}>
+                {/* Search Box */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '260px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '8px 14px' }}>
+                  <Search size={16} color="var(--text-gray)" />
+                  <input
+                    type="text"
+                    value={messageSearch}
+                    onChange={e => setMessageSearch(e.target.value)}
+                    placeholder="Search by name, email, company, subject, or message..."
+                    style={{ border: 'none', background: 'transparent', outline: 'none', color: 'var(--text-dark)', fontSize: '13px', width: '100%' }}
+                  />
+                  {messageSearch && (
+                    <button onClick={() => setMessageSearch('')} style={{ background: 'none', border: 'none', color: 'var(--text-gray)', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                  )}
+                </div>
+
+                {/* Status Tabs */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {[
+                    { id: 'All', label: `All (${contactMessages.length})` },
+                    { id: 'Unread', label: `Unread (${unreadMessagesCount})` },
+                    { id: 'Read', label: `Read (${contactMessages.filter(m => m.status === 'Read').length})` },
+                    { id: 'Replied', label: `Replied (${contactMessages.filter(m => m.status === 'Replied').length})` }
+                  ].map(filter => (
+                    <button
+                      key={filter.id}
+                      onClick={() => setMessageStatusFilter(filter.id)}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-light)',
+                        fontSize: '12px',
+                        fontWeight: messageStatusFilter === filter.id ? '800' : '600',
+                        backgroundColor: messageStatusFilter === filter.id ? 'var(--primary-red)' : 'var(--bg-light)',
+                        color: messageStatusFilter === filter.id ? '#ffffff' : 'var(--text-gray)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Messages Cards List */}
+              {filteredMessages.length === 0 ? (
+                <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '60px 20px', textAlign: 'center' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                    <Mail size={28} />
+                  </div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
+                    No Inquiries Found
+                  </h3>
+                  <p style={{ fontSize: '14px', color: 'var(--text-gray)', maxWidth: '400px', margin: '0 auto' }}>
+                    {messageSearch || messageStatusFilter !== 'All'
+                      ? 'No messages match your search or filter criteria.'
+                      : 'Customer messages submitted via the /contact page will appear here immediately in real time.'}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {filteredMessages.map(msg => {
+                    const isExpanded = expandedMessageId === msg.id;
+                    const initials = (msg.name || 'User').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                    const isUnread = msg.status === 'Unread';
+
+                    return (
+                      <div
+                        key={msg.id}
+                        style={{
+                          backgroundColor: 'var(--bg-card)',
+                          border: isUnread ? '1.5px solid #f59e0b' : '1px solid var(--border-light)',
+                          borderRadius: '16px',
+                          padding: '20px 24px',
+                          boxShadow: isUnread ? '0 4px 15px rgba(245, 158, 11, 0.12)' : 'var(--shadow-sm)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {/* Message Card Top Row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
+                          {/* Sender info */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '50%',
+                              backgroundColor: isUnread ? '#fef3c7' : 'var(--bg-light)',
+                              color: isUnread ? '#d97706' : 'var(--primary-red)',
+                              fontWeight: '800',
+                              fontSize: '15px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              border: '1px solid var(--border-light)',
+                              flexShrink: 0
+                            }}>
+                              {initials}
+                            </div>
+
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                                  {msg.name || 'Anonymous User'}
+                                </h3>
+                                {msg.company && (
+                                  <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                    <Building size={11} /> {msg.company}
+                                  </span>
+                                )}
+                                {msg.team_size && (
+                                  <span style={{ fontSize: '11px', fontWeight: '600', backgroundColor: 'var(--bg-light)', color: 'var(--text-gray)', padding: '2px 8px', borderRadius: '6px' }}>
+                                    👥 {msg.team_size}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Contact coordinates */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                <a
+                                  href={`mailto:${msg.email}`}
+                                  style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}
+                                >
+                                  <Mail size={13} /> {msg.email}
+                                </a>
+                                {msg.phone && (
+                                  <a
+                                    href={`tel:${msg.phone}`}
+                                    style={{ fontSize: '13px', color: 'var(--text-gray)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  >
+                                    <Phone size={13} /> {msg.phone}
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status & Date */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              backgroundColor: msg.status === 'Unread' ? '#fef3c7' : msg.status === 'Replied' ? '#eff6ff' : '#dcfce7',
+                              color: msg.status === 'Unread' ? '#b45309' : msg.status === 'Replied' ? '#1d4ed8' : '#15803d'
+                            }}>
+                              {msg.status === 'Unread' && '● '}
+                              {msg.status === 'Replied' && '💬 '}
+                              {msg.status === 'Read' && '✓ '}
+                              {msg.status}
+                            </span>
+
+                            <span style={{ fontSize: '12px', color: 'var(--text-gray)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <Calendar size={12} />
+                              {new Date(msg.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Subject Banner */}
+                        <div style={{ backgroundColor: 'var(--bg-light)', padding: '10px 14px', borderRadius: '10px', marginBottom: '12px', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: '2px' }}>
+                            Subject:
+                          </div>
+                          <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)' }}>
+                            {msg.subject || 'Direct Inquiry'}
+                          </div>
+                        </div>
+
+                        {/* Message Content */}
+                        <div style={{
+                          fontSize: '14px',
+                          color: 'var(--text-dark)',
+                          lineHeight: '1.6',
+                          whiteSpace: 'pre-wrap',
+                          marginBottom: '16px',
+                          maxHeight: isExpanded ? 'none' : '90px',
+                          overflow: 'hidden',
+                          position: 'relative'
+                        }}>
+                          {msg.message}
+                          {!isExpanded && msg.message && msg.message.length > 200 && (
+                            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35px', background: 'linear-gradient(transparent, var(--bg-card))' }} />
+                          )}
+                        </div>
+
+                        {msg.message && msg.message.length > 200 && (
+                          <button
+                            onClick={() => setExpandedMessageId(isExpanded ? null : msg.id)}
+                            style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0, marginBottom: '14px', display: 'block' }}
+                          >
+                            {isExpanded ? 'Show less ▲' : 'Read full message ▼'}
+                          </button>
+                        )}
+
+                        {/* Sent Reply Display if exists */}
+                        {msg.reply_text && (
+                          <div style={{
+                            marginTop: '14px',
+                            marginBottom: '16px',
+                            padding: '14px 18px',
+                            borderRadius: '12px',
+                            backgroundColor: '#f0fdf4',
+                            border: '1px solid #bbf7d0'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <CheckCircle size={15} /> Sent Email Response
+                              </span>
+                              {msg.replied_at && (
+                                <span style={{ fontSize: '11px', color: '#166534', fontWeight: '600' }}>
+                                  Replied on {new Date(msg.replied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#14532d', whiteSpace: 'pre-wrap', lineHeight: '1.6', backgroundColor: '#ffffff', padding: '12px 14px', borderRadius: '8px', border: '1px solid #dcfce7' }}>
+                              {msg.reply_text}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions Bar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid var(--border-light)', flexWrap: 'wrap', gap: '10px' }}>
+                          {/* Status Toggles */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            {msg.status !== 'Read' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateMessageStatus(msg.id, 'Read')}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Check size={13} /> Mark as Read
+                              </button>
+                            )}
+                            {msg.status !== 'Unread' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateMessageStatus(msg.id, 'Unread')}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
+                              >
+                                Mark as Unread
+                              </button>
+                            )}
+                            {msg.status !== 'Replied' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateMessageStatus(msg.id, 'Replied')}
+                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #bfdbfe', backgroundColor: '#eff6ff', color: '#1d4ed8', fontSize: '12px', fontWeight: '700', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Reply size={13} /> Mark as Replied
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Reply & Delete */}
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              onClick={() => openReplyModal(msg)}
+                              style={{
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                backgroundColor: 'var(--primary-red)',
+                                color: '#ffffff',
+                                border: 'none',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                boxShadow: '0 2px 8px rgba(229, 36, 36, 0.25)',
+                                transition: 'all 0.15s'
+                              }}
+                            >
+                              <Send size={13} /> {msg.reply_text ? 'Send Another Reply' : 'Reply via Email'}
+                            </button>
+
+                            <a
+                              href={`mailto:${msg.email}?subject=${encodeURIComponent('Re: ' + (msg.subject || 'Your azPDF Inquiry'))}&body=${encodeURIComponent(`Hi ${msg.name},\n\nThank you for reaching out to us!\n\nRegarding your message:\n"${msg.message}"\n\n`)}`}
+                              title="Open in your external email app"
+                              style={{
+                                padding: '7px 11px',
+                                borderRadius: '8px',
+                                backgroundColor: 'var(--bg-light)',
+                                color: 'var(--text-gray)',
+                                border: '1px solid var(--border-light)',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <ExternalLink size={12} /> Mail App
+                            </a>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              style={{
+                                padding: '7px 12px',
+                                borderRadius: '8px',
+                                backgroundColor: '#fee2e2',
+                                color: '#ef4444',
+                                border: 'none',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title="Delete this message"
+                            >
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* EMAIL REPLY MODAL (Direct Client Email Dispatch) */}
+              {replyModalMsg && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    backdropFilter: 'blur(5px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 99999,
+                    padding: '16px'
+                  }}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget && !isSendingReply) {
+                      setReplyModalMsg(null);
+                    }
+                  }}
+                >
+                  <div
                     style={{
-                      padding: '12px 28px',
+                      backgroundColor: 'var(--bg-card)',
+                      borderRadius: '20px',
+                      width: '100%',
+                      maxWidth: '680px',
+                      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                      border: '1px solid var(--border-light)',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      maxHeight: '92vh'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Modal Header */}
+                    <div
+                      style={{
+                        padding: '18px 24px',
+                        borderBottom: '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: 'var(--bg-light)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(229, 36, 36, 0.12)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Send size={18} />
+                        </div>
+                        <div>
+                          <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                            Reply via Email to Client
+                          </h2>
+                          <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>
+                            Dispatch an official branded email response straight to the client's inbox
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setReplyModalMsg(null)}
+                        disabled={isSendingReply}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-gray)',
+                          fontSize: '22px',
+                          cursor: 'pointer',
+                          padding: '4px 8px',
+                          borderRadius: '6px'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Modal Body / Form */}
+                    <form onSubmit={handleSendEmailReply} style={{ padding: '22px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {/* Recipient Details Pill */}
+                      <div style={{ padding: '12px 16px', borderRadius: '12px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Recipient:
+                          </span>{' '}
+                          <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>{replyModalMsg.name}</strong>{' '}
+                          <span style={{ fontSize: '13px', color: '#2563eb', fontWeight: '600' }}>&lt;{replyModalMsg.email}&gt;</span>
+                        </div>
+                        {replyModalMsg.company && (
+                          <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: 'var(--bg-card)', color: 'var(--text-gray)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                            🏢 {replyModalMsg.company}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Client's Original Message Preview */}
+                      <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(0,0,0,0.02)', borderLeft: '3px solid var(--primary-red)', fontSize: '12px', color: 'var(--text-gray)' }}>
+                        <strong style={{ color: 'var(--text-dark)' }}>Client's Original Message:</strong>
+                        <div style={{ marginTop: '4px', fontStyle: 'italic', maxHeight: '55px', overflowY: 'auto', lineHeight: '1.5' }}>
+                          "{replyModalMsg.message}"
+                        </div>
+                      </div>
+
+                      {/* Subject Line */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>
+                          Email Subject Line:
+                        </label>
+                        <input
+                          type="text"
+                          value={replySubject}
+                          onChange={(e) => setReplySubject(e.target.value)}
+                          required
+                          style={{
+                            width: '100%',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-dark)',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+
+                      {/* Quick Response Templates */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                          Quick One-Click Templates:
+                        </label>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplySubject(`Enterprise License & Volume Pricing - azPDF`);
+                              setReplyBody(`Hi ${replyModalMsg.name},\n\nThank you for reaching out regarding azPDF Enterprise solutions!\n\nWe would be thrilled to support ${replyModalMsg.company || 'your organization'} with dedicated server capacity, unlimited team seats, priority SLA, and custom volume discounts.\n\nCould you let us know your estimated team size and processing requirements? I can also arrange a quick 15-minute product demonstration for you.\n\nBest regards,\nEnterprise Sales Team\nazPDF Technologies`);
+                            }}
+                            style={{ fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', cursor: 'pointer' }}
+                          >
+                            💼 Enterprise Inquiry
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplySubject(`Support Update: Regarding your azPDF Inquiry`);
+                              setReplyBody(`Hi ${replyModalMsg.name},\n\nThank you for contacting azPDF Technical Support.\n\nWe have reviewed your inquiry regarding:\n"${replyModalMsg.message}"\n\nOur engineering team is actively investigating this. To help us resolve it quickly, could you reply with your browser version and the file format you are working with?\n\nBest regards,\nTechnical Support Team\nazPDF`);
+                            }}
+                            style={{ fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', cursor: 'pointer' }}
+                          >
+                            🛠️ Technical Support
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplySubject(`Re: ${replyModalMsg.subject || 'Your Inquiry'}`);
+                              setReplyBody(`Hi ${replyModalMsg.name},\n\nThank you for contacting azPDF! We have received your inquiry and our team is reviewing it.\n\nPlease let us know if you need any additional assistance or have further questions in the meantime.\n\nBest regards,\nCustomer Success Team\nazPDF`);
+                            }}
+                            style={{ fontSize: '11px', fontWeight: '600', padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', cursor: 'pointer' }}
+                          >
+                            ✉️ General Thank You
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Reply Textarea */}
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '5px' }}>
+                          Your Official Email Message:
+                        </label>
+                        <textarea
+                          rows={7}
+                          value={replyBody}
+                          onChange={(e) => setReplyBody(e.target.value)}
+                          required
+                          placeholder="Write your email reply here..."
+                          style={{
+                            width: '100%',
+                            padding: '12px 14px',
+                            borderRadius: '10px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-card)',
+                            color: 'var(--text-dark)',
+                            fontSize: '13px',
+                            lineHeight: '1.6',
+                            outline: 'none',
+                            resize: 'vertical',
+                            fontFamily: 'inherit',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+
+                      {/* Result / Notification Alert */}
+                      {replyResult && (
+                        <div
+                          style={{
+                            padding: '14px 18px',
+                            borderRadius: '12px',
+                            backgroundColor: replyResult.success ? '#f0fdf4' : '#fef2f2',
+                            border: replyResult.success ? '1px solid #86efac' : '1px solid #fca5a5',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {replyResult.success ? (
+                              <CheckCircle size={18} color="#16a34a" />
+                            ) : (
+                              <AlertTriangle size={18} color="#dc2626" />
+                            )}
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: replyResult.success ? '#15803d' : '#b91c1c' }}>
+                              {replyResult.message}
+                            </span>
+                          </div>
+                          {replyResult.previewUrl && (
+                            <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                              <a
+                                href={replyResult.previewUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: '#2563eb', fontWeight: '700', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <ExternalLink size={13} /> View Live Dispatched Email (Ethereal Mailbox Preview)
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Modal Footer / Buttons */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px', marginTop: '6px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
+                        <button
+                          type="button"
+                          onClick={() => setReplyModalMsg(null)}
+                          disabled={isSendingReply}
+                          style={{
+                            padding: '10px 18px',
+                            borderRadius: '10px',
+                            border: '1px solid var(--border-light)',
+                            backgroundColor: 'var(--bg-light)',
+                            color: 'var(--text-dark)',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {replyResult?.success ? 'Done' : 'Cancel'}
+                        </button>
+
+                        <button
+                          type="submit"
+                          disabled={isSendingReply || !replyBody.trim()}
+                          style={{
+                            padding: '10px 22px',
+                            borderRadius: '10px',
+                            backgroundColor: isSendingReply ? '#94a3b8' : 'var(--primary-red)',
+                            color: '#ffffff',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            border: 'none',
+                            cursor: isSendingReply ? 'not-allowed' : 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            boxShadow: '0 4px 12px rgba(229, 36, 36, 0.3)'
+                          }}
+                        >
+                          <Send size={15} style={isSendingReply ? { animation: 'spin 1s linear infinite' } : {}} />
+                          {isSendingReply ? 'Sending Email...' : 'Send Email Reply Now'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* === TAB: HOME PAGE CONTENT MANAGER === */}
+          {activeTab === 'content' && (
+            <div style={{ width: '100%' }}>
+              <div style={{ marginBottom: '28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>Pages Setting</h1>
+                  <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Manage and edit all logo, titles, headings, descriptions, pricing text, and footer elements across the entire home page.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveContent}
+                  disabled={isSavingContent}
+                  style={{
+                    padding: '12px 24px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    backgroundColor: 'var(--primary-red)',
+                    color: '#ffffff',
+                    fontWeight: '800',
+                    fontSize: '14px',
+                    cursor: isSavingContent ? 'not-allowed' : 'pointer',
+                    opacity: isSavingContent ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 15px rgba(229, 36, 36, 0.25)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {isSavingContent ? (
+                    <>
+                      <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} /> Save All Changes
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {contentSaved && (
+                <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', padding: '14px 18px', borderRadius: '12px', marginBottom: '24px', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle size={18} color="#059669" />
+                  Home Page logo, titles, headings, and text updated successfully!
+                </div>
+              )}
+
+              <form onSubmit={handleSaveContent} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                {/* Section Tabs */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                  {[
+                    { id: 'header', label: 'Header' },
+                    { id: 'hero', label: 'Hero Section' },
+                    { id: 'tools', label: 'Tools Section' },
+                    { id: 'pricing', label: 'Pricing' },
+                    { id: 'footer', label: 'Footer Section' },
+                    { id: 'badges', label: 'App Badges' },
+                  ].map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setContentSection(t.id)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: contentSection === t.id ? 'none' : '1px solid var(--border-light)',
+                        backgroundColor: contentSection === t.id ? 'var(--primary-red)' : 'var(--bg-card)',
+                        color: contentSection === t.id ? '#ffffff' : 'var(--text-gray)',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {contentSection === 'header' && (<>
+                  {/* 1. Header & Logo Branding */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🎨 Site Logo & Header Brand
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Brand Prefix Text</label>
+                        <input
+                          type="text"
+                          value={contentForm.brandPrefix}
+                          onChange={e => setContentForm(p => ({ ...p, brandPrefix: e.target.value }))}
+                          placeholder="e.g. I"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Logo Heart / Icon</label>
+                        <input
+                          type="text"
+                          value={contentForm.brandIcon}
+                          onChange={e => setContentForm(p => ({ ...p, brandIcon: e.target.value }))}
+                          placeholder="e.g. ❤️"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Brand Suffix Text</label>
+                        <input
+                          type="text"
+                          value={contentForm.brandName}
+                          onChange={e => setContentForm(p => ({ ...p, brandName: e.target.value }))}
+                          placeholder="e.g. PDF"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-gray)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>Live Preview:</span>
+                      <span style={{ fontWeight: '900', color: 'var(--text-dark)', backgroundColor: 'var(--bg-light)', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                        {contentForm.brandPrefix} {contentForm.brandIcon} {contentForm.brandName}
+                      </span>
+                    </div>
+                  </div>
+                </>)}
+
+                {contentSection === 'hero' && (<>
+                  {/* 2. Hero Section Content */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🚀 Main Hero Banner
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Hero Main Title Heading</label>
+                        <input
+                          type="text"
+                          value={contentForm.heroTitle}
+                          onChange={e => setContentForm(p => ({ ...p, heroTitle: e.target.value }))}
+                          placeholder="Hero Title"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Hero Subtitle / Description Paragraph</label>
+                        <textarea
+                          rows={3}
+                          value={contentForm.heroSubtitle}
+                          onChange={e => setContentForm(p => ({ ...p, heroSubtitle: e.target.value }))}
+                          placeholder="Hero Subtitle"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none', resize: 'vertical' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>)}
+
+                {contentSection === 'tools' && (<>
+                  {/* 3. Tools Section Content */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🛠️ PDF Tools Section Headings
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tools Section Heading</label>
+                        <input
+                          type="text"
+                          value={contentForm.toolsTitle}
+                          onChange={e => setContentForm(p => ({ ...p, toolsTitle: e.target.value }))}
+                          placeholder="Tools Section Heading"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tools Section Subtitle</label>
+                        <input
+                          type="text"
+                          value={contentForm.toolsSubtitle}
+                          onChange={e => setContentForm(p => ({ ...p, toolsSubtitle: e.target.value }))}
+                          placeholder="Tools Section Subtitle"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>)}
+
+                {contentSection === 'pricing' && (<>
+                  {/* 4. Pricing Section Content */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      💳 Pricing Section & Plan Text
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Category Badge</label>
+                          <input
+                            type="text"
+                            value={contentForm.pricingBadge}
+                            onChange={e => setContentForm(p => ({ ...p, pricingBadge: e.target.value }))}
+                            placeholder="Pricing Badge"
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Main Heading</label>
+                          <input
+                            type="text"
+                            value={contentForm.pricingTitle}
+                            onChange={e => setContentForm(p => ({ ...p, pricingTitle: e.target.value }))}
+                            placeholder="Pricing Title"
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Pricing Subtitle / Description</label>
+                        <input
+                          type="text"
+                          value={contentForm.pricingSubtitle}
+                          onChange={e => setContentForm(p => ({ ...p, pricingSubtitle: e.target.value }))}
+                          placeholder="Pricing Subtitle"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                        />
+                      </div>
+
+                      <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '4px 0' }} />
+
+                      {/* Plan Cards — Free / Basic / Premium */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+                        {/* Free */}
+                        <div style={{ backgroundColor: 'var(--bg-light)', borderRadius: '10px', padding: '14px', border: '1px solid var(--border-light)' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-gray)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🆓 Free Plan</div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
+                          <input
+                            type="text"
+                            value={contentForm.freePlanTitle}
+                            onChange={e => setContentForm(p => ({ ...p, freePlanTitle: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
+                          />
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
+                          <textarea
+                            rows={3}
+                            value={contentForm.freePlanDesc}
+                            onChange={e => setContentForm(p => ({ ...p, freePlanDesc: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        {/* Basic */}
+                        <div style={{ backgroundColor: '#f0fdf4', borderRadius: '10px', padding: '14px', border: '1px solid #bbf7d0' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '800', color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>⭐ Basic Plan</div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
+                          <input
+                            type="text"
+                            value={contentForm.basicPlanTitle}
+                            onChange={e => setContentForm(p => ({ ...p, basicPlanTitle: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
+                          />
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
+                          <textarea
+                            rows={3}
+                            value={contentForm.basicPlanDesc}
+                            onChange={e => setContentForm(p => ({ ...p, basicPlanDesc: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        {/* Premium */}
+                        <div style={{ backgroundColor: '#fffbeb', borderRadius: '10px', padding: '14px', border: '1px solid #fde68a' }}>
+                          <div style={{ fontSize: '11px', fontWeight: '800', color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>🔥 Premium Plan</div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Plan Title</label>
+                          <input
+                            type="text"
+                            value={contentForm.premiumPlanTitle}
+                            onChange={e => setContentForm(p => ({ ...p, premiumPlanTitle: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fde68a', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }}
+                          />
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginTop: '8px', marginBottom: '4px' }}>Description</label>
+                          <textarea
+                            rows={3}
+                            value={contentForm.premiumPlanDesc}
+                            onChange={e => setContentForm(p => ({ ...p, premiumPlanDesc: e.target.value }))}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #fde68a', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px', resize: 'vertical', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>)}
+
+                {contentSection === 'footer' && (<>
+                  {/* Footer Section Content & Dynamic Links */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🌐 Footer Branding, Links & Buttons
+                    </h3>
+                    <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '0 0 18px 0' }}>
+                      App Store download badges are managed in the separate <strong>App Badges</strong> tab.
+                    </p>
+
+                    {/* Footer Bottom Quick Buttons Manager */}
+                    <div style={{ marginBottom: '24px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div>
+                          <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Footer Bottom Quick Links / Buttons</h4>
+                          <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>Inline links shown next to the copyright text (e.g., Terms, Privacy, Help).</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleAddFooterButton}
+                          style={{ padding: '6px 14px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--text-dark)', fontWeight: '700', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Plus size={14} /> Add Quick Button
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
+                        {contentForm.footerButtons.map((btn, btnIdx) => (
+                          <div key={btnIdx} style={{ display: 'flex', gap: '8px', alignItems: 'center', backgroundColor: 'var(--bg-light)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                            <input
+                              type="text"
+                              value={btn.label}
+                              onChange={e => handleFooterButtonChange(btnIdx, 'label', e.target.value)}
+                              placeholder="Button Label"
+                              style={{ width: '40%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                            />
+                            <input
+                              type="text"
+                              value={btn.url}
+                              onChange={e => handleFooterButtonChange(btnIdx, 'url', e.target.value)}
+                              placeholder="Path (e.g. /terms)"
+                              style={{ flex: 1, padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFooterButton(btnIdx)}
+                              style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '20px 0' }} />
+
+                  </div>
+
+                  {/* 1. Footer Navigation Columns & Links (FULL CRUD) */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                      <div>
+                        <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          📋 Footer Navigation Columns (CRUD)
+                        </h3>
+                        <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>
+                          Create, edit, reorder or delete entire columns and links. Click any preset button to quickly add real working links.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddFooterColumn}
+                        style={{
+                          padding: '8px 18px',
+                          borderRadius: '10px',
+                          backgroundColor: 'var(--primary-red)',
+                          border: 'none',
+                          color: '#ffffff',
+                          fontWeight: '700',
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(229, 36, 36, 0.2)'
+                        }}
+                      >
+                        <Plus size={16} /> + Add New Column
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      {contentForm.footerColumns.map((col, colIdx) => (
+                        <div
+                          key={col.id || colIdx}
+                          style={{
+                            backgroundColor: 'var(--bg-light)',
+                            border: '1.5px solid var(--border-light)',
+                            borderRadius: '14px',
+                            padding: '18px'
+                          }}
+                        >
+                          {/* Column Header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                              <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-gray)', minWidth: '70px' }}>
+                                COLUMN {colIdx + 1}:
+                              </span>
+                              <input
+                                type="text"
+                                value={col.title}
+                                onChange={e => handleColumnTitleChange(colIdx, e.target.value)}
+                                placeholder="Column Heading (e.g. PRODUCT)"
+                                style={{
+                                  flex: 1,
+                                  maxWidth: '320px',
+                                  padding: '8px 12px',
+                                  borderRadius: '8px',
+                                  border: '1.5px solid var(--border-light)',
+                                  backgroundColor: 'var(--bg-card)',
+                                  color: 'var(--text-dark)',
+                                  fontSize: '14px',
+                                  fontWeight: '800',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.5px'
+                                }}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Delete column "${col.title}" and all its links?`)) {
+                                  handleDeleteFooterColumn(colIdx);
+                                }
+                              }}
+                              style={{
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                backgroundColor: '#fee2e2',
+                                color: '#ef4444',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title="Delete this entire column"
+                            >
+                              <Trash2 size={14} /> Delete Column
+                            </button>
+                          </div>
+
+                          {/* Quick Presets for this Column */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '14px', padding: '8px 12px', backgroundColor: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Quick Add:</span>
+                            {[
+                              { label: 'Home', url: '/' },
+                              { label: 'Features', url: '/#features' },
+                              { label: 'Pricing', url: '/#pricing' },
+                              { label: 'Tools', url: '/#tools' },
+                              { label: 'FAQ', url: '/#faq' },
+                              { label: 'About us', url: '/#about' },
+                              { label: 'Terms & conditions', url: '/terms' },
+                              { label: 'Privacy policy', url: '/privacy' },
+                              { label: 'Contact us', url: '/contact' },
+                              { label: 'Help & Support', url: '/help' },
+                            ].map((preset, pIdx) => (
+                              <button
+                                key={pIdx}
+                                type="button"
+                                onClick={() => handleAddPresetLinkToColumn(colIdx, preset.label, preset.url)}
+                                style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  backgroundColor: 'var(--bg-light)',
+                                  border: '1px solid var(--border-light)',
+                                  color: 'var(--text-dark)',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s'
+                                }}
+                                title={`Add "${preset.label}" (${preset.url}) to this column`}
+                              >
+                                + {preset.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Links List for this column */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {col.links && col.links.map((link, linkIdx) => (
+                              <div
+                                key={linkIdx}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  backgroundColor: 'var(--bg-card)',
+                                  padding: '8px 12px',
+                                  borderRadius: '8px',
+                                  border: '1px solid var(--border-light)'
+                                }}
+                              >
+                                <span style={{ fontSize: '12px', color: 'var(--text-gray)', fontWeight: '700', minWidth: '22px' }}>
+                                  #{linkIdx + 1}
+                                </span>
+                                <input
+                                  type="text"
+                                  value={link.label}
+                                  onChange={e => handleLinkChange(colIdx, linkIdx, 'label', e.target.value)}
+                                  placeholder="Link Text (e.g. Home)"
+                                  style={{
+                                    width: '38%',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-light)',
+                                    color: 'var(--text-dark)',
+                                    fontSize: '13px'
+                                  }}
+                                />
+                                <input
+                                  type="text"
+                                  value={link.url}
+                                  onChange={e => handleLinkChange(colIdx, linkIdx, 'url', e.target.value)}
+                                  placeholder="Target URL / Path (e.g. /#features or /terms)"
+                                  style={{
+                                    flex: 1,
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    border: '1px solid var(--border-light)',
+                                    backgroundColor: 'var(--bg-light)',
+                                    color: 'var(--text-dark)',
+                                    fontSize: '13px'
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteLinkFromColumn(colIdx, linkIdx)}
+                                  style={{
+                                    color: '#ef4444',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '4px',
+                                    borderRadius: '4px'
+                                  }}
+                                  title="Delete Link"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            ))}
+
+                            <button
+                              type="button"
+                              onClick={() => handleAddLinkToColumn(colIdx)}
+                              style={{
+                                marginTop: '6px',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                backgroundColor: 'transparent',
+                                border: '1.5px dashed var(--border-light)',
+                                color: 'var(--text-gray)',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px'
+                              }}
+                            >
+                              <Plus size={14} /> Add Custom Link to {col.title || 'Column'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Footer Social Profiles (6 Networks) */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🌐 Social Media Profiles (Footer Icons)
+                    </h3>
+                    <p style={{ fontSize: '12px', color: 'var(--text-gray)', marginBottom: '16px' }}>
+                      Enter external profile URLs for the 6 social icons shown in the footer bottom bar.
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+                      {[
+                        { key: 'twitter', label: 'Twitter / X URL', icon: '𝕏', ph: 'https://twitter.com/yourhandle' },
+                        { key: 'facebook', label: 'Facebook URL', icon: '📘', ph: 'https://facebook.com/yourpage' },
+                        { key: 'linkedin', label: 'LinkedIn URL', icon: '💼', ph: 'https://linkedin.com/company/yourcompany' },
+                        { key: 'instagram', label: 'Instagram URL', icon: '📸', ph: 'https://instagram.com/yourprofile' },
+                        { key: 'tiktok', label: 'TikTok URL', icon: '🎵', ph: 'https://tiktok.com/@yourchannel' },
+                        { key: 'reddit', label: 'Reddit URL', icon: '👾', ph: 'https://reddit.com/r/yourcommunity' },
+                      ].map(net => (
+                        <div key={net.key}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>
+                            <span>{net.icon}</span> {net.label}
+                          </label>
+                          <input
+                            type="text"
+                            value={contentForm.socialLinks[net.key] || ''}
+                            onChange={e => handleSocialLinkChange(net.key, e.target.value)}
+                            placeholder={net.ph}
+                            style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px' }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Footer Branding & Copyright */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      ⚖️ Footer Branding & Copyright Text
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Footer Brand Title</label>
+                        <input
+                          type="text"
+                          value={contentForm.footerBrand}
+                          onChange={e => setContentForm(p => ({ ...p, footerBrand: e.target.value }))}
+                          placeholder="Footer Brand (e.g. I ❤️ PDF)"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Footer Copyright Text</label>
+                        <input
+                          type="text"
+                          value={contentForm.footerCopyright}
+                          onChange={e => setContentForm(p => ({ ...p, footerCopyright: e.target.value }))}
+                          placeholder="Copyright Text (e.g. © 2026 iLovePDF. All Rights Reserved.)"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '14px' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Live Footer Preview */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        👁️ Live Real-Time Footer Preview
+                      </h3>
+                      <span style={{ fontSize: '12px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                        Live Preview
+                      </span>
+                    </div>
+
+                    {/* Dark Preview Container */}
+                    <div style={{ backgroundColor: '#24252e', borderRadius: '14px', padding: '32px 28px 20px', color: '#ffffff', overflowX: 'auto' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '32px', flexWrap: 'wrap', marginBottom: '28px' }}>
+                        {/* Columns Preview */}
+                        <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', flex: 1 }}>
+                          {contentForm.footerColumns.map((col, idx) => (
+                            <div key={idx} style={{ minWidth: '110px' }}>
+                              <div style={{ fontSize: '12px', fontWeight: '800', color: '#ffffff', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
+                                {col.title || 'COLUMN'}
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {col.links && col.links.map((link, lIdx) => (
+                                  <div key={lIdx} style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                                    {link.label}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Store Badges Preview */}
+                        {contentForm.appStoreBadges?.enabled !== false && (
+                          <div>
+                            <StoreBadges config={contentForm.appStoreBadges} layout="vertical" isPreview={true} />
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.12)', margin: '20px 0 16px 0' }} />
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                        {/* Brand + configured social icons */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                          {contentForm.footerBrand && (
+                            <span style={{ fontSize: '14px', fontWeight: '800', color: '#ffffff' }}>
+                              {contentForm.footerBrand}
+                            </span>
+                          )}
+                          <div style={{ display: 'flex', gap: '12px', color: '#cbd5e1', fontSize: '13px', alignItems: 'center' }}>
+                            {[
+                              { key: 'twitter', glyph: '𝕏' },
+                              { key: 'facebook', glyph: 'f' },
+                              { key: 'linkedin', glyph: 'in' },
+                              { key: 'instagram', glyph: '📸' },
+                              { key: 'tiktok', glyph: '🎵' },
+                              { key: 'reddit', glyph: '👾' },
+                            ].filter(net => contentForm.socialLinks?.[net.key]).map(net => (
+                              <span key={net.key}>{net.glyph}</span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Quick links + copyright */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                          {contentForm.footerButtons.filter(btn => btn && btn.label).map((btn, btnIdx) => (
+                            <span key={btnIdx} style={{ fontSize: '13px', color: '#cbd5e1' }}>{btn.label}</span>
+                          ))}
+                          <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                            {contentForm.footerCopyright}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </>)}
+
+                {contentSection === 'badges' && (<>
+                  {/* App Store & Mobile Badges Manager (Image/Store Icons matching screenshot) */}
+                  <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: 'rgba(229,36,36,0.1)', color: 'var(--primary-red)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Smartphone size={20} />
+                        </div>
+                        <div>
+                          <h3 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                            App Store & Mobile Badges Manager
+                          </h3>
+                          <p style={{ fontSize: '12px', color: 'var(--text-gray)', margin: '2px 0 0 0' }}>
+                            Manage Google Play, Apple App Store, Mac App Store, and Microsoft Store download badges displayed in the footer.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Master Toggle */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: contentForm.appStoreBadges?.enabled !== false ? '#059669' : 'var(--text-gray)' }}>
+                          {contentForm.appStoreBadges?.enabled !== false ? '● Visible on Site' : '○ Section Hidden'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleAppStoreToggle('master')}
+                          style={{
+                            padding: '6px 14px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: '800',
+                            border: 'none',
+                            cursor: 'pointer',
+                            backgroundColor: contentForm.appStoreBadges?.enabled !== false ? '#d1fae5' : '#f3f4f6',
+                            color: contentForm.appStoreBadges?.enabled !== false ? '#065f46' : '#6b7280',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {contentForm.appStoreBadges?.enabled !== false ? (
+                            <>
+                              <Eye size={14} /> Active
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff size={14} /> Hidden
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Section Title & Subtitle */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Section Heading Title</label>
+                        <input
+                          type="text"
+                          value={contentForm.appStoreBadges?.title || ''}
+                          onChange={e => handleAppStoreTextChange('title', e.target.value)}
+                          placeholder="e.g. Download azPDF Desktop & Mobile App"
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '4px' }}>Section Subtitle</label>
+                        <input
+                          type="text"
+                          value={contentForm.appStoreBadges?.subtitle || ''}
+                          onChange={e => handleAppStoreTextChange('subtitle', e.target.value)}
+                          placeholder="e.g. Work with PDFs directly on Windows, Mac, Android and iOS devices."
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '13px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <hr style={{ border: 'none', borderTop: '1px dashed var(--border-light)', margin: '16px 0 20px 0' }} />
+
+                    {/* 4 App Store Badges Management Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+
+                      {/* Google Play */}
+                      <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '18px' }}>▶️</span>
+                            <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>Google Play</strong>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAppStoreToggle('googlePlay')}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: '16px',
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              border: 'none',
+                              cursor: 'pointer',
+                              backgroundColor: contentForm.appStoreBadges?.googlePlay?.enabled !== false ? '#d1fae5' : '#fee2e2',
+                              color: contentForm.appStoreBadges?.googlePlay?.enabled !== false ? '#065f46' : '#991b1b',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            {contentForm.appStoreBadges?.googlePlay?.enabled !== false ? 'Visible' : 'Hidden'}
+                          </button>
+                        </div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Google Play Store URL</label>
+                        <input
+                          type="text"
+                          value={contentForm.appStoreBadges?.googlePlay?.url || ''}
+                          onChange={e => handleAppStoreUrlChange('googlePlay', e.target.value)}
+                          placeholder="https://play.google.com/store/apps/..."
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                        />
+                      </div>
+
+                      {/* Apple App Store */}
+                      <div style={{ backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', borderRadius: '12px', padding: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '18px' }}>🍎</span>
+                            <strong style={{ fontSize: '14px', color: 'var(--text-dark)' }}>App Store (iOS)</strong>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAppStoreToggle('appStore')}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: '16px',
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              border: 'none',
+                              cursor: 'pointer',
+                              backgroundColor: contentForm.appStoreBadges?.appStore?.enabled !== false ? '#d1fae5' : '#fee2e2',
+                              color: contentForm.appStoreBadges?.appStore?.enabled !== false ? '#065f46' : '#991b1b',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            {contentForm.appStoreBadges?.appStore?.enabled !== false ? 'Visible' : 'Hidden'}
+                          </button>
+                        </div>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)', marginBottom: '4px' }}>Apple App Store URL</label>
+                        <input
+                          type="text"
+                          value={contentForm.appStoreBadges?.appStore?.url || ''}
+                          onChange={e => handleAppStoreUrlChange('appStore', e.target.value)}
+                          placeholder="https://apps.apple.com/app/..."
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '12px' }}
+                        />
+                      </div>
+
+                    </div>
+
+                    {/* Live Preview Card */}
+                    <div style={{ backgroundColor: '#0f172a', borderRadius: '14px', padding: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', letterSpacing: '0.8px', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>👁️ Real Footer Badges Live Preview:</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                        <div style={{ textAlign: 'left' }}>
+                          <div style={{ color: '#ffffff', fontWeight: '800', fontSize: '15px' }}>
+                            {contentForm.appStoreBadges?.title || 'Download azPDF Desktop & Mobile App'}
+                          </div>
+                          <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '2px' }}>
+                            {contentForm.appStoreBadges?.subtitle || 'Work with PDFs directly on Windows, Mac, Android and iOS devices.'}
+                          </div>
+                        </div>
+                        <StoreBadges config={contentForm.appStoreBadges} isPreview={true} />
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Submit Button */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                    <button
+                      type="submit"
+                      disabled={isSavingContent}
+                      style={{
+                        padding: '14px 32px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        backgroundColor: 'var(--primary-red)',
+                        color: '#ffffff',
+                        fontWeight: '800',
+                        fontSize: '15px',
+                        cursor: isSavingContent ? 'not-allowed' : 'pointer',
+                        opacity: isSavingContent ? 0.7 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 6px 20px rgba(229, 36, 36, 0.3)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {isSavingContent ? (
+                        <>
+                          <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} /> Updating Content...
+                        </>
+                      ) : (
+                        <>
+                          <Save size={18} /> Save Home Page Changes
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>)}
+
+              </form>
+            </div>
+          )}
+
+          {/* === TAB: PRIVACY POLICY & TERMS AND CONDITIONS CONTENT MANAGER === */}
+          {activeTab === 'legal' && (
+            <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+
+              {/* Back Button Navigation Bar */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '20px',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('overview')}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '9px 18px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-card)',
+                      color: 'var(--text-dark)',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      boxShadow: 'var(--shadow-sm)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.backgroundColor = 'var(--border-light)'}
+                    onMouseOut={e => e.currentTarget.style.backgroundColor = 'var(--bg-card)'}
+                  >
+                    <ArrowLeft size={16} /> Back to Dashboard
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '9px 18px',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-light)',
+                      color: 'var(--text-gray)',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseOver={e => {
+                      e.currentTarget.style.backgroundColor = 'var(--border-light)';
+                      e.currentTarget.style.color = 'var(--text-dark)';
+                    }}
+                    onMouseOut={e => {
+                      e.currentTarget.style.backgroundColor = 'var(--bg-light)';
+                      e.currentTarget.style.color = 'var(--text-gray)';
+                    }}
+                  >
+                    Exit to Website
+                  </button>
+                </div>
+
+                <div style={{ fontSize: '13px', color: 'var(--text-gray)' }}>
+                  Managing: <strong style={{ color: 'var(--text-dark)' }}>
+                    {legalSubTab === 'security' ? 'Security & Data Protection' :
+                      legalSubTab === 'privacy' ? 'Privacy Policy' :
+                        legalSubTab === 'terms' ? 'Terms & Conditions' :
+                          legalSubTab === 'about' ? 'About Us' :
+                            legalSubTab === 'blog' ? 'Blog & Articles' : ''}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Top Bar / Header */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '16px',
+                marginBottom: '24px'
+              }}>
+                <div>
+                  <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>
+                    Pages & Legal Content Manager
+                  </h1>
+                  <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>
+                    Customize, update clauses, add or remove sections, and manage live pages with full Node.js & SQLite database persistence.
+                  </p>
+                </div>
+
+                {/* Sub-tabs: 6 Dedicated Pages */}
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '12px',
+                  padding: '4px',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  {[
+                    { id: 'security', label: 'Security', icon: <Shield size={15} /> },
+                    { id: 'privacy', label: 'Privacy Policy', icon: <Lock size={15} /> },
+                    { id: 'terms', label: 'Terms', icon: <Scale size={15} /> },
+                    { id: 'about', label: 'About Us', icon: <Heart size={15} /> },
+                    { id: 'blog', label: 'Blog Posts', icon: <BookOpen size={15} /> },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setLegalSubTab(tab.id)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: legalSubTab === tab.id ? 'var(--primary-red)' : 'transparent',
+                        color: legalSubTab === tab.id ? '#ffffff' : 'var(--text-gray)',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {tab.icon} {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Success notification banner */}
+              {legalSuccessMsg && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 18px',
+                  backgroundColor: '#ecfdf5',
+                  border: '1px solid #10b981',
+                  borderRadius: '12px',
+                  color: '#065f46',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  marginBottom: '24px'
+                }}>
+                  <CheckCircle2 size={18} color="#10b981" />
+                  <span>{legalSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Main 2-Column Layout: Left Editor, Right Live Preview */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)',
+                gap: '28px',
+                alignItems: 'start'
+              }}>
+
+                {/* ─── LEFT COLUMN: EDITING FORM ─── */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                  {/* 1. SECURITY SUB-TAB */}
+                  {legalSubTab === 'security' && (
+                    <>
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>
+                          Security Page Header & Contact
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
+                            <input type="text" value={securityForm.title || ''} onChange={e => setSecurityForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated / Subtitle</label>
+                            <input type="text" value={securityForm.lastUpdated || ''} onChange={e => setSecurityForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Security Contact Email</label>
+                            <input type="email" value={securityForm.contactEmail || ''} onChange={e => setSecurityForm(p => ({ ...p, contactEmail: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>
+                          Security Badges & Compliance Standards
+                        </h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          {(securityForm.badges || []).map((b) => (
+                            <div key={b.id} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                              <input type="text" value={b.title || ''} onChange={e => handleUpdateSecurityBadge(b.id, 'title', e.target.value)} placeholder="Badge Title" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '12px', fontWeight: '700', boxSizing: 'border-box' }} />
+                              <input type="text" value={b.desc || ''} onChange={e => handleUpdateSecurityBadge(b.id, 'desc', e.target.value)} placeholder="Badge Description" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '11px', boxSizing: 'border-box' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Security Protocol Sections</h3>
+                          <button type="button" onClick={handleAddSecuritySection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                            <Plus size={14} /> Add Section
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {(securityForm.sections || []).map((sec, idx) => (
+                            <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Section #{idx + 1}</span>
+                                <button type="button" onClick={() => handleRemoveSecuritySection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                              <input type="text" value={sec.title || ''} onChange={e => handleUpdateSecuritySection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                              <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdateSecuritySection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 2. PRIVACY SUB-TAB */}
+                  {legalSubTab === 'privacy' && (
+                    <>
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Privacy Policy Meta</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
+                            <input type="text" value={privacyForm.title || ''} onChange={e => setPrivacyForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated Note</label>
+                            <input type="text" value={privacyForm.lastUpdated || ''} onChange={e => setPrivacyForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Privacy Officer Email</label>
+                            <input type="email" value={privacyForm.contactEmail || ''} onChange={e => setPrivacyForm(p => ({ ...p, contactEmail: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Privacy Clauses</h3>
+                          <button type="button" onClick={handleAddPrivacySection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                            <Plus size={14} /> Add Clause
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {(privacyForm.sections || []).map((sec, idx) => (
+                            <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Clause #{idx + 1}</span>
+                                <button type="button" onClick={() => handleRemovePrivacySection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                              <input type="text" value={sec.title || ''} onChange={e => handleUpdatePrivacySection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                              <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdatePrivacySection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 3. TERMS SUB-TAB */}
+                  {legalSubTab === 'terms' && (
+                    <>
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Terms & Conditions Meta</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Terms Title</label>
+                            <input type="text" value={termsForm.title || ''} onChange={e => setTermsForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Last Updated Note</label>
+                            <input type="text" value={termsForm.lastUpdated || ''} onChange={e => setTermsForm(p => ({ ...p, lastUpdated: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Terms Sections</h3>
+                          <button type="button" onClick={handleAddTermsSection} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                            <Plus size={14} /> Add Section
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {(termsForm.sections || []).map((sec, idx) => (
+                            <div key={sec.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Clause #{idx + 1}</span>
+                                <button type="button" onClick={() => handleRemoveTermsSection(sec.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                              <input type="text" value={sec.title || ''} onChange={e => handleUpdateTermsSection(sec.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                              <textarea rows={4} value={sec.body || ''} onChange={e => handleUpdateTermsSection(sec.id, 'body', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 4. ABOUT US SUB-TAB */}
+                  {legalSubTab === 'about' && (
+                    <>
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>About Us Story & Mission</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Page Title</label>
+                            <input type="text" value={aboutForm.title || ''} onChange={e => setAboutForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Tagline</label>
+                            <input type="text" value={aboutForm.tagline || ''} onChange={e => setAboutForm(p => ({ ...p, tagline: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Mission Statement</label>
+                            <textarea rows={3} value={aboutForm.mission || ''} onChange={e => setAboutForm(p => ({ ...p, mission: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Our Story</label>
+                            <textarea rows={4} value={aboutForm.story || ''} onChange={e => setAboutForm(p => ({ ...p, story: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Platform Statistics</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          {(aboutForm.stats || []).map((s) => (
+                            <div key={s.id} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-light)' }}>
+                              <input type="text" value={s.value || ''} onChange={e => handleUpdateAboutStat(s.id, 'value', e.target.value)} placeholder="Stat Value (e.g. 100M+)" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '13px', fontWeight: '800', color: 'var(--primary-red)', boxSizing: 'border-box' }} />
+                              <input type="text" value={s.label || ''} onChange={e => handleUpdateAboutStat(s.id, 'label', e.target.value)} placeholder="Label" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Core Principles & Values</h3>
+                          <button type="button" onClick={handleAddAboutValue} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: 'var(--bg-light)', border: '1px solid var(--border-light)', color: 'var(--primary-red)', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                            <Plus size={14} /> Add Principle
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          {(aboutForm.values || []).map((v, idx) => (
+                            <div key={v.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-gray)' }}>Principle #{idx + 1}</span>
+                                <button type="button" onClick={() => handleRemoveAboutValue(v.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                              <input type="text" value={v.title || ''} onChange={e => handleUpdateAboutValue(v.id, 'title', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '6px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                              <textarea rows={2} value={v.desc || ''} onChange={e => handleUpdateAboutValue(v.id, 'desc', e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 5. BLOG MANAGER SUB-TAB */}
+                  {legalSubTab === 'blog' && (
+                    <>
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '16px' }}>Blog Header</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Blog Title</label>
+                            <input type="text" value={blogForm.title || ''} onChange={e => setBlogForm(p => ({ ...p, title: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-dark)', marginBottom: '6px' }}>Blog Subtitle</label>
+                            <input type="text" value={blogForm.subtitle || ''} onChange={e => setBlogForm(p => ({ ...p, subtitle: e.target.value }))} style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-light)', backgroundColor: 'var(--bg-light)', color: 'var(--text-dark)', fontSize: '13px', boxSizing: 'border-box' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '16px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>Published Articles ({blogForm.posts?.length || 0})</h3>
+                          <button type="button" onClick={handleAddBlogPost} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', backgroundColor: 'var(--primary-red)', color: '#ffffff', border: 'none', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}>
+                            <Plus size={14} /> Add New Article
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {(blogForm.posts || []).map((post, idx) => (
+                            <div key={post.id || idx} style={{ backgroundColor: 'var(--bg-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary-red)', textTransform: 'uppercase' }}>{post.category || 'Tutorials'}</span>
+                                <button type="button" onClick={() => handleRemoveBlogPost(post.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                              <input type="text" value={post.title || ''} onChange={e => handleUpdateBlogPost(post.id, 'title', e.target.value)} placeholder="Article Title" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '13px', fontWeight: '700', boxSizing: 'border-box' }} />
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                                <input type="text" value={post.category || ''} onChange={e => handleUpdateBlogPost(post.id, 'category', e.target.value)} placeholder="Category" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                                <input type="text" value={post.author || ''} onChange={e => handleUpdateBlogPost(post.id, 'author', e.target.value)} placeholder="Author" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                                <input type="text" value={post.readTime || ''} onChange={e => handleUpdateBlogPost(post.id, 'readTime', e.target.value)} placeholder="Read Time" style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', boxSizing: 'border-box' }} />
+                              </div>
+                              <textarea rows={2} value={post.summary || ''} onChange={e => handleUpdateBlogPost(post.id, 'summary', e.target.value)} placeholder="Summary preview" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', marginBottom: '8px', fontSize: '12px', boxSizing: 'border-box' }} />
+                              <textarea rows={4} value={post.body || ''} onChange={e => handleUpdateBlogPost(post.id, 'body', e.target.value)} placeholder="Full Article Body" style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-light)', fontSize: '12px', lineHeight: '1.6', boxSizing: 'border-box' }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 6. PRESS & MEDIA SUB-TAB */}
+
+                  {/* Save & Reset Action Card */}
+                  <div style={{
+                    backgroundColor: 'var(--bg-card)',
+                    border: '1px solid var(--border-light)',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    boxShadow: 'var(--shadow-sm)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '14px',
+                    position: 'sticky',
+                    bottom: '20px',
+                    zIndex: 10
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => handleResetLegal(legalSubTab)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 18px',
+                        borderRadius: '10px',
+                        backgroundColor: 'var(--bg-light)',
+                        color: 'var(--text-gray)',
+                        border: '1px solid var(--border-light)',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <RotateCcw size={15} /> Reset {legalSubTab.toUpperCase()} to Defaults
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSavingLegal}
+                      onClick={() => handleSaveLegal(legalSubTab)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '12px 28px',
+                        borderRadius: '10px',
+                        backgroundColor: 'var(--primary-red)',
+                        color: '#ffffff',
+                        border: 'none',
+                        fontWeight: '800',
+                        fontSize: '14px',
+                        cursor: isSavingLegal ? 'not-allowed' : 'pointer',
+                        opacity: isSavingLegal ? 0.7 : 1,
+                        boxShadow: '0 4px 12px rgba(230, 0, 0, 0.25)'
+                      }}
+                    >
+                      {isSavingLegal ? (
+                        <>
+                          <RefreshCw size={16} className="spin-animation" />
+                          Saving to Database...
+                        </>
+                      ) : (
+                        <>
+                          <Save size={16} />
+                          Save & Publish Changes
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                </div>
+
+                {/* ─── RIGHT COLUMN: LIVE REAL-TIME PREVIEW ─── */}
+                <div style={{
+                  position: 'sticky',
+                  top: '84px',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-light)',
+                  borderRadius: '18px',
+                  padding: '24px',
+                  boxShadow: 'var(--shadow-sm)',
+                  maxHeight: 'calc(100vh - 110px)',
+                  overflowY: 'auto'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '18px',
+                    paddingBottom: '12px',
+                    borderBottom: '1px solid var(--border-light)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: '#10b981',
+                        display: 'inline-block'
+                      }} />
+                      <span style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-dark)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Live User-Facing Preview
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-light-gray)', fontWeight: '700' }}>
+                      /{legalSubTab}
+                    </span>
+                  </div>
+
+                  {/* Simulated Visitor Back Button */}
+                  <div style={{ textAlign: 'left', marginBottom: '16px' }}>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-light)',
+                      backgroundColor: 'var(--bg-light)',
+                      color: 'var(--text-gray)',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'default'
+                    }}>
+                      <ArrowLeft size={13} /> Back
+                    </div>
+                  </div>
+
+                  {/* Simulated Preview Rendering based on active subtab */}
+                  {legalSubTab === 'security' && (
+                    <div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{securityForm.title}</h3>
+                      <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{securityForm.lastUpdated}</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '18px' }}>
+                        {(securityForm.badges || []).map(b => (
+                          <div key={b.id} style={{ backgroundColor: 'var(--bg-light)', padding: '8px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '700' }}>{b.title}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-gray)' }}>{b.desc}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {(securityForm.sections || []).map(s => (
+                        <div key={s.id} style={{ borderLeft: '2px solid var(--primary-red)', paddingLeft: '10px', marginBottom: '12px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {legalSubTab === 'privacy' && (
+                    <div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{privacyForm.title}</h3>
+                      <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{privacyForm.lastUpdated}</p>
+                      {(privacyForm.sections || []).map(s => (
+                        <div key={s.id} style={{ marginBottom: '14px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {legalSubTab === 'terms' && (
+                    <div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{termsForm.title}</h3>
+                      <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '16px' }}>{termsForm.lastUpdated}</p>
+                      {(termsForm.sections || []).map(s => (
+                        <div key={s.id} style={{ marginBottom: '14px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '4px' }}>{s.title}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-gray)', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{s.body}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {legalSubTab === 'about' && (
+                    <div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{aboutForm.title}</h3>
+                      <p style={{ fontSize: '12px', color: 'var(--primary-red)', fontWeight: '700', marginBottom: '14px' }}>{aboutForm.tagline}</p>
+                      <div style={{ backgroundColor: 'rgba(229,36,36,0.05)', padding: '12px', borderRadius: '10px', fontSize: '12px', lineHeight: '1.5', marginBottom: '14px' }}>
+                        <strong>Mission:</strong> {aboutForm.mission}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+                        {(aboutForm.stats || []).map(s => (
+                          <div key={s.id} style={{ backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '16px', fontWeight: '900', color: 'var(--primary-red)' }}>{s.value}</div>
+                            <div style={{ fontSize: '10px', fontWeight: '700' }}>{s.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {legalSubTab === 'blog' && (
+                    <div>
+                      <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '4px' }}>{blogForm.title}</h3>
+                      <p style={{ fontSize: '11px', color: 'var(--text-gray)', marginBottom: '14px' }}>{blogForm.subtitle}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {(blogForm.posts || []).slice(0, 3).map(p => (
+                          <div key={p.id} style={{ backgroundColor: 'var(--bg-light)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                            <span style={{ fontSize: '9px', fontWeight: '800', color: 'var(--primary-red)' }}>{p.category}</span>
+                            <div style={{ fontSize: '12px', fontWeight: '700', marginTop: '2px' }}>{p.title}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-gray)', marginTop: '4px' }}>{p.summary}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+
+                  {/* Simulated Contact Notice */}
+                  <div style={{
+                    marginTop: '20px',
+                    backgroundColor: 'var(--bg-light)',
+                    borderLeft: '3px solid var(--primary-red)',
+                    borderRadius: '6px',
+                    padding: '12px',
+                    fontSize: '11px',
+                    color: 'var(--text-gray)',
+                    textAlign: 'left'
+                  }}>
+                    Legal questions? Contact us at <strong style={{ color: 'var(--primary-red)' }}>
+                      {legalSubTab === 'privacy' ? (privacyForm.contactEmail || 'privacy@ilovepdf.com') : (termsForm.contactEmail || 'legal@ilovepdf.com')}
+                    </strong>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* === TAB 5: SYSTEM SETTINGS === */}
+          {activeTab === 'settings' && (
+            <div style={{ maxWidth: '720px' }}>
+              <div style={{ marginBottom: '28px' }}>
+                <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px' }}>System Control Settings</h1>
+                <p style={{ fontSize: '14px', color: 'var(--text-gray)' }}>Manage subscription price lists, server caches, and active maintenance mode overlays.</p>
+              </div>
+
+              {/* 1. Maintenance mode block */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1.5px solid var(--border-light)', borderRadius: '18px', padding: '24px', marginBottom: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ maxWidth: '420px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertTriangle size={18} color={systemSettings.maintenanceMode ? 'var(--primary-red)' : 'var(--text-gray)'} />
+                      Platform Maintenance Mode
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-gray)', lineHeight: '1.5' }}>
+                      Activating Maintenance Mode blocks standard visitors with an informational splash screen, disabling document uploads while keeping Admin controls open.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleToggleMaintenance}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '10px',
+                      border: '1.5px solid',
+                      borderColor: systemSettings.maintenanceMode ? 'var(--primary-red)' : 'var(--border-light)',
+                      backgroundColor: systemSettings.maintenanceMode ? 'rgba(229,36,36,0.06)' : 'var(--bg-card)',
+                      color: systemSettings.maintenanceMode ? 'var(--primary-red)' : 'var(--text-gray)',
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {systemSettings.maintenanceMode ? 'Deactivate Maintenance' : 'Activate Maintenance'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Parameters editing form */}
+              <div style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-light)', borderRadius: '18px', padding: '30px', boxShadow: 'var(--shadow-sm)' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-dark)', marginBottom: '24px' }}>Global Configuration Values</h3>
+
+                <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+                  {/* Pricing section */}
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px', marginBottom: '14px' }}>Licensing Pricing Rates ($)</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '700', marginBottom: '6px' }}>Premium Subscription Rate (Monthly)</label>
+                        <div style={{ position: 'relative', maxWidth: '340px' }}>
+                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light-gray)', fontSize: '14px', fontWeight: '700' }}>$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={settingsForm.monthlyPremiumPrice}
+                            onChange={e => setSettingsForm(p => ({ ...p, monthlyPremiumPrice: e.target.value }))}
+                            style={{ width: '100%', padding: '10px 12px 10px 24px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Storage & Limits section */}
+                  <div style={{ marginTop: '10px' }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-dark)', borderBottom: '1px solid var(--border-light)', paddingBottom: '8px', marginBottom: '14px' }}>Server Cache Retention Policies</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '700', marginBottom: '6px' }}>File Auto-Cleanup Lifetime</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input
+                            type="number"
+                            value={settingsForm.autoCleanupHours}
+                            onChange={e => setSettingsForm(p => ({ ...p, autoCleanupHours: e.target.value }))}
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                          />
+                          <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '700' }}>Hours</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-dark)', fontWeight: '700', marginBottom: '6px' }}>Max Target Storage Pool</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input
+                            type="number"
+                            value={settingsForm.maxStoragePoolGb}
+                            onChange={e => setSettingsForm(p => ({ ...p, maxStoragePoolGb: e.target.value }))}
+                            style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1.5px solid var(--border-light)', backgroundColor: 'var(--bg-card)', color: 'var(--text-dark)', fontSize: '14px', outline: 'none' }}
+                          />
+                          <span style={{ fontSize: '13px', color: 'var(--text-gray)', fontWeight: '700' }}>GB</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Save button and alerts */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '16px' }}>
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '12px 28px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        backgroundColor: 'var(--primary-red)',
+                        color: '#ffffff',
+                        fontWeight: '800',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 15px rgba(229, 36, 36, 0.2)'
+                      }}
+                    >
+                      <Save size={16} /> Save Configuration
+                    </button>
+                    {settingsSaved && (
+                      <span style={{ fontSize: '13px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle size={15} /> System settings saved!
+                      </span>
+                    )}
+                  </div>
+
+                </form>
+              </div>
+
+              {/* 3. Danger Zone: Format / Erase All Data */}
+              <div style={{
+                marginTop: '32px',
+                backgroundColor: 'rgba(239, 68, 68, 0.04)',
+                border: '2px solid rgba(239, 68, 68, 0.28)',
+                borderRadius: '18px',
+                padding: '28px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+                  <div style={{ maxWidth: '460px' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fee2e2', color: '#dc2626', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      <AlertTriangle size={13} /> Danger Zone
+                    </div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#dc2626', marginBottom: '6px' }}>
+                      Format & Reset Platform Data
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-gray)', lineHeight: '1.5' }}>
+                      Completely erase all user registrations, converted file records, lifetime conversion counters, and daily charts. Resets all platform statistics back to zero (<strong>0</strong>) for a brand new clean start.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowFormatModal(true)}
+                    style={{
+                      padding: '12px 24px',
                       borderRadius: '10px',
                       border: 'none',
-                      backgroundColor: 'var(--primary-red)',
+                      backgroundColor: '#dc2626',
                       color: '#ffffff',
                       fontWeight: '800',
                       fontSize: '14px',
@@ -5718,24 +7014,122 @@ export default function AdminPanel({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      boxShadow: '0 4px 15px rgba(229, 36, 36, 0.2)'
+                      boxShadow: '0 4px 14px rgba(220, 38, 38, 0.3)',
+                      transition: 'all 0.2s'
                     }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#b91c1c'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#dc2626'}
                   >
-                    <Save size={16} /> Save Configuration
+                    <Trash2 size={16} /> Format All Data
                   </button>
-                  {settingsSaved && (
-                    <span style={{ fontSize: '13px', color: '#10b981', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <CheckCircle size={15} /> System settings saved!
-                    </span>
-                  )}
                 </div>
 
-              </form>
+                {formatSuccessMsg && (
+                  <div style={{ marginTop: '16px', padding: '12px 16px', borderRadius: '10px', backgroundColor: '#ecfdf5', border: '1px solid #10b981', color: '#047857', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle size={16} /> {formatSuccessMsg}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+        </main>
+
+        {/* Format All Data Confirmation Modal */}
+        {showFormatModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px'
+          }}>
+            <div style={{
+              backgroundColor: 'var(--bg-card)',
+              border: '2px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '18px',
+              padding: '32px',
+              maxWidth: '520px',
+              width: '100%',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+              animation: 'fadeIn 0.2s ease-out'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <AlertTriangle size={26} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-dark)', margin: 0 }}>
+                    Format All Platform Data?
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#dc2626', fontWeight: '700' }}>
+                    Irreversible System Action
+                  </span>
+                </div>
+              </div>
+
+              <p style={{ fontSize: '14px', color: 'var(--text-gray)', lineHeight: '1.6', marginBottom: '20px' }}>
+                This will permanently delete <strong>all user accounts</strong>, <strong>all recent files</strong>, and reset the <strong>lifetime conversion counter</strong> and <strong>daily charts</strong> to zero (<strong>0</strong>).
+                <br /><br />
+                Are you sure you want to format all platform data and start fresh?
+              </p>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowFormatModal(false)}
+                  disabled={isFormatting}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-light)',
+                    backgroundColor: 'var(--bg-card)',
+                    color: 'var(--text-dark)',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmFormat}
+                  disabled={isFormatting}
+                  style={{
+                    padding: '10px 22px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    fontWeight: '800',
+                    fontSize: '13px',
+                    cursor: isFormatting ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
+                  }}
+                >
+                  {isFormatting ? (
+                    <>
+                      <RefreshCw size={15} className="spin" /> Formatting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={15} /> Yes, Format All Data
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}
-
-      </main>
 
       </div> {/* end admin-body-layout */}
 

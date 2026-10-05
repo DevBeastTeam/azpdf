@@ -81,53 +81,7 @@
             "avatar": "DC"
         }
     ],
-    "recentFiles": [
-        {
-            "id": 1,
-            "name": "annual_financial_report_2026.pdf",
-            "tool": "Merge PDF",
-            "size": "4.2 MB",
-            "date": "Just now",
-            "pages": 18,
-            "status": "Completed"
-        },
-        {
-            "id": 2,
-            "name": "client_contract_signed.pdf",
-            "tool": "Protect PDF",
-            "size": "1.8 MB",
-            "date": "2 hours ago",
-            "pages": 6,
-            "status": "Completed"
-        },
-        {
-            "id": 3,
-            "name": "scanned_tax_invoice.pdf",
-            "tool": "OCR PDF",
-            "size": "3.1 MB",
-            "date": "Yesterday",
-            "pages": 4,
-            "status": "Completed"
-        },
-        {
-            "id": 4,
-            "name": "company_presentation.pdf",
-            "tool": "Compress PDF",
-            "size": "12.4 MB",
-            "date": "3 days ago",
-            "pages": 24,
-            "status": "Completed"
-        },
-        {
-            "id": 5,
-            "name": "product_specs_draft.pdf",
-            "tool": "PDF to Word",
-            "size": "2.5 MB",
-            "date": "5 days ago",
-            "pages": 10,
-            "status": "Completed"
-        }
-    ],
+    "recentFiles": [],
     "toolsConfig": {
         "tool-merge": {
             "enabled": true,

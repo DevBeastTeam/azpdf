@@ -51,13 +51,25 @@ class AdminController {
                 $siteContent[$row['key']] = $val;
             }
 
+            $statsRows = Database::query('SELECT total_conversions FROM conversion_stats WHERE id = 1');
+            $totalConversions = isset($statsRows[0]['total_conversions']) ? (int) $statsRows[0]['total_conversions'] : 0;
+            $dailyRows = Database::query('SELECT date, count FROM daily_conversions ORDER BY date ASC');
+            $dailyMap = [];
+            foreach ($dailyRows as $r) {
+                $dailyMap[$r['date']] = (int) $r['count'];
+            }
+
             Response::json([
                 'usersData' => $users,
                 'recentFiles' => $files,
                 'toolsConfig' => (object) $toolsConfig,
                 'systemSettings' => $systemSettings,
                 'siteContent' => (object) $siteContent,
-                'contactMessages' => $contactMessages
+                'contactMessages' => $contactMessages,
+                'conversionStats' => [
+                    'totalConversions' => $totalConversions,
+                    'dailyConversions' => $dailyMap
+                ]
             ]);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
@@ -238,16 +250,25 @@ class AdminController {
                     'INSERT OR IGNORE INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
                     [$file['id'], $file['name'], $file['tool'], $file['size'], $file['date'], $file['pages'], $file['status']]
                 );
+                // Permanent conversion counter increment (+1) - never drops on deletion
+                Database::run('INSERT INTO conversion_stats (id, total_conversions) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET total_conversions = total_conversions + 1');
+                $convDate = !empty($file['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $file['date']) ? $file['date'] : date('Y-m-d');
+                Database::run('INSERT INTO daily_conversions (date, count) VALUES (?, 1) ON CONFLICT(date) DO UPDATE SET count = count + 1', [$convDate]);
+
+                $allFiles = Database::query('SELECT * FROM recent_files ORDER BY id DESC');
+                self::syncJsonDb('recentFiles', $allFiles);
             }
 
-            if ($files && is_array($files)) {
+            if (isset($data['files']) && is_array($data['files'])) {
                 Database::run('DELETE FROM recent_files');
-                foreach ($files as $f) {
+                foreach ($data['files'] as $f) {
                     Database::run(
                         'INSERT INTO recent_files (id, name, tool, size, date, pages, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                        [$f['id'], $f['name'], $f['tool'], $f['size'], $f['date'], $f['pages'], $f['status']]
+                        [$f['id'], $f['name'], $f['tool'], $f['size'], $f['date'] ?? date('Y-m-d'), $f['pages'] ?? 1, $f['status'] ?? 'Completed']
                     );
                 }
+                self::syncJsonDb('recentFiles', $data['files']);
+                // NOTE: When files are deleted, conversion_stats and daily_conversions remain UNCHANGED!
             }
 
             if ($users && is_array($users)) {
@@ -265,6 +286,75 @@ class AdminController {
         }
     }
 
+    public static function recordConversion(): void {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true) ?? [];
+            $convDate = !empty($data['date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data['date']) ? $data['date'] : date('Y-m-d');
+
+            Database::run('INSERT INTO conversion_stats (id, total_conversions) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET total_conversions = total_conversions + 1');
+            Database::run('INSERT INTO daily_conversions (date, count) VALUES (?, 1) ON CONFLICT(date) DO UPDATE SET count = count + 1', [$convDate]);
+
+            $statsRows = Database::query('SELECT total_conversions FROM conversion_stats WHERE id = 1');
+            $dailyRows = Database::query('SELECT date, count FROM daily_conversions ORDER BY date ASC');
+            $dailyMap = [];
+            foreach ($dailyRows as $r) {
+                $dailyMap[$r['date']] = (int) $r['count'];
+            }
+
+            $conversionStats = [
+                'totalConversions' => (int) ($statsRows[0]['total_conversions'] ?? 0),
+                'dailyConversions' => $dailyMap
+            ];
+
+            self::syncJsonDb('conversionStats', $conversionStats);
+            Response::json(['success' => true, 'conversionStats' => $conversionStats]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
+    public static function formatAllData(): void {
+        try {
+            // Delete all user accounts
+            Database::run('DELETE FROM users');
+            // Delete all recent converted files
+            Database::run('DELETE FROM recent_files');
+            // Reset lifetime conversion counter to zero (0)
+            Database::run('INSERT INTO conversion_stats (id, total_conversions) VALUES (1, 0) ON CONFLICT(id) DO UPDATE SET total_conversions = 0');
+            // Delete all daily conversion charts records
+            Database::run('DELETE FROM daily_conversions');
+            // Clear contact messages
+            Database::run('DELETE FROM contact_messages');
+            // Clear invoices & transactions
+            Database::run('DELETE FROM invoices');
+            Database::run('DELETE FROM paddle_transactions');
+
+            // Sync db.json
+            $jsonDbPath = __DIR__ . '/../db.json';
+            if (file_exists($jsonDbPath)) {
+                $fullDb = json_decode(file_get_contents($jsonDbPath), true) ?? [];
+                $fullDb['usersData'] = [];
+                $fullDb['recentFiles'] = [];
+                $fullDb['conversionStats'] = [
+                    'totalConversions' => 0,
+                    'dailyConversions' => []
+                ];
+                file_put_contents($jsonDbPath, json_encode($fullDb, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            }
+
+            Response::json([
+                'success' => true,
+                'message' => 'All platform data formatted successfully.',
+                'conversionStats' => [
+                    'totalConversions' => 0,
+                    'dailyConversions' => []
+                ]
+            ]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
     private static function syncJsonDb(string $path, $value): void {
         $jsonDbPath = __DIR__ . '/../db.json';
         if (!file_exists($jsonDbPath)) return;
@@ -276,10 +366,56 @@ class AdminController {
                 $subKey = substr($path, 12);
                 if (!isset($fullDb['siteContent'])) $fullDb['siteContent'] = [];
                 $fullDb['siteContent'][$subKey] = $value;
+            } else {
+                $fullDb[$path] = $value;
             }
             file_put_contents($jsonDbPath, json_encode($fullDb, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         } catch (Throwable $e) {
             // Ignore json sync error
         }
     }
+
+    public static function getPdfStats(): void {
+        try {
+            $range = $_GET['range'] ?? '7d';
+
+            $allFiles = Database::query('SELECT * FROM recent_files ORDER BY id DESC');
+            $totalFiles = count($allFiles);
+
+            // Filter by date range
+            $cutoff = '';
+            if ($range === '7d') {
+                $cutoff = date('Y-m-d', strtotime('-7 days'));
+            } elseif ($range === '30d') {
+                $cutoff = date('Y-m-d', strtotime('-30 days'));
+            } elseif ($range === '90d') {
+                $cutoff = date('Y-m-d', strtotime('-90 days'));
+            }
+
+            $filteredFiles = $allFiles;
+            if ($cutoff) {
+                $filteredFiles = array_filter($allFiles, function($f) use ($cutoff) {
+                    return $f['date'] >= $cutoff;
+                });
+            }
+
+            // Count by month (simplified)
+            $monthlyCounts = [0, 0, 0, 0, 0, 0];
+            foreach ($filteredFiles as $f) {
+                $monthIdx = 0; // Simplified month indexing
+                if (isset($monthlyCounts[$monthIdx])) {
+                    $monthlyCounts[$monthIdx]++;
+                }
+            }
+
+            Response::json(['success' => true, 'stats' => [
+                'totalFiles' => $totalFiles,
+                'recentFiles' => count($filteredFiles),
+                'monthlyCounts' => $monthlyCounts
+            ]]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
 }

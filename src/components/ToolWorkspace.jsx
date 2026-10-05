@@ -97,6 +97,42 @@ function SideBannerAd({ position = 'left' }) {
   );
 }
 
+// ─── Plan-based conversion limits ──────────────────────────────────────────────
+const PLAN_LIMIT_DEFAULTS = {
+  Free: { maxFilesPerTask: 1, maxFileSizeMb: 10, maxFilesPerDay: 5 },
+  Basic: { maxFilesPerTask: 5, maxFileSizeMb: 25, maxFilesPerDay: 50 },
+  Premium: { maxFilesPerTask: 20, maxFileSizeMb: 100, maxFilesPerDay: 500 }
+};
+
+const resolvePlanKey = (plan) => {
+  const p = String(plan || '').trim().toLowerCase();
+  if (p.startsWith('prem')) return 'Premium';
+  if (p.startsWith('basic') || p.startsWith('std')) return 'Basic';
+  return 'Free';
+};
+
+const dailyUsageKey = (userId) => `azpdf_plan_daily_${userId}`;
+
+const getDailyUsage = (userId) => {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(dailyUsageKey(userId)) || '{}');
+    const today = new Date().toISOString().slice(0, 10);
+    return raw.date === today ? Number(raw.count) || 0 : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const bumpDailyUsage = (userId, by) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    window.localStorage.setItem(dailyUsageKey(userId), JSON.stringify({
+      date: today,
+      count: getDailyUsage(userId) + by
+    }));
+  } catch { /* storage unavailable */ }
+};
+
 export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcessed }) {
   const context = useAppContext();
   const siteContent = context?.siteContent;
@@ -568,8 +604,43 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
 
   const uploadSizeLimitMb = toolsConfig && toolsConfig[tool.id] ? toolsConfig[tool.id].maxFileSizeMb : 50;
 
+  const currentUser = context?.currentUser;
+  // siteContent stores this flag via PHP string casting (true -> "1",
+  // false -> ""), so normalise before enforcing.
+  const planLimitsEnabled = (() => {
+    const raw = siteContent?.planLimitsEnabled;
+    if (raw === undefined || raw === null) return true;
+    return raw === true || raw === 1 || raw === '1';
+  })();
+  const currentPlanKey = resolvePlanKey(currentUser?.plan);
+  const planLimits = {
+    ...PLAN_LIMIT_DEFAULTS[currentPlanKey],
+    ...(siteContent?.planLimits?.[currentPlanKey] || {})
+  };
+  const usageUserId = currentUser?.id || currentUser?.email || 'guest';
+  const [dailyUsed, setDailyUsed] = useState(() =>
+    planLimitsEnabled ? getDailyUsage(usageUserId) : 0
+  );
+
   const addFiles = (newFiles) => {
-    const sizeLimitMb = uploadSizeLimitMb;
+    const sizeLimitMb = planLimitsEnabled
+      ? Math.min(uploadSizeLimitMb, Number(planLimits.maxFileSizeMb) || uploadSizeLimitMb)
+      : uploadSizeLimitMb;
+
+    if (planLimitsEnabled) {
+      const maxPerTask = Number(planLimits.maxFilesPerTask) || PLAN_LIMIT_DEFAULTS[currentPlanKey].maxFilesPerTask;
+      if (newFiles.length > maxPerTask) {
+        alert(`❌ ${currentPlanKey} plan limit reached!\nYour plan allows up to ${maxPerTask} file${maxPerTask > 1 ? 's' : ''} per task. You selected ${newFiles.length}.\n\nUpgrade your plan to convert more files at once.`);
+        return;
+      }
+
+      const maxPerDay = Number(planLimits.maxFilesPerDay) || PLAN_LIMIT_DEFAULTS[currentPlanKey].maxFilesPerDay;
+      const usedToday = getDailyUsage(usageUserId);
+      if (usedToday + newFiles.length > maxPerDay) {
+        alert(`❌ Daily limit reached!\nYour ${currentPlanKey} plan allows ${maxPerDay} file${maxPerDay > 1 ? 's' : ''} per day and you have already used ${usedToday}.\n\nUpgrade your plan for a higher daily allowance.`);
+        return;
+      }
+    }
 
     const oversizedFiles = newFiles.filter(file => {
       const sizeBytes = file.size !== undefined ? file.size : 1.45 * 1024 * 1024;
@@ -577,7 +648,10 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
     });
 
     if (oversizedFiles.length > 0) {
-      alert(`❌ Size limit exceeded!\nThe system administrator has limited upload file size for "${tool.title}" to a maximum of ${sizeLimitMb} MB. Please optimize your file and try again.`);
+      const limitNote = planLimitsEnabled && sizeLimitMb < uploadSizeLimitMb
+        ? `Your ${currentPlanKey} plan limit is ${sizeLimitMb} MB per file.`
+        : `The system administrator has limited upload file size for "${tool.title}" to a maximum of ${sizeLimitMb} MB.`;
+      alert(`❌ Size limit exceeded!\n${limitNote} Please optimize your file and try again.`);
       return;
     }
 
@@ -613,6 +687,10 @@ export default function ToolWorkspace({ tool, toolsConfig, onBack, onFileProcess
       setMergeOrder(updated.map((_, i) => i));
       return updated;
     });
+    if (planLimitsEnabled) {
+      bumpDailyUsage(usageUserId, parsedFiles.length);
+      setDailyUsed(getDailyUsage(usageUserId));
+    }
     setStatus('queued');
   };
 
@@ -2749,7 +2827,15 @@ startxref
                 {tool.id.includes('scan') ? 'or click upload icon to select files from device' : 'or Drag files here'}
               </p>
               <p style={{ fontSize: '12px', color: 'var(--text-light-gray)', marginTop: '8px', marginBottom: 0 }}>
-                Maximum file size: {uploadSizeLimitMb} MB
+                {planLimitsEnabled ? (
+                  <>
+                    {currentPlanKey} plan — Max {planLimits.maxFileSizeMb} MB per file,{' '}
+                    {planLimits.maxFilesPerTask} file{Number(planLimits.maxFilesPerTask) > 1 ? 's' : ''} per task,{' '}
+                    {dailyUsed}/{planLimits.maxFilesPerDay} files used today
+                  </>
+                ) : (
+                  <>Maximum file size: {uploadSizeLimitMb} MB</>
+                )}
               </p>
             </div>
           )}

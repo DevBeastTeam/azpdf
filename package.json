@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -p \"[{name}]\" -n \"Vite,PHP-Backend\" -c \"cyan.bold,magenta.bold\" \"vite\" \"php -S 0.0.0.0:5000 backend/index.php\"",
+    "dev": "node scripts/dev.js",
     "dev:client": "vite",
     "dev:server": "php -S 0.0.0.0:5000 backend/index.php",
     "dev:node": "node server/index.js",

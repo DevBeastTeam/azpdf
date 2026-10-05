@@ -120,7 +120,32 @@ class Database {
                 downloadUrl TEXT DEFAULT '#',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS conversion_stats (
+                id INTEGER PRIMARY KEY,
+                total_conversions INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS daily_conversions (
+                date TEXT PRIMARY KEY,
+                count INTEGER DEFAULT 0
+            );
         ");
+
+        // Seed conversion_stats if empty
+        $statsStmt = $pdo->query("SELECT COUNT(*) FROM conversion_stats");
+        $statsCount = (int) $statsStmt->fetchColumn();
+        if ($statsCount === 0) {
+            $pdo->exec("INSERT INTO conversion_stats (id, total_conversions) VALUES (1, 10)");
+            $today = date('Y-m-d');
+            $yesterday = date('Y-m-d', strtotime('-1 day'));
+            $twoDaysAgo = date('Y-m-d', strtotime('-2 days'));
+            $threeDaysAgo = date('Y-m-d', strtotime('-3 days'));
+            $pdo->prepare("INSERT OR IGNORE INTO daily_conversions (date, count) VALUES (?, ?)")->execute([$threeDaysAgo, 2]);
+            $pdo->prepare("INSERT OR IGNORE INTO daily_conversions (date, count) VALUES (?, ?)")->execute([$twoDaysAgo, 3]);
+            $pdo->prepare("INSERT OR IGNORE INTO daily_conversions (date, count) VALUES (?, ?)")->execute([$yesterday, 3]);
+            $pdo->prepare("INSERT OR IGNORE INTO daily_conversions (date, count) VALUES (?, ?)")->execute([$today, 2]);
+        }
 
         // Seed if users is empty
         $stmt = $pdo->query("SELECT COUNT(*) as count FROM users");

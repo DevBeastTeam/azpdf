@@ -82,6 +82,14 @@ if ($path === '/api/admin/files' && $method === 'POST') {
     AdminController::updateFiles();
 }
 
+if ($path === '/api/admin/conversion' && $method === 'POST') {
+    AdminController::recordConversion();
+}
+
+if ($path === '/api/admin/format-data' && $method === 'POST') {
+    AdminController::formatAllData();
+}
+
 // ── Contact Messages Endpoints ──────────────────────────────────────────────
 if ($path === '/api/contact' && $method === 'POST') {
     ContactController::submit();

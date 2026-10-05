@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -24,7 +24,15 @@ import {
   defaultBlogPage, 
   defaultPressPage 
 } from './data/legalPagesData';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Wrench, Lock, Moon, Sun, ShieldCheck } from 'lucide-react';
+import { 
+  getUserSession, 
+  setUserSession, 
+  clearUserSession, 
+  getAdminSession, 
+  setAdminSession, 
+  clearAdminSession 
+} from './utils/session';
 import './App.css';
 
 // ─── Global App Context ────────────────────────────────────────────────────────
@@ -264,56 +272,107 @@ function ToolPage({ toolsConfig }) {
 }
 
 // ─── Maintenance Screen ────────────────────────────────────────────────────────
-function MaintenanceScreen({ onAdminAccess }) {
-  const [showModal, setShowModal] = useState(false);
-  const [code, setCode] = useState('');
-  const [error, setError] = useState('');
+// User-facing notice only. Admins reach the panel directly at /admin, which
+// bypasses maintenance mode, so no admin affordance is exposed here.
+function MaintenanceScreen({ theme, toggleTheme, siteContent }) {
+  const tint = theme === 'dark' ? '#f8fafc' : '#1f2430';
+  const softText = theme === 'dark' ? '#94a3b8' : 'var(--text-gray)';
+  const faintText = theme === 'dark' ? '#64748b' : 'var(--text-light-gray)';
+  const cardBg = theme === 'dark' ? 'rgba(30,41,59,0.72)' : 'rgba(255,255,255,0.86)';
+  const cardBorder = theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'var(--border-light)';
+  const panelBg = theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'var(--bg-light)';
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (code === 'admin123' || code === 'admin') {
-      onAdminAccess();
-      setShowModal(false);
-    } else {
-      setError('Invalid access code. Please try again.');
-    }
-  };
+return (
+    <div role="alert" style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', background: theme === 'dark'
+        ? 'radial-gradient(1200px 620px at 12% -12%, rgba(229,36,36,0.16), transparent 60%), radial-gradient(1000px 520px at 112% 112%, rgba(79,70,229,0.18), transparent 55%), #070b14'
+        : 'radial-gradient(1200px 620px at 12% -12%, rgba(229,36,36,0.09), transparent 60%), radial-gradient(1000px 520px at 112% 112%, rgba(79,70,229,0.11), transparent 55%), var(--bg-light)', color: tint, fontFamily:'var(--font-family)', padding:'24px', textAlign:'center', position:'relative', overflow:'hidden' }}>
 
-  return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', backgroundColor:'#0f172a', color:'#f8fafc', fontFamily:'var(--font-family)', padding:'24px', textAlign:'center', position:'relative', overflow:'hidden' }}>
-      <div style={{ position:'absolute', top:'-10%', left:'-10%', width:'50%', height:'50%', background:'radial-gradient(circle, rgba(229,36,36,0.15) 0%, transparent 70%)', pointerEvents:'none' }} />
-      <div style={{ position:'absolute', bottom:'-10%', right:'-10%', width:'50%', height:'50%', background:'radial-gradient(circle, rgba(79,70,229,0.1) 0%, transparent 70%)', pointerEvents:'none' }} />
-      <div style={{ maxWidth:'600px', backgroundColor:'rgba(30,41,59,0.7)', backdropFilter:'blur(16px)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'24px', padding:'48px 40px', boxShadow:'0 25px 50px -12px rgba(0,0,0,0.5)' }}>
-        <div style={{ width:'80px', height:'80px', borderRadius:'50%', backgroundColor:'rgba(229,36,36,0.1)', color:'var(--primary-red)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'40px', marginBottom:'28px', margin:'0 auto 28px auto', animation:'pulse 2s infinite' }}>🛠️</div>
-        <h1 style={{ fontSize:'32px', fontWeight:'800', marginBottom:'16px', color:'#fff' }}>Scheduled Updates in Progress</h1>
-        <p style={{ fontSize:'16px', color:'#94a3b8', lineHeight:'1.7', marginBottom:'32px' }}>We are performing essential system maintenance and optimization on the PDF processing engine. We will be back online shortly. Thank you for your patience!</p>
-        <div style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
-          <div style={{ fontSize:'13px', color:'#64748b', fontWeight:'600' }}>Expected Down-Time: ~15 mins</div>
-          <div style={{ display:'flex', justifyContent:'center', gap:'8px' }}>
-            <span style={{ display:'inline-block', width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'var(--primary-red)', animation:'ping 1s infinite' }} />
-            <span style={{ fontSize:'12px', color:'#94a3b8' }}>Monitoring server telemetry...</span>
-          </div>
+      {/* Brand bar */}
+      <div style={{ position:'absolute', top:'0', left:'0', right:'0', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'20px clamp(16px, 4vw, 32px)', zIndex:2 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'21px', fontWeight:'900', letterSpacing:'-0.02em' }}>
+          <span style={{ color:'var(--text-dark)' }}>{siteContent?.brandPrefix || 'I'}</span>
+          <span style={{ color:'var(--primary-red)', display:'flex', alignItems:'center' }}>{siteContent?.brandIcon || '❤️'}</span>
+          <span style={{ color:'var(--text-dark)' }}>{siteContent?.brandName || 'PDF'}</span>
         </div>
-        <button onClick={() => setShowModal(true)} style={{ marginTop:'40px', fontSize:'13px', color:'#64748b', textDecoration:'underline', background:'none', border:'none', cursor:'pointer', transition:'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color='var(--primary-red)'} onMouseLeave={e => e.currentTarget.style.color='#64748b'}>
-          Access Portal (Admins Only)
-        </button>
+        {toggleTheme && (
+          <button
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:'40px', height:'40px', borderRadius:'12px', border:`1px solid ${cardBorder}`, backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--bg-card)', color: tint, cursor:'pointer', boxShadow: theme === 'dark' ? 'none' : 'var(--shadow-sm)', transition:'transform 0.15s ease' }}
+            onMouseEnter={e => e.currentTarget.style.transform='scale(1.07)'}
+            onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        )}
       </div>
-      {showModal && (
-        <div style={{ position:'fixed', inset:0, backgroundColor:'rgba(15,23,42,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, backdropFilter:'blur(8px)' }}>
-          <div style={{ backgroundColor:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'16px', padding:'30px', width:'380px', textAlign:'left' }}>
-            <h3 style={{ fontSize:'18px', fontWeight:'800', marginBottom:'14px', color:'#fff' }}>Admin Access Portal</h3>
-            <form onSubmit={handleSubmit}>
-              <label style={{ display:'block', fontSize:'12px', color:'#94a3b8', marginBottom:'6px', fontWeight:'700' }}>Enter Admin Access Code</label>
-              <input type="password" placeholder="Access Code" value={code} onChange={e => setCode(e.target.value)} autoFocus style={{ width:'100%', padding:'10px 14px', borderRadius:'8px', border:'1px solid #475569', backgroundColor:'#0f172a', color:'#fff', fontSize:'14px', outline:'none', marginBottom:'12px', boxSizing:'border-box' }} />
-              {error && <div style={{ color:'var(--primary-red)', fontSize:'12px', marginBottom:'12px', fontWeight:'600' }}>{error}</div>}
-              <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
-                <button type="button" onClick={() => { setShowModal(false); setError(''); }} style={{ padding:'8px 16px', borderRadius:'6px', backgroundColor:'#334155', color:'#94a3b8', fontSize:'13px', fontWeight:'700', border:'none', cursor:'pointer' }}>Cancel</button>
-                <button type="submit" style={{ padding:'8px 16px', borderRadius:'6px', backgroundColor:'var(--primary-red)', color:'#fff', fontSize:'13px', fontWeight:'700', border:'none', cursor:'pointer' }}>Submit Code</button>
-              </div>
-            </form>
+
+      {/* Gradient-bordered glass card */}
+      <div style={{ maxWidth:'640px', width:'100%', padding:'1px', borderRadius:'28px', background:'linear-gradient(135deg, rgba(229,36,36,0.55) 0%, rgba(79,70,229,0.4) 50%, rgba(229,36,36,0.2) 100%)', boxShadow: theme === 'dark' ? '0 30px 80px -20px rgba(0,0,0,0.7)' : '0 30px 70px -25px rgba(15,23,42,0.25)', animation:'slideUp 0.45s ease', position:'relative', zIndex:1 }}>
+        <div style={{ borderRadius:'27px', backgroundColor: cardBg, backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', padding:'clamp(34px, 6vw, 52px) clamp(24px, 5vw, 48px)', position:'relative', overflow:'hidden' }}>
+
+          {/* Status pill */}
+          <div style={{ display:'inline-flex', alignItems:'center', gap:'9px', padding:'7px 16px', borderRadius:'999px', backgroundColor:'rgba(229,36,36,0.09)', border:'1px solid rgba(229,36,36,0.25)', marginBottom:'26px' }}>
+            <span style={{ position:'relative', display:'inline-flex', width:'8px', height:'8px' }}>
+              <span style={{ position:'absolute', inset:0, borderRadius:'50%', backgroundColor:'var(--primary-red)', animation:'ping 1.5s cubic-bezier(0,0,0.2,1) infinite' }} />
+              <span style={{ position:'relative', width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'var(--primary-red)' }} />
+            </span>
+            <span style={{ fontSize:'11px', fontWeight:'800', letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--primary-red)' }}>
+              Maintenance Mode
+            </span>
+          </div>
+
+          {/* Icon */}
+          <div style={{ width:'88px', height:'88px', borderRadius:'26px', background:'linear-gradient(135deg, var(--primary-red) 0%, #b91c1c 100%)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 26px auto', boxShadow:'0 12px 30px -8px rgba(229,36,36,0.55)', animation:'pulse 2.6s ease-in-out infinite' }}>
+            <Wrench size={40} strokeWidth={1.8} />
+          </div>
+
+          <h1 style={{ fontSize:'clamp(26px, 5vw, 38px)', fontWeight:'800', marginBottom:'16px', color: theme === 'dark' ? '#fff' : 'var(--text-dark)', letterSpacing:'-0.03em', lineHeight:1.15 }}>
+            Scheduled Updates{' '}
+            <span style={{ background:'linear-gradient(120deg, var(--primary-red), #f97316)', WebkitBackgroundClip:'text', backgroundClip:'text', WebkitTextFillColor:'transparent' }}>
+              in Progress
+            </span>
+          </h1>
+          <p style={{ fontSize:'clamp(14px, 2vw, 16px)', color: softText, lineHeight:'1.75', marginBottom:'30px', maxWidth:'480px', margin:'0 auto 30px auto' }}>
+            We are performing essential system maintenance and optimization on the PDF processing engine.
+            We will be back online shortly. Thank you for your patience!
+          </p>
+
+          {/* What is happening */}
+          <div style={{ display:'flex', flexDirection:'column', gap:'11px', padding:'20px 22px', borderRadius:'18px', backgroundColor: panelBg, border:`1px solid ${cardBorder}`, textAlign:'left', marginBottom:'28px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'12px', fontSize:'14px', color: softText, fontWeight:'600' }}>
+              <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:'26px', height:'26px', borderRadius:'8px', backgroundColor:'rgba(229,36,36,0.1)', color:'var(--primary-red)', flexShrink:0 }}>
+                <Wrench size={14} />
+              </span>
+              Optimizing the PDF processing engine
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:'12px', fontSize:'14px', color: softText, fontWeight:'600' }}>
+              <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:'26px', height:'26px', borderRadius:'8px', backgroundColor:'rgba(229,36,36,0.1)', color:'var(--primary-red)', flexShrink:0 }}>
+                <Lock size={14} />
+              </span>
+              Uploads and processing are temporarily disabled
+            </div>
+          </div>
+
+          {/* Shimmer progress */}
+          <div style={{ height:'4px', borderRadius:'999px', backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'var(--border-light)', overflow:'hidden', marginBottom:'14px' }}>
+            <div style={{ height:'100%', width:'38%', borderRadius:'999px', background:'linear-gradient(90deg, transparent, var(--primary-red), #f97316, transparent)', backgroundSize:'200% 100%', animation:'shimmer 2.2s linear infinite' }} />
+          </div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:'9px', fontSize:'13px', color: softText, fontWeight:'600', marginBottom:'30px' }}>
+            <span style={{ position:'relative', display:'inline-flex', width:'7px', height:'7px' }}>
+              <span style={{ position:'absolute', inset:0, borderRadius:'50%', backgroundColor:'var(--primary-red)', animation:'ping 1.6s cubic-bezier(0,0,0.2,1) infinite' }} />
+              <span style={{ position:'relative', width:'7px', height:'7px', borderRadius:'50%', backgroundColor:'var(--primary-red)' }} />
+            </span>
+            Monitoring server telemetry...
           </div>
         </div>
-      )}
+      </div>
+
+      <div style={{ marginTop:'24px', fontSize:'12px', color: faintText, zIndex:1, display:'flex', alignItems:'center', gap:'7px' }}>
+        <ShieldCheck size={13} style={{ flexShrink:0 }} />
+        Any documents already uploaded are saved safely and will not be lost.
+      </div>
+
     </div>
   );
 }
@@ -487,30 +546,34 @@ function RequireAuthRedirect({ onRequireAuth }) {
 // ─── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [theme, setTheme] = useState('light');
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      // Clear legacy stale persistent storage keys so user starts logged out by default
-      localStorage.removeItem('azpdf_active_user');
-      localStorage.removeItem('azpdf_auth');
-      localStorage.removeItem('azpdf_user');
-      sessionStorage.removeItem('azpdf_active_user');
+  const [currentUser, setCurrentUser] = useState(() => getUserSession());
+  const [adminSession, setAdminSessionState] = useState(() => getAdminSession());
 
-      // Check sessionStorage (only persists if explicitly logged in during this active browser session)
-      const saved = sessionStorage.getItem('azpdf_user_session');
-      if (saved) {
-        const u = JSON.parse(saved);
-        if (u && u.email) return u;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
   const isLoggedIn = !!currentUser;
+  const isAdminLoggedIn = !!adminSession;
+
+  // Cross-tab and real-time session synchronization (24-hour persistence)
+  useEffect(() => {
+    const handleSync = () => {
+      setCurrentUser(getUserSession());
+      setAdminSessionState(getAdminSession());
+    };
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('azpdf_session_change', handleSync);
+
+    // Periodically verify session validity
+    const interval = setInterval(handleSync, 60000);
+
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('azpdf_session_change', handleSync);
+      clearInterval(interval);
+    };
+  }, []);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login');
-  const [bypassMaintenance, setBypassMaintenance] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -527,6 +590,7 @@ function App() {
     monthlyBusinessPrice: 12.00,
     autoCleanupEnabled: true
   });
+  const [conversionStats, setConversionStats] = useState({ totalConversions: 0, dailyConversions: {} });
   const [siteContent, setSiteContent] = useState(defaultSiteContent);
 
   // Fetch db.json data on mount
@@ -540,6 +604,7 @@ function App() {
           if (db.recentFiles) setRecentFiles(db.recentFiles);
           if (db.toolsConfig) setToolsConfig(db.toolsConfig);
           if (db.systemSettings) setSystemSettings(db.systemSettings);
+          if (db.conversionStats) setConversionStats(db.conversionStats);
           if (db.siteContent) {
             setSiteContent(prev => {
               const dbContent = db.siteContent;
@@ -597,8 +662,15 @@ function App() {
     }
   };
 
+  const recentFilesRef = useRef(recentFiles);
+  useEffect(() => {
+    recentFilesRef.current = recentFiles;
+  }, [recentFiles]);
+
   const updateRecentFiles = async (newVal) => {
-    const resolved = typeof newVal === 'function' ? newVal(recentFiles) : newVal;
+    const currentList = recentFilesRef.current || [];
+    const resolved = typeof newVal === 'function' ? newVal(currentList) : newVal;
+    recentFilesRef.current = resolved;
     setRecentFiles(resolved);
     try {
       // Persist to backend: post the full updated files list
@@ -674,13 +746,7 @@ function App() {
 
   const handleAuthSuccess = (user) => {
     setCurrentUser(user);
-    try {
-      if (user) {
-        sessionStorage.setItem('azpdf_user_session', JSON.stringify(user));
-      }
-    } catch (e) {
-      console.error(e);
-    }
+    setUserSession(user);
     if (user && user.name) {
       setUsersData(prev => {
         const exists = prev.some(u => u.email === user.email);
@@ -693,34 +759,40 @@ function App() {
   const handleLogout = () => {
     setShowLogoutModal(false);
     setCurrentUser(null);
-    try {
-      sessionStorage.removeItem('azpdf_user_session');
-      sessionStorage.removeItem('azpdf_active_user');
-      localStorage.removeItem('azpdf_active_user');
-      localStorage.removeItem('azpdf_auth');
-      localStorage.removeItem('azpdf_user');
-    } catch (e) {
-      console.error(e);
-    }
+    setAdminSessionState(null);
+    clearUserSession();
+    clearAdminSession();
     navigate('/');
   };
 
   // ── Context value ─────────────────────────────────────────────────────────────
   const addRecentFile = async (newFile) => {
+    const today = new Date().toISOString().split('T')[0];
     const entry = {
       id: Date.now(),
       name: newFile.name,
       tool: newFile.tool,
       size: newFile.size,
-      date: 'Just now',
+      date: today,
       pages: Math.floor(Math.random() * 20) + 1,
       status: 'Completed',
       userName: currentUser?.name || currentUser?.email || 'Guest',
       userId: currentUser?.id || 'guest'
     };
     setRecentFiles(prev => [entry, ...prev]);
+
+    // Permanent conversion counter increment (+1) & daily chart update in real-time
+    setConversionStats(prev => {
+      const currentTotal = (prev?.totalConversions || 0) + 1;
+      const currentDaily = {
+        ...(prev?.dailyConversions || {}),
+        [today]: ((prev?.dailyConversions || {})[today] || 0) + 1
+      };
+      return { totalConversions: currentTotal, dailyConversions: currentDaily };
+    });
+
     setUsersData(prev => {
-      const updatedUsers = prev.map(u => u.id === 1 ? { ...u, files: u.files + 1 } : u);
+      const updatedUsers = prev.map(u => u.id === (currentUser?.id || 1) ? { ...u, files: (u.files || 0) + 1 } : u);
       fetch('/api/admin/files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -730,14 +802,19 @@ function App() {
     });
   };
 
-  const contextValue = {
-    usersData, setUsersData: updateUsersData,
-    recentFiles, setRecentFiles: updateRecentFiles,
-    toolsConfig, setToolsConfig: updateToolsConfig,
-    systemSettings, setSystemSettings: updateSystemSettings,
-    siteContent, setSiteContent: updateSiteContent,
-    addRecentFile,
-    isLoggedIn,
+  const handleFormatAllData = async () => {
+    try {
+      const res = await fetch('/api/admin/format-data', { method: 'POST' });
+      if (res.ok) {
+        setUsersData([]);
+        setRecentFiles([]);
+        setConversionStats({ totalConversions: 0, dailyConversions: {} });
+        return true;
+      }
+    } catch (e) {
+      console.error('Format all data error:', e);
+    }
+    return false;
   };
 
   // ── Path & Maintenance check ──────────────────────────────────────────────
@@ -745,10 +822,42 @@ function App() {
   const isAdminPage = fullUrl.includes('admin');
   const isDashboardPage = fullUrl.includes('dashboard');
   const isDashboardOrAdmin = isDashboardPage || isAdminPage;
-  const isMaintenanceActive = systemSettings?.maintenanceMode && !bypassMaintenance && !isAdminPage;
+  const isMaintenanceActive = systemSettings?.maintenanceMode && !isAdminPage;
+
+  // Register/refresh 24-hour admin session when admin page is visited
+  useEffect(() => {
+    if (isAdminPage) {
+      setAdminSession();
+      setAdminSessionState(getAdminSession());
+    }
+  }, [isAdminPage]);
+
+  const contextValue = {
+    theme,
+    toggleTheme,
+    usersData, setUsersData: updateUsersData,
+    recentFiles, setRecentFiles: updateRecentFiles,
+    toolsConfig, setToolsConfig: updateToolsConfig,
+    systemSettings, setSystemSettings: updateSystemSettings,
+    siteContent, setSiteContent: updateSiteContent,
+    addRecentFile,
+    conversionStats,
+    setConversionStats,
+    isLoggedIn,
+    isAdminLoggedIn,
+    currentUser,
+    adminSession,
+    onLogout: handleLogout
+  };
 
   if (isMaintenanceActive) {
-    return <MaintenanceScreen onAdminAccess={() => { setBypassMaintenance(true); navigate('/admin'); }} />;
+    return (
+      <MaintenanceScreen
+        theme={theme}
+        toggleTheme={toggleTheme}
+        siteContent={siteContent}
+      />
+    );
   }
 
   const adminPanelComponent = (
@@ -765,6 +874,10 @@ function App() {
       setSiteContent={updateSiteContent}
       theme={theme}
       toggleTheme={toggleTheme}
+      onLogout={handleLogout}
+      conversionStats={conversionStats}
+      setConversionStats={setConversionStats}
+      onFormatAllData={handleFormatAllData}
     />
   );
 
@@ -778,19 +891,12 @@ function App() {
             theme={theme}
             toggleTheme={toggleTheme}
             isLoggedIn={isLoggedIn}
+            isAdminLoggedIn={isAdminLoggedIn}
             siteContent={siteContent}
             onLoginClick={handleLoginClick}
             onSignupClick={handleSignupClick}
             onLogoutClick={() => setShowLogoutModal(true)}
           />
-        )}
-
-        {/* Admin Bypass Banner */}
-        {systemSettings.maintenanceMode && bypassMaintenance && !isAdminPage && (
-          <div style={{ backgroundColor:'var(--primary-red)', color:'#fff', padding:'8px 16px', textAlign:'center', fontSize:'13px', fontWeight:'700', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', position:'sticky', top:'64px', zIndex:999 }}>
-            <span>🛠️ Maintenance Mode is Active — You are viewing the site with Admin Bypass.</span>
-            <button onClick={() => setBypassMaintenance(false)} style={{ backgroundColor:'rgba(255,255,255,0.2)', color:'#fff', padding:'2px 8px', borderRadius:'4px', fontSize:'11px', fontWeight:'800', border:'none', cursor:'pointer' }}>Exit Bypass Mode</button>
-          </div>
         )}
 
         {/* Auth Modal (Login / Signup) */}
@@ -813,10 +919,10 @@ function App() {
         <main className={isAdminPage ? "main-content admin-mode" : "main-content"} style={{ marginTop: isAdminPage ? '0px' : '64px', flex: 1 }}>
           <Routes>
             {/* Public Routes */}
-            <Route path="/" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
-            <Route path="/pricing" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
-            <Route path="/features" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
-            <Route path="/tools" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
+            <Route path="/" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn || isAdminLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
+            <Route path="/pricing" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn || isAdminLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
+            <Route path="/features" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn || isAdminLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
+            <Route path="/tools" element={isAdminPage ? adminPanelComponent : <HomePage toolsConfig={toolsConfig} siteContent={siteContent} isLoggedIn={isLoggedIn || isAdminLoggedIn} onOpenAuth={(mode) => { setAuthMode(mode); setShowAuthModal(true); }} />} />
             <Route path="/tool/:toolId" element={<ToolPage toolsConfig={toolsConfig} />} />
             <Route path="/security" element={<Security />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
