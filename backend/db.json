@@ -1,87 +1,246 @@
 {
     "usersData": [
         {
-            "id": 3,
-            "name": "Maria Garcia",
-            "email": "maria.g@outlook.com",
-            "plan": "Free",
-            "joinDate": "Mar 19, 2026",
+            "id": 110,
+            "name": "Maya Lin",
+            "email": "maya.lin@azpdf.test",
+            "plan": "Premium",
+            "joinDate": "2026-09-30",
             "status": "Active",
-            "files": 23,
-            "avatar": "MG"
+            "files": 22,
+            "avatar": "ML",
+            "phone": "+1 (555) 123-4567",
+            "bio": "Product manager compiling release documentation and PRDs.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 109,
+            "name": "Gabriel Santos",
+            "email": "gabriel.santos@azpdf.test",
+            "plan": "Business",
+            "joinDate": "2026-10-01",
+            "status": "Active",
+            "files": 37,
+            "avatar": "GS",
+            "phone": "+1 (555) 012-3456",
+            "bio": "Financial analyst converting Excel financial models and audit reports.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 108,
+            "name": "Zoe Zimmerman",
+            "email": "zoe.zimmerman@azpdf.test",
+            "plan": "Free",
+            "joinDate": "2026-10-01",
+            "status": "Active",
+            "files": 3,
+            "avatar": "ZZ",
+            "phone": "+1 (555) 901-2345",
+            "bio": "Graduate researcher combining literature reviews and thesis chapters.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 107,
+            "name": "Liam O'Connor",
+            "email": "liam.oconnor@azpdf.test",
+            "plan": "Premium",
+            "joinDate": "2026-10-03",
+            "status": "Active",
+            "files": 16,
+            "avatar": "LO",
+            "phone": "+1 (555) 890-1234",
+            "bio": "Content director publishing digital magazines and whitepapers.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 106,
+            "name": "Aisha Patel",
+            "email": "aisha.patel@azpdf.test",
+            "plan": "Free",
+            "joinDate": "2026-10-03",
+            "status": "Active",
+            "files": 6,
+            "avatar": "AP",
+            "phone": "+1 (555) 789-0123",
+            "bio": "Civil engineering consultant organizing project blueprints and schematics.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 105,
+            "name": "David Kim",
+            "email": "david.kim@azpdf.test",
+            "plan": "Business",
+            "joinDate": "2026-10-03",
+            "status": "Active",
+            "files": 42,
+            "avatar": "DK",
+            "phone": "+1 (555) 678-9012",
+            "bio": "Data engineer managing high-volume document pipelines and OCR exports.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 104,
+            "name": "Elena Rostova",
+            "email": "elena.rostova@azpdf.test",
+            "plan": "Premium",
+            "joinDate": "2026-10-04",
+            "status": "Active",
+            "files": 19,
+            "avatar": "ER",
+            "phone": "+1 (555) 567-8901",
+            "bio": "Legal advisor protecting sensitive contract agreements and disclosures.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 103,
+            "name": "Marcus Vance",
+            "email": "marcus.vance@azpdf.test",
+            "plan": "Free",
+            "joinDate": "2026-10-04",
+            "status": "Active",
+            "files": 5,
+            "avatar": "MV",
+            "phone": "+1 (555) 456-7890",
+            "bio": "Freelance copywriter converting client drafts and manuscripts.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 102,
+            "name": "Sophia Chen",
+            "email": "sophia.chen@azpdf.test",
+            "plan": "Business",
+            "joinDate": "2026-10-05",
+            "status": "Active",
+            "files": 28,
+            "avatar": "SC",
+            "phone": "+1 (555) 345-6789",
+            "bio": "Director of Operations handling batch invoice generation and client reports.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        },
+        {
+            "id": 101,
+            "name": "Alex Morgan",
+            "email": "alex.morgan@azpdf.test",
+            "plan": "Premium",
+            "joinDate": "2026-10-05",
+            "status": "Active",
+            "files": 14,
+            "avatar": "AM",
+            "phone": "+1 (555) 234-5678",
+            "bio": "Senior UX Designer working extensively with design PDFs and vector assets.",
+            "password": "$2y$10$/Shx16m4U8dbKF90tPskOuaqy9sEoBIESYym3h9PHJtqv68ol5hkW"
+        }
+    ],
+    "recentFiles": [
+        {
+            "id": 1,
+            "name": "Q3_Financial_Summary_2026.pdf",
+            "tool": "Compress PDF",
+            "size": "2.4 MB",
+            "date": "2026-10-05",
+            "pages": 14,
+            "status": "Completed"
+        },
+        {
+            "id": 2,
+            "name": "Client_NDA_Master_Execution.pdf",
+            "tool": "Protect PDF",
+            "size": "1.1 MB",
+            "date": "2026-10-05",
+            "pages": 8,
+            "status": "Completed"
+        },
+        {
+            "id": 3,
+            "name": "Product_Catalog_Fall2026.docx",
+            "tool": "Word to PDF",
+            "size": "8.7 MB",
+            "date": "2026-10-05",
+            "pages": 42,
+            "status": "Completed"
         },
         {
             "id": 4,
-            "name": "James Wilson",
-            "email": "jwilson@techcorp.io",
-            "plan": "Premium",
-            "joinDate": "Jan 30, 2026",
-            "status": "Active",
-            "files": 310,
-            "avatar": "JW"
+            "name": "Supplier_Tax_Declaration_Signed.pdf",
+            "tool": "Sign PDF",
+            "size": "540 KB",
+            "date": "2026-10-05",
+            "pages": 3,
+            "status": "Completed"
         },
         {
             "id": 5,
-            "name": "Ayesha Khan",
-            "email": "ayesha.k@webdev.pk",
-            "plan": "Premium",
-            "joinDate": "Apr 5, 2026",
-            "status": "Banned",
-            "files": 56,
-            "avatar": "AK"
+            "name": "Annual_Board_Performance_Deck.pptx",
+            "tool": "PowerPoint to PDF",
+            "size": "15.2 MB",
+            "date": "2026-10-04",
+            "pages": 28,
+            "status": "Completed"
         },
         {
             "id": 6,
-            "name": "Carlos Mendez",
-            "email": "carlos@designstudio.es",
-            "plan": "Free",
-            "joinDate": "May 10, 2026",
-            "status": "Inactive",
-            "files": 4,
-            "avatar": "CM"
+            "name": "Architectural_Master_Blueprints.pdf",
+            "tool": "Split PDF",
+            "size": "18.5 MB",
+            "date": "2026-10-04",
+            "pages": 12,
+            "status": "Completed"
         },
         {
             "id": 7,
-            "name": "Priya Sharma",
-            "email": "priya.s@infosys.in",
-            "plan": "Premium",
-            "joinDate": "Feb 22, 2026",
-            "status": "Active",
-            "files": 204,
-            "avatar": "PS"
+            "name": "Historical_Medical_Records_Scan.pdf",
+            "tool": "OCR PDF",
+            "size": "6.3 MB",
+            "date": "2026-10-03",
+            "pages": 22,
+            "status": "Completed"
         },
         {
             "id": 8,
-            "name": "Oliver Smith",
-            "email": "oliver.s@ukfirm.co.uk",
-            "plan": "Premium",
-            "joinDate": "Jun 1, 2026",
-            "status": "Active",
-            "files": 39,
-            "avatar": "OS"
+            "name": "Employee_Operations_Handbook_v3.pdf",
+            "tool": "Merge PDF",
+            "size": "4.8 MB",
+            "date": "2026-10-03",
+            "pages": 35,
+            "status": "Completed"
         },
         {
             "id": 9,
-            "name": "Fatima Al-Hassan",
-            "email": "fatima.h@arabtech.ae",
-            "plan": "Free",
-            "joinDate": "Jun 18, 2026",
-            "status": "Banned",
-            "files": 11,
-            "avatar": "FA"
+            "name": "Consolidated_Audit_Schedule.xlsx",
+            "tool": "Excel to PDF",
+            "size": "890 KB",
+            "date": "2026-10-03",
+            "pages": 5,
+            "status": "Completed"
         },
         {
             "id": 10,
-            "name": "David Chen",
-            "email": "dchen@startuplab.sg",
-            "plan": "Premium",
-            "joinDate": "Mar 8, 2026",
-            "status": "Inactive",
-            "files": 88,
-            "avatar": "DC"
+            "name": "Global_Tech_Summit_Flyers.pdf",
+            "tool": "Rotate PDF",
+            "size": "3.2 MB",
+            "date": "2026-10-01",
+            "pages": 6,
+            "status": "Completed"
+        },
+        {
+            "id": 11,
+            "name": "Vendor_Invoices_October_Batch.pdf",
+            "tool": "Organize PDF",
+            "size": "1.9 MB",
+            "date": "2026-10-01",
+            "pages": 16,
+            "status": "Completed"
+        },
+        {
+            "id": 12,
+            "name": "Legal_Discovery_Evidence_Bundle.pdf",
+            "tool": "Watermark PDF",
+            "size": "11.4 MB",
+            "date": "2026-09-30",
+            "pages": 64,
+            "status": "Completed"
         }
     ],
-    "recentFiles": [],
     "toolsConfig": {
         "tool-merge": {
             "enabled": true,
@@ -465,6 +624,22 @@
                     "body": "These Terms shall be governed by the laws of Spain. We reserve the right to update these Terms at any time. Continued use of the Service after changes are posted constitutes acceptance of the revised Terms. We will notify registered users of significant changes via email."
                 }
             ]
+        }
+    },
+    "conversionStats": {
+        "totalConversions": 163,
+        "dailyConversions": {
+            "2026-10-05": 14,
+            "2026-10-04": 9,
+            "2026-10-03": 18,
+            "2026-10-02": 6,
+            "2026-10-01": 12,
+            "2026-09-30": 8,
+            "2026-09-29": 15,
+            "2026-09-28": 7,
+            "2026-09-27": 11,
+            "2026-09-26": 5,
+            "2026-09-25": 16
         }
     }
 }

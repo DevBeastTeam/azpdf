@@ -62,6 +62,31 @@ if ($path === '/api/admin/users' && $method === 'POST') {
     AdminController::updateUsers();
 }
 
+if (preg_match('#^/api/admin/users/(\d+)$#', $path, $matches)) {
+    $userId = (int) $matches[1];
+    if ($method === 'DELETE') {
+        AdminController::deleteUser($userId);
+    } elseif ($method === 'PUT' || $method === 'POST') {
+        AdminController::updateUser();
+    }
+}
+
+if ($path === '/api/admin/users/create' && $method === 'POST') {
+    AdminController::createUser();
+}
+
+if ($path === '/api/admin/users/update' && $method === 'POST') {
+    AdminController::updateUser();
+}
+
+if ($path === '/api/admin/users/delete' && ($method === 'POST' || $method === 'DELETE')) {
+    AdminController::deleteUser();
+}
+
+if ($path === '/api/admin/users/delete-bulk' && $method === 'POST') {
+    AdminController::deleteUsersBulk();
+}
+
 if ($path === '/api/admin/tools' && $method === 'POST') {
     AdminController::updateTools();
 }
@@ -88,6 +113,10 @@ if ($path === '/api/admin/conversion' && $method === 'POST') {
 
 if ($path === '/api/admin/format-data' && $method === 'POST') {
     AdminController::formatAllData();
+}
+
+if (($path === '/api/seed' || $path === '/api/admin/seed') && ($method === 'GET' || $method === 'POST')) {
+    AdminController::seedDemoData();
 }
 
 // ── Contact Messages Endpoints ──────────────────────────────────────────────
@@ -124,6 +153,18 @@ if ($path === '/api/auth/signup' && $method === 'POST') {
 // ── User Endpoints ──────────────────────────────────────────────────────────
 if ($path === '/api/user/profile' && $method === 'POST') {
     UserController::updateProfile();
+}
+
+if ($path === '/api/user/password' && $method === 'POST') {
+    UserController::changePassword();
+}
+
+if ($path === '/api/user/delete-account' && ($method === 'POST' || $method === 'DELETE')) {
+    UserController::deleteAccount();
+}
+
+if ($path === '/api/user/account' && $method === 'DELETE') {
+    UserController::deleteAccount();
 }
 
 if ($path === '/api/user/billing' && $method === 'POST') {

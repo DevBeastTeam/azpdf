@@ -38,7 +38,8 @@ export default function AdminPanel({
   onLogout,
   conversionStats = { totalConversions: 0, dailyConversions: {} },
   setConversionStats,
-  onFormatAllData
+  onFormatAllData,
+  onSeedDemoData
 }) {
   const navigate = useNavigate();
   const onBack = () => navigate('/');
@@ -941,6 +942,12 @@ export default function AdminPanel({
     };
 
     setUsersData(prev => [newUser, ...prev]);
+    fetch('/api/admin/users/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser)
+    }).catch(err => console.error('Create user API error:', err));
+
     addLog(`Manually created user: ${newUser.name} (${newUser.email}).`, 'user');
     setShowAddUserModal(false);
     setNewUserForm({ name: '', email: '', plan: 'Free', status: 'Active' });
@@ -956,6 +963,12 @@ export default function AdminPanel({
     if (!editingUser.name || !editingUser.email) return;
 
     setUsersData(prev => prev.map(u => (u.id === editingUser.id ? editingUser : u)));
+    fetch('/api/admin/users/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingUser)
+    }).catch(err => console.error('Update user API error:', err));
+
     addLog(`Updated profile details for user: ${editingUser.name}.`, 'info');
     setEditingUser(null);
   };
@@ -969,6 +982,10 @@ export default function AdminPanel({
       const { id, name } = deleteConfirmUser;
       setUsersData(prev => prev.filter(u => u.id !== id));
       setSelectedUserIds(prev => prev.filter(x => x !== id));
+      fetch(`/api/admin/users/${id}`, {
+        method: 'DELETE'
+      }).catch(err => console.error('Delete user API error:', err));
+
       addLog(`Deleted user: ${name}.`, 'warning');
       setDeleteConfirmUser(null);
     }
@@ -1065,6 +1082,8 @@ export default function AdminPanel({
   const [showFormatModal, setShowFormatModal] = useState(false);
   const [isFormatting, setIsFormatting] = useState(false);
   const [formatSuccessMsg, setFormatSuccessMsg] = useState('');
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedSuccessMsg, setSeedSuccessMsg] = useState('');
   const [activeHoverDay, setActiveHoverDay] = useState(null);
   const [activeHoverUserDay, setActiveHoverUserDay] = useState(null);
 
@@ -1195,6 +1214,37 @@ export default function AdminPanel({
     }
   };
 
+  const handleTriggerSeed = async () => {
+    setIsSeeding(true);
+    setSeedSuccessMsg('');
+    try {
+      let resData = null;
+      if (typeof onSeedDemoData === 'function') {
+        resData = await onSeedDemoData();
+      } else {
+        const res = await fetch('/api/seed', { method: 'POST' });
+        resData = await res.json();
+        if (resData?.data) {
+          if (resData.data.usersData) setUsersData(resData.data.usersData);
+          if (resData.data.recentFiles) setRecentFiles(resData.data.recentFiles);
+          if (resData.data.conversionStats && typeof setConversionStats === 'function') {
+            setConversionStats(resData.data.conversionStats);
+          }
+        }
+      }
+      if (resData?.success) {
+        addLog('SYSTEM SEED: Populated 10 demo users, 12 activity files, and daily conversion chart metrics.', 'info');
+        setSeedSuccessMsg('Demo data seeded successfully! 10 users & conversion charts loaded.');
+        setTimeout(() => setSeedSuccessMsg(''), 5000);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error seeding demo data: ' + e.message);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   const filteredUsers = usersData.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
       u.email.toLowerCase().includes(userSearch.toLowerCase());
@@ -1230,8 +1280,16 @@ export default function AdminPanel({
 
   const handleBulkActivateUsers = () => {
     if (selectedUserIds.length === 0) return;
-    setUsersData(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, status: 'Active' } : u));
-    addLog(`Admin activated ${selectedUserIds.length} user account(s).`, 'success');
+    const ids = [...selectedUserIds];
+    setUsersData(prev => prev.map(u => ids.includes(u.id) ? { ...u, status: 'Active' } : u));
+    ids.forEach(id => {
+      fetch('/api/admin/users/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'Active' })
+      }).catch(err => console.error('Bulk activate API error:', err));
+    });
+    addLog(`Admin activated ${ids.length} user account(s).`, 'success');
   };
 
   const handleBulkDeleteUsers = () => {
@@ -1240,8 +1298,15 @@ export default function AdminPanel({
   };
 
   const confirmBulkDeleteUsers = () => {
-    setUsersData(prev => prev.filter(u => !selectedUserIds.includes(u.id)));
-    addLog(`Admin deleted ${selectedUserIds.length} user account(s) permanently.`, 'warning');
+    const idsToDelete = [...selectedUserIds];
+    setUsersData(prev => prev.filter(u => !idsToDelete.includes(u.id)));
+    fetch('/api/admin/users/delete-bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: idsToDelete })
+    }).catch(err => console.error('Bulk delete users API error:', err));
+
+    addLog(`Admin deleted ${idsToDelete.length} user account(s) permanently.`, 'warning');
     setSelectedUserIds([]);
     setBulkDeleteConfirmOpen(false);
   };
@@ -6975,6 +7040,81 @@ export default function AdminPanel({
                   </div>
 
                 </form>
+              </div>
+
+              {/* 2.5 Demo Data Seeder */}
+              <div style={{
+                marginTop: '32px',
+                backgroundColor: 'rgba(59, 130, 246, 0.04)',
+                border: '2px solid rgba(59, 130, 246, 0.28)',
+                borderRadius: '18px',
+                padding: '28px',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+                  <div style={{ maxWidth: '520px' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '8px' }}>
+                      <Database size={13} /> Demo Data Engine
+                    </div>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#1d4ed8', marginBottom: '6px' }}>
+                      Seed Demo Users &amp; Activity Metrics (/seed)
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-gray)', lineHeight: '1.5' }}>
+                      Populates <strong>10 realistic demo accounts</strong> spread across varying registration dates (2 today, 2 yesterday, 3 on day -2, 0 on day -3, 2 on day -4, 1 on day -5), 12 recent converted files across tools, and 11 days of conversion statistics.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/seed')}
+                      style={{
+                        padding: '12px 18px',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-light)',
+                        backgroundColor: 'var(--bg-card)',
+                        color: 'var(--text-dark)',
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <ExternalLink size={15} /> Open /seed
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSeeding}
+                      onClick={handleTriggerSeed}
+                      style={{
+                        padding: '12px 24px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background: isSeeding ? 'var(--text-gray)' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                        color: '#ffffff',
+                        fontWeight: '800',
+                        fontSize: '14px',
+                        cursor: isSeeding ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <RefreshCw size={16} className={isSeeding ? 'animate-spin' : ''} style={{ animation: isSeeding ? 'spin 1s linear infinite' : 'none' }} />
+                      {isSeeding ? 'Seeding Data...' : 'Seed Demo Data'}
+                    </button>
+                  </div>
+                </div>
+
+                {seedSuccessMsg && (
+                  <div style={{ marginTop: '16px', padding: '12px 16px', borderRadius: '10px', backgroundColor: '#ecfdf5', border: '1px solid #10b981', color: '#047857', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle size={16} /> {seedSuccessMsg}
+                  </div>
+                )}
               </div>
 
               {/* 3. Danger Zone: Format / Erase All Data */}

@@ -34,6 +34,17 @@ class Database {
         ];
     }
 
+    public static function syncUsersToJson(): void {
+        $jsonDbPath = __DIR__ . '/../db.json';
+        if (!file_exists($jsonDbPath)) return;
+        try {
+            $allUsers = self::query('SELECT id, name, email, plan, joinDate, status, files, avatar, phone, bio, password FROM users ORDER BY id DESC');
+            $fullDb = json_decode(file_get_contents($jsonDbPath), true) ?? [];
+            $fullDb['usersData'] = $allUsers;
+            file_put_contents($jsonDbPath, json_encode($fullDb, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        } catch (Throwable $e) {}
+    }
+
     private static function initDatabase(): void {
         $pdo = self::$pdo;
 
@@ -147,12 +158,17 @@ class Database {
             $pdo->prepare("INSERT OR IGNORE INTO daily_conversions (date, count) VALUES (?, ?)")->execute([$today, 2]);
         }
 
-        // Seed if users is empty
-        $stmt = $pdo->query("SELECT COUNT(*) as count FROM users");
-        $count = (int) $stmt->fetchColumn();
+        // Ensure phone and bio columns exist in users table
+        try {
+            $pdo->exec("ALTER TABLE users ADD COLUMN phone TEXT");
+        } catch (Throwable $e) {}
+        try {
+            $pdo->exec("ALTER TABLE users ADD COLUMN bio TEXT");
+        } catch (Throwable $e) {}
 
+        // Seed only if database is brand new
         $jsonDbPath = __DIR__ . '/../db.json';
-        if ($count === 0 && file_exists($jsonDbPath)) {
+        if ($isNew && file_exists($jsonDbPath)) {
             $jsonContent = file_get_contents($jsonDbPath);
             $seed = json_decode($jsonContent, true);
 

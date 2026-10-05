@@ -8,23 +8,106 @@ class UserController {
     public static function updateProfile(): void {
         try {
             $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $userId = $input['userId'] ?? null;
             $email = trim($input['email'] ?? '');
             $name = trim($input['name'] ?? '');
+            $phone = trim($input['phone'] ?? '');
+            $bio = trim($input['bio'] ?? '');
+            $avatar = trim($input['avatar'] ?? '');
 
-            if (!$email) {
-                Response::error('Email is required.', 400);
+            if (!$email && !$userId) {
+                Response::error('Email or User ID is required.', 400);
             }
 
             $cleanEmail = strtolower($email);
             $cleanName = $name ?: explode('@', $cleanEmail)[0];
-            $avatar = strtoupper($cleanName ? $cleanName[0] : 'U');
+            if (!$avatar) {
+                $avatar = strtoupper($cleanName ? $cleanName[0] : 'U');
+            }
 
             Database::run(
-                'UPDATE users SET name = ?, avatar = ? WHERE LOWER(email) = ?',
-                [$cleanName, $avatar, $cleanEmail]
+                'UPDATE users SET name = ?, avatar = ?, phone = ?, bio = ? WHERE id = ? OR LOWER(email) = ?',
+                [$cleanName, $avatar, $phone, $bio, $userId, $cleanEmail]
             );
 
-            Response::json(['success' => true, 'message' => 'Profile updated successfully!']);
+            Database::syncUsersToJson();
+
+            $users = Database::query(
+                'SELECT id, name, email, plan, joinDate, status, files, avatar, phone, bio FROM users WHERE id = ? OR LOWER(email) = ?',
+                [$userId, $cleanEmail]
+            );
+            $updatedUser = $users[0] ?? null;
+
+            Response::json([
+                'success' => true,
+                'message' => 'Profile updated successfully!',
+                'user' => $updatedUser
+            ]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
+    public static function changePassword(): void {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $userId = $input['userId'] ?? null;
+            $email = trim($input['email'] ?? '');
+            $currentPassword = $input['currentPassword'] ?? '';
+            $newPassword = $input['newPassword'] ?? '';
+
+            if (!$email && !$userId) {
+                Response::error('User identification (ID or email) is required.', 400);
+            }
+
+            if (strlen($newPassword) < 6) {
+                Response::error('New password must be at least 6 characters long.', 400);
+            }
+
+            $cleanEmail = strtolower($email);
+            $users = Database::query('SELECT * FROM users WHERE id = ? OR LOWER(email) = ?', [$userId, $cleanEmail]);
+
+            if (empty($users)) {
+                Response::error('User account not found.', 404);
+            }
+
+            $user = $users[0];
+
+            // If user has an existing password, verify it matches
+            if (!empty($user['password']) && $user['password'] !== $currentPassword) {
+                Response::error('Current password does not match.', 400);
+            }
+
+            Database::run('UPDATE users SET password = ? WHERE id = ?', [$newPassword, $user['id']]);
+            Database::syncUsersToJson();
+
+            Response::json([
+                'success' => true,
+                'message' => 'Password updated successfully!'
+            ]);
+        } catch (Throwable $e) {
+            Response::error($e->getMessage(), 500);
+        }
+    }
+
+    public static function deleteAccount(): void {
+        try {
+            $input = json_decode(file_get_contents('php://input'), true) ?? [];
+            $userId = $input['userId'] ?? null;
+            $email = trim($input['email'] ?? '');
+
+            if (!$userId && !$email) {
+                Response::error('User ID or email is required to delete account.', 400);
+            }
+
+            $cleanEmail = strtolower($email);
+            Database::run('DELETE FROM users WHERE id = ? OR LOWER(email) = ?', [$userId, $cleanEmail]);
+            Database::syncUsersToJson();
+
+            Response::json([
+                'success' => true,
+                'message' => 'Account deleted successfully.'
+            ]);
         } catch (Throwable $e) {
             Response::error($e->getMessage(), 500);
         }

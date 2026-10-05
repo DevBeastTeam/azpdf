@@ -191,40 +191,81 @@ export default function Dashboard({
 
   const handleProfileSave = async () => {
     try {
-      // Persist updated profile back to storage so it survives page refresh
-      const stored = getUserSession() || {};
+      const stored = getUserSession() || currentUser || {};
+      const fullName = `${profile.firstName} ${profile.lastName}`.trim();
       const updated = {
         ...stored,
-        name: `${profile.firstName} ${profile.lastName}`.trim(),
+        name: fullName,
         email: profile.email,
         phone: profile.phone,
         bio: profile.bio,
         avatar: profile.avatarInitials,
       };
       setUserSession(updated);
-      // Also persist to backend DB
-      await fetch('/api/user/profile', {
+
+      if (typeof setUsersData === 'function') {
+        setUsersData(prev => prev.map(u => {
+          if (u.id === stored.id || u.email?.toLowerCase() === profile.email?.toLowerCase()) {
+            return { ...u, name: fullName, avatar: profile.avatarInitials, phone: profile.phone, bio: profile.bio };
+          }
+          return u;
+        }));
+      }
+
+      const res = await fetch('/api/user/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: stored.id,
           email: profile.email,
-          name: `${profile.firstName} ${profile.lastName}`.trim(),
+          name: fullName,
           phone: profile.phone,
           bio: profile.bio,
+          avatar: profile.avatarInitials
         })
       });
-    } catch (e) { console.error('Profile save error:', e); }
-    setProfileSaved(true);
-    setTimeout(() => setProfileSaved(false), 2500);
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to update profile.');
+        return;
+      }
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2500);
+    } catch (e) {
+      console.error('Profile save error:', e);
+      alert('Network error while saving profile.');
+    }
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (!passwordData.current) { setPasswordMsg('Enter your current password.'); return; }
-    if (passwordData.newPass.length < 8) { setPasswordMsg('New password must be at least 8 characters.'); return; }
+    if (passwordData.newPass.length < 6) { setPasswordMsg('New password must be at least 6 characters.'); return; }
     if (passwordData.newPass !== passwordData.confirm) { setPasswordMsg('Passwords do not match.'); return; }
-    setPasswordMsg('✅ Password changed successfully!');
-    setPasswordData({ current: '', newPass: '', confirm: '' });
-    setTimeout(() => setPasswordMsg(''), 3000);
+
+    const stored = getUserSession() || currentUser || {};
+    try {
+      const res = await fetch('/api/user/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: stored.id,
+          email: profile.email || stored.email,
+          currentPassword: passwordData.current,
+          newPassword: passwordData.newPass
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setPasswordMsg(data.error || 'Failed to update password.');
+        return;
+      }
+      setPasswordMsg('✅ Password changed successfully!');
+      setPasswordData({ current: '', newPass: '', confirm: '' });
+      setTimeout(() => setPasswordMsg(''), 3500);
+    } catch (err) {
+      console.error('Password change error:', err);
+      setPasswordMsg('Server error while changing password.');
+    }
   };
 
   const handleDeleteFile = (id) => {
@@ -301,9 +342,26 @@ export default function Dashboard({
     }
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      const stored = getUserSession() || currentUser || {};
+      try {
+        await fetch('/api/user/delete-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: stored.id,
+            email: stored.email || profile.email
+          })
+        });
+      } catch (err) {
+        console.error('Delete account error:', err);
+      }
+      if (typeof setUsersData === 'function') {
+        setUsersData(prev => prev.filter(u => u.id !== stored.id && u.email?.toLowerCase() !== (stored.email || profile.email)?.toLowerCase()));
+      }
       clearUserSession();
+      alert('Your account has been deleted successfully.');
       window.location.href = '/';
     }
   };

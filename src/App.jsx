@@ -16,6 +16,7 @@ import AboutUs from './components/AboutUs';
 import Blog from './components/Blog';
 import Press from './components/Press';
 import Footer from './components/Footer';
+import SeedPage from './components/SeedPage';
 import { 
   defaultPrivacyPolicy, 
   defaultTermsAndConditions, 
@@ -648,8 +649,15 @@ function App() {
   }, []);
 
   // Sync wrappers
+  const usersDataRef = useRef(usersData);
+  useEffect(() => {
+    usersDataRef.current = usersData;
+  }, [usersData]);
+
   const updateUsersData = async (newVal) => {
-    const resolved = typeof newVal === 'function' ? newVal(usersData) : newVal;
+    const currentList = usersDataRef.current || [];
+    const resolved = typeof newVal === 'function' ? newVal(currentList) : newVal;
+    usersDataRef.current = resolved;
     setUsersData(resolved);
     try {
       await fetch('/api/admin/users', {
@@ -658,7 +666,7 @@ function App() {
         body: JSON.stringify(resolved)
       });
     } catch (e) {
-      console.error(e);
+      console.error('Failed to sync users:', e);
     }
   };
 
@@ -817,6 +825,22 @@ function App() {
     return false;
   };
 
+  const handleSeedDemoData = async () => {
+    try {
+      const res = await fetch('/api/seed', { method: 'POST' });
+      const json = await res.json();
+      if (json.success && json.data) {
+        if (json.data.usersData) setUsersData(json.data.usersData);
+        if (json.data.recentFiles) setRecentFiles(json.data.recentFiles);
+        if (json.data.conversionStats) setConversionStats(json.data.conversionStats);
+        return json;
+      }
+    } catch (e) {
+      console.error('Seed demo data error:', e);
+    }
+    return null;
+  };
+
   // ── Path & Maintenance check ──────────────────────────────────────────────
   const fullUrl = (location.pathname + location.search + location.hash).toLowerCase();
   const isAdminPage = fullUrl.includes('admin');
@@ -843,6 +867,7 @@ function App() {
     addRecentFile,
     conversionStats,
     setConversionStats,
+    onSeedDemoData: handleSeedDemoData,
     isLoggedIn,
     isAdminLoggedIn,
     currentUser,
@@ -878,6 +903,7 @@ function App() {
       conversionStats={conversionStats}
       setConversionStats={setConversionStats}
       onFormatAllData={handleFormatAllData}
+      onSeedDemoData={handleSeedDemoData}
     />
   );
 
@@ -932,6 +958,11 @@ function App() {
             <Route path="/blog"    element={<Blog />} />
             <Route path="/press"   element={<Press />} />
             <Route path="/help"    element={<HelpAndSupport />} />
+            <Route path="/seed"    element={<SeedPage onSeedComplete={(res) => {
+              if (res.data?.usersData) setUsersData(res.data.usersData);
+              if (res.data?.recentFiles) setRecentFiles(res.data.recentFiles);
+              if (res.data?.conversionStats) setConversionStats(res.data.conversionStats);
+            }} />} />
 
             {/* User Dashboard - Strictly Protected (Only visible when logged in) */}
             <Route path="/dashboard" element={
