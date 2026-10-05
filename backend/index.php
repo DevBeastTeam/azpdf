@@ -36,8 +36,12 @@ require_once __DIR__ . '/controllers/BlogController.php';
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Normalize URI
-$path = rtrim($uri, '/');
+// Normalize URI - extract /api/... even if hosted in subfolder
+if (preg_match('#(/api(?:/.*)?)$#', $uri, $matches)) {
+    $path = rtrim($matches[1], '/');
+} else {
+    $path = rtrim($uri, '/');
+}
 if ($path === '') $path = '/';
 
 // ── Health Check ────────────────────────────────────────────────────────────

@@ -7,6 +7,10 @@ class Database {
     public static function getConnection(): PDO {
         if (self::$pdo === null) {
             $dbPath = __DIR__ . '/../database.db';
+            $uploadsDir = __DIR__ . '/../uploads';
+            if (!is_dir($uploadsDir)) {
+                @mkdir($uploadsDir, 0755, true);
+            }
             $isNew = !file_exists($dbPath);
 
             self::$pdo = new PDO('sqlite:' . $dbPath);
